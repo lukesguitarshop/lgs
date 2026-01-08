@@ -10,6 +10,15 @@ builder.Services.AddSwaggerGen();
 // Register MongoDB service as singleton
 builder.Services.AddSingleton<MongoDbService>();
 
+// Register Reverb API client with HttpClient as scoped service
+builder.Services.AddHttpClient<ReverbApiClient>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(30);
+});
+
+// Register mapper service as scoped
+builder.Services.AddScoped<ReverbToGuitarMapper>();
+
 // Configure CORS
 builder.Services.AddCors(options =>
 {
