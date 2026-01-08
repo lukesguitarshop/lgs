@@ -1,0 +1,6 @@
+@GuitarDb.API_HostAddress = http://localhost:5227
+
+GET {{GuitarDb.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
