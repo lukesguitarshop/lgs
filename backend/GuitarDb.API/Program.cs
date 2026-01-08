@@ -1,11 +1,26 @@
 using GuitarDb.API.Services;
+using System.Reflection;
 
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new()
+    {
+        Version = "v1",
+        Title = "Guitar Price Database API",
+        Description = "A comprehensive API for tracking Gibson guitar prices and market data from Reverb",
+        Contact = new() { Name = "Luke's Guitar Shop", Email = "lukesguitarshop@gmail.com" }
+    });
+
+    // Include XML comments for better documentation
+    var xmlFilename = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFilename);
+    options.IncludeXmlComments(xmlPath);
+});
 
 // Register MongoDB service as singleton
 builder.Services.AddSingleton<MongoDbService>();
@@ -37,7 +52,14 @@ var app = builder.Build();
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
-    app.UseSwaggerUI();
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint("/swagger/v1/swagger.json", "Guitar Price Database API v1");
+        options.RoutePrefix = "swagger";
+        options.DocumentTitle = "Guitar Price Database API";
+        options.DefaultModelsExpandDepth(2);
+        options.DefaultModelExpandDepth(2);
+    });
 }
 
 app.UseHttpsRedirection();

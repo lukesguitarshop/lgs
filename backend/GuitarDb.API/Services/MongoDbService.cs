@@ -59,6 +59,9 @@ public class MongoDbService
 
     public async Task<Guitar> CreateGuitarAsync(Guitar guitar)
     {
+        // Clear the Id to let MongoDB auto-generate it
+        guitar.Id = null;
+
         guitar.Metadata = new GuitarMetadata
         {
             CreatedAt = DateTime.UtcNow,
