@@ -26,13 +26,14 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddSingleton<MongoDbService>();
 
 // Register Reverb API client with HttpClient as scoped service
-builder.Services.AddHttpClient<ReverbApiClient>(client =>
-{
-    client.Timeout = TimeSpan.FromSeconds(30);
-});
+// Note: ReverbApiClient and ReverbToGuitarMapper are commented out as they're not used by current endpoints
+// The scraper handles data import separately
+// builder.Services.AddHttpClient<ReverbApiClient>(client =>
+// {
+//     client.Timeout = TimeSpan.FromSeconds(30);
+// });
 
-// Register mapper service as scoped
-builder.Services.AddScoped<ReverbToGuitarMapper>();
+// builder.Services.AddScoped<ReverbToGuitarMapper>();
 
 // Configure CORS
 builder.Services.AddCors(options =>

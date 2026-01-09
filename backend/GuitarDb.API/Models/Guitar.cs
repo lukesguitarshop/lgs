@@ -9,7 +9,7 @@ public class Guitar
     [BsonRepresentation(BsonType.ObjectId)]
     public string? Id { get; set; }
 
-    [BsonElement("brand")]
+    [BsonElement("make")]
     [BsonRequired]
     public string Brand { get; set; } = string.Empty;
 
@@ -35,17 +35,11 @@ public class Guitar
     [BsonElement("priceHistory")]
     public List<PriceSnapshot>? PriceHistory { get; set; }
 
-    [BsonElement("metadata")]
-    public GuitarMetadata Metadata { get; set; } = new();
-}
-
-public class GuitarMetadata
-{
     [BsonElement("createdAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    [BsonElement("lastUpdated")]
+    [BsonElement("updatedAt")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-    public DateTime LastUpdated { get; set; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

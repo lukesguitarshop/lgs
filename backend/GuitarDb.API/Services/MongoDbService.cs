@@ -62,11 +62,8 @@ public class MongoDbService
         // Clear the Id to let MongoDB auto-generate it
         guitar.Id = null;
 
-        guitar.Metadata = new GuitarMetadata
-        {
-            CreatedAt = DateTime.UtcNow,
-            LastUpdated = DateTime.UtcNow
-        };
+        guitar.CreatedAt = DateTime.UtcNow;
+        guitar.UpdatedAt = DateTime.UtcNow;
 
         await _guitarsCollection.InsertOneAsync(guitar);
         return guitar;
@@ -99,7 +96,7 @@ public class MongoDbService
         var filter = Builders<Guitar>.Filter.Eq(g => g.Id, guitarId);
         var update = Builders<Guitar>.Update
             .Push(g => g.PriceHistory, priceSnapshot)
-            .Set(g => g.Metadata.LastUpdated, DateTime.UtcNow);
+            .Set(g => g.UpdatedAt, DateTime.UtcNow);
 
         var result = await _guitarsCollection.UpdateOneAsync(filter, update);
         return result.ModifiedCount > 0;
@@ -131,7 +128,7 @@ public class MongoDbService
 
     public async Task<bool> UpdateGuitarAsync(string id, Guitar guitar)
     {
-        guitar.Metadata.LastUpdated = DateTime.UtcNow;
+        guitar.UpdatedAt = DateTime.UtcNow;
         var filter = Builders<Guitar>.Filter.Eq(g => g.Id, id);
         var result = await _guitarsCollection.ReplaceOneAsync(filter, guitar);
         return result.ModifiedCount > 0;

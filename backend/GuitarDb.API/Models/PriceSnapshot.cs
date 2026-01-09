@@ -8,14 +8,24 @@ public class PriceSnapshot
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime Date { get; set; }
 
-    [BsonElement("source")]
-    public string Source { get; set; } = string.Empty;
+    [BsonElement("conditionPricing")]
+    public List<ConditionPricing> ConditionPricing { get; set; } = new();
 
+    [BsonElement("totalListingsScraped")]
+    public int TotalListingsScraped { get; set; }
+
+    [BsonElement("scrapedAt")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime ScrapedAt { get; set; }
+}
+
+public class ConditionPricing
+{
     [BsonElement("condition")]
-    public string? Condition { get; set; }
+    public GuitarCondition Condition { get; set; }
 
-    [BsonElement("avgPrice")]
-    public decimal? AvgPrice { get; set; }
+    [BsonElement("averagePrice")]
+    public decimal? AveragePrice { get; set; }
 
     [BsonElement("minPrice")]
     public decimal? MinPrice { get; set; }
@@ -26,31 +36,17 @@ public class PriceSnapshot
     [BsonElement("listingCount")]
     public int ListingCount { get; set; }
 
-    [BsonElement("sampleListings")]
-    public List<SimplifiedListing>? SampleListings { get; set; }
+    [BsonElement("currency")]
+    public string Currency { get; set; } = "USD";
 }
 
-public class SimplifiedListing
+public enum GuitarCondition
 {
-    [BsonElement("listingId")]
-    public string? ListingId { get; set; }
-
-    [BsonElement("title")]
-    public string? Title { get; set; }
-
-    [BsonElement("price")]
-    public decimal Price { get; set; }
-
-    [BsonElement("condition")]
-    public string? Condition { get; set; }
-
-    [BsonElement("url")]
-    public string? Url { get; set; }
-
-    [BsonElement("imageUrl")]
-    public string? ImageUrl { get; set; }
-
-    [BsonElement("listedDate")]
-    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
-    public DateTime? ListedDate { get; set; }
+    BrandNew,
+    Mint,
+    Excellent,
+    VeryGood,
+    Good,
+    Fair,
+    Poor
 }

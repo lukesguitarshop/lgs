@@ -97,3 +97,6 @@ coverage/
 
 # OS
 Thumbs.db
+
+# Frontend environment variables
+frontend/.env.local
