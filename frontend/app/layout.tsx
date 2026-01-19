@@ -17,6 +17,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Guitar Price Database",
   description: "Real-time guitar pricing data from Reverb marketplace",
+  icons: {
+    icon: "/images/logo-transparent.png",
+  },
 };
 
 export default function RootLayout({

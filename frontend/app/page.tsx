@@ -1,32 +1,46 @@
-import Link from 'next/link';
-import Image from 'next/image';
+import SearchClient from './components/SearchClient';
+
+interface Listing {
+  id: string;
+  listing_title: string;
+  description: string | null;
+  condition: string | null;
+  images: string[];
+  reverb_link: string | null;
+  price: number;
+  currency: string;
+}
+
+async function getListings(): Promise<Listing[]> {
+  try {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
+    const res = await fetch(`${apiBaseUrl}/listings`, {
+      cache: 'no-store',
+    });
+
+    if (!res.ok) {
+      console.error('Failed to fetch listings:', res.status, res.statusText);
+      return [];
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error('Error fetching listings:', error);
+    return [];
+  }
+}
 
 export default async function HomePage() {
+  const listings = await getListings();
+
   return (
-    <div className="max-w-7xl mx-auto">
-      {/* Hero Section */}
-      <section className="text-center py-16 px-4">
-        <h1 className="text-6xl font-bold text-gray-900 mb-6">
-          Luke's Guitar Shop
-        </h1>
-        <p className="text-2xl text-gray-600 max-w-3xl mx-auto mb-8">
-          Browse my collection of guitars for sale.
-        </p>
-        <div className="flex gap-4 justify-center">
-          <Link
-            href="/search"
-            className="inline-block bg-[#df5e15] hover:bg-[#c74d12] text-white text-xl font-semibold px-8 py-4 rounded-lg transition-all"
-          >
-            View Guitars
-          </Link>
-          <Link
-            href="/about"
-            className="inline-block bg-[#df5e15] hover:bg-[#c74d12] text-white text-xl font-semibold px-8 py-4 rounded-lg transition-all"
-          >
-            About
-          </Link>
-        </div>
-      </section>
+    <div className="container mx-auto px-4 py-8">
+      <SearchClient initialListings={listings} />
     </div>
   );
 }
+
+export const metadata = {
+  title: 'Luke\'s Guitar Shop',
+  description: 'Browse my current guitar listings on Reverb.',
+};

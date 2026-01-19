@@ -37,7 +37,7 @@ export default function CheckoutCancelPage() {
           Return to Cart
         </Link>
         <Link
-          href="/search"
+          href="/"
           className="inline-block bg-gray-200 hover:bg-gray-300 text-gray-800 text-lg font-semibold px-8 py-4 rounded-lg transition-all"
         >
           Continue Shopping

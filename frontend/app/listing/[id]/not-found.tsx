@@ -10,7 +10,7 @@ export default function NotFound() {
       <p className="text-gray-600 mb-8 max-w-md">
         Sorry, we couldn't find the listing you're looking for. It may have been removed or the link might be incorrect.
       </p>
-      <Link href="/search">
+      <Link href="/">
         <Button>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Listings

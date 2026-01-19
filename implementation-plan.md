@@ -105,6 +105,24 @@ Implement a shopping cart system with Stripe checkout integration for the guitar
 
 ---
 
+## Step 11: Download Photos Button on Guitar Details Page
+- [x] Add small "Download Photos" button on each guitar details page
+- [x] On click, fetch all photos for the listing
+- [x] Create a zip file with the same name as the listing title
+- [x] Name photos sequentially (1.jpg, 2.jpg, ... n.jpg) where n is the number of photos
+- [x] Trigger browser download of the zip file
+
+---
+
+## Step 12: Consolidate Search to Home Page
+- [x] Move all search functionality from search page to home page
+- [x] Remove existing content from home page
+- [x] Remove the search page entirely
+- [x] Remove search button from the top bar
+- [x] Implement about page with basic placeholder text
+
+---
+
 ## Technical Notes
 - Use localStorage for cart persistence (no auth required)
 - Stripe test mode for development

@@ -46,10 +46,10 @@ export default function Header() {
               Home
             </Link>
             <Link
-              href="/search"
+              href="/about"
               className="px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors"
             >
-              Search
+              About
             </Link>
             <Link
               href="/cart"

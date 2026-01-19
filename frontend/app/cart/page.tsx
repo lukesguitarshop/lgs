@@ -63,7 +63,7 @@ export default function CartPage() {
           Looks like you haven&apos;t added anything to your cart yet.
         </p>
         <Link
-          href="/search"
+          href="/"
           className="inline-block bg-[#df5e15] hover:bg-[#c74d12] text-white font-semibold px-8 py-4 rounded-lg transition-all"
         >
           Browse Listings
@@ -75,7 +75,7 @@ export default function CartPage() {
   return (
     <div className="max-w-4xl mx-auto">
       <Link
-        href="/search"
+        href="/"
         className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />

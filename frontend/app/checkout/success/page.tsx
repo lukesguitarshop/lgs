@@ -36,7 +36,7 @@ export default function CheckoutSuccessPage() {
       </p>
 
       <Link
-        href="/search"
+        href="/"
         className="inline-block bg-[#df5e15] hover:bg-[#c74d12] text-white text-lg font-semibold px-8 py-4 rounded-lg transition-all"
       >
         Continue Shopping

@@ -83,7 +83,7 @@ export default function CheckoutPage() {
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
         <p className="text-gray-600 mb-8">Add some items to your cart to proceed with checkout.</p>
         <Link
-          href="/search"
+          href="/"
           className="inline-block bg-[#df5e15] hover:bg-[#c74d12] text-white font-semibold px-8 py-4 rounded-lg transition-all"
         >
           Browse Listings

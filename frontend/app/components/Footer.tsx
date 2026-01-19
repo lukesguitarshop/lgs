@@ -16,10 +16,10 @@ export default function Footer() {
               Home
             </Link>
             <Link
-              href="/search"
+              href="/about"
               className="text-gray-600 hover:text-gray-900 transition-colors text-sm"
             >
-              Search
+              About
             </Link>
             <Link
               href="/admin"
