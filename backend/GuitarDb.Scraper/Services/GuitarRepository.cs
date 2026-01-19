@@ -92,6 +92,43 @@ public class GuitarRepository
         _logger.LogDebug("Appended price snapshot to guitar {GuitarId}", guitarId);
     }
 
+    public async Task UpdateImagesAsync(
+        string guitarId,
+        List<string> images,
+        CancellationToken cancellationToken = default)
+    {
+        var filter = Builders<Guitar>.Filter.Eq(g => g.Id, guitarId);
+        var update = Builders<Guitar>.Update
+            .Set(g => g.Images, images)
+            .Set(g => g.UpdatedAt, DateTime.UtcNow);
+
+        await _guitars.UpdateOneAsync(filter, update, cancellationToken: cancellationToken);
+        _logger.LogDebug("Updated images for guitar {GuitarId}", guitarId);
+    }
+
+    public async Task UpdateReverbInfoAsync(
+        string guitarId,
+        string? reverbLink,
+        decimal? shippingPrice,
+        CancellationToken cancellationToken = default)
+    {
+        var filter = Builders<Guitar>.Filter.Eq(g => g.Id, guitarId);
+        var updateBuilder = Builders<Guitar>.Update.Set(g => g.UpdatedAt, DateTime.UtcNow);
+
+        if (!string.IsNullOrEmpty(reverbLink))
+        {
+            updateBuilder = updateBuilder.Set(g => g.ReverbLink, reverbLink);
+        }
+
+        if (shippingPrice.HasValue)
+        {
+            updateBuilder = updateBuilder.Set(g => g.ShippingPrice, shippingPrice.Value);
+        }
+
+        await _guitars.UpdateOneAsync(filter, updateBuilder, cancellationToken: cancellationToken);
+        _logger.LogDebug("Updated Reverb info for guitar {GuitarId}", guitarId);
+    }
+
     public async Task<bool> HasSnapshotForDateAsync(
         string guitarId,
         DateTime date,

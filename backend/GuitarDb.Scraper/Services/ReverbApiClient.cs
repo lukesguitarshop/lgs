@@ -53,15 +53,13 @@ public class ReverbApiClient
         return output;
     }
 
-    public async Task<SearchResult> SearchGuitarsAsync(
-        string query,
-        CancellationToken cancellationToken = default)
+    public async Task<List<ReverbListing>> FetchMyListingsAsync(CancellationToken cancellationToken = default)
     {
         var allListings = new List<ReverbListing>();
         var currentPage = 1;
-        string? nextUrl = $"{_settings.BaseUrl}/listings?query={Uri.EscapeDataString(query)}&per_page={_settings.PageSize}";
+        string? nextUrl = $"{_settings.BaseUrl}/my/listings?per_page={_settings.PageSize}";
 
-        _logger.LogInformation("Starting search for: {Query}", query);
+        _logger.LogInformation("Fetching my Reverb listings...");
 
         while (!string.IsNullOrEmpty(nextUrl))
         {
@@ -79,21 +77,20 @@ public class ReverbApiClient
                     break;
                 }
 
+                // Get live listings only
                 var liveListings = reverbResponse.Listings
                     .Where(l => l.State.Slug.Equals("live", StringComparison.OrdinalIgnoreCase))
                     .ToList();
 
                 allListings.AddRange(liveListings);
 
-                _logger.LogInformation("Fetched page {Page}: {Count} listings ({Live} live, {Total} total so far)",
+                _logger.LogInformation("Page {Page}: {Count} listings ({Live} live, {Total} total)",
                     currentPage, reverbResponse.Listings.Count, liveListings.Count, allListings.Count);
 
-                // Extract next URL from HAL links (will be full URL)
                 nextUrl = reverbResponse.Links?.Next?.Href;
 
                 if (!string.IsNullOrEmpty(nextUrl))
                 {
-                    _logger.LogDebug("Rate limiting: waiting {Delay}ms before next request", _settings.RateLimitDelayMs);
                     await Task.Delay(_settings.RateLimitDelayMs, cancellationToken);
                 }
 
@@ -111,21 +108,25 @@ public class ReverbApiClient
             }
         }
 
-        _logger.LogInformation("Completed search: fetched {Total} live listings across {Pages} pages",
-            allListings.Count, currentPage - 1);
+        _logger.LogInformation("Fetched {Total} live listings", allListings.Count);
 
-        return new SearchResult
-        {
-            Listings = allListings,
-            ApiCallsMade = currentPage - 1,
-            TotalListingsFetched = allListings.Count
-        };
+        return allListings;
     }
-}
 
-public class SearchResult
-{
-    public List<ReverbListing> Listings { get; set; } = new();
-    public int ApiCallsMade { get; set; }
-    public int TotalListingsFetched { get; set; }
+    public async Task<ReverbListing?> FetchListingDetailsAsync(long listingId, CancellationToken cancellationToken = default)
+    {
+        var url = $"{_settings.BaseUrl}/listings/{listingId}";
+
+        try
+        {
+            var content = await ExecuteCurlAsync(url, cancellationToken);
+            // Individual listing endpoint returns the listing directly (not wrapped)
+            return JsonSerializer.Deserialize<ReverbListing>(content, _jsonOptions);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to fetch details for listing {ListingId}", listingId);
+            return null;
+        }
+    }
 }

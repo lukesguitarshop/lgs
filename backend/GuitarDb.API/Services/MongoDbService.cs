@@ -5,7 +5,7 @@ namespace GuitarDb.API.Services;
 
 public class MongoDbService
 {
-    private readonly IMongoCollection<Guitar> _guitarsCollection;
+    private readonly IMongoCollection<MyListing> _myListingsCollection;
     private readonly ILogger<MongoDbService> _logger;
 
     public MongoDbService(IConfiguration configuration, ILogger<MongoDbService> logger)
@@ -20,7 +20,7 @@ public class MongoDbService
 
         var client = new MongoClient(connectionString);
         var database = client.GetDatabase(databaseName);
-        _guitarsCollection = database.GetCollection<Guitar>("guitars");
+        _myListingsCollection = database.GetCollection<MyListing>("my_listings");
 
         CreateIndexesAsync().GetAwaiter().GetResult();
     }
@@ -29,24 +29,9 @@ public class MongoDbService
     {
         try
         {
-            // Create compound index on brand + model
-            var brandModelIndex = Builders<Guitar>.IndexKeys
-                .Ascending(g => g.Brand)
-                .Ascending(g => g.Model);
-            await _guitarsCollection.Indexes.CreateOneAsync(
-                new CreateIndexModel<Guitar>(brandModelIndex, new CreateIndexOptions { Name = "brand_model_idx" })
-            );
-
-            // Create index on year
-            var yearIndex = Builders<Guitar>.IndexKeys.Ascending(g => g.Year);
-            await _guitarsCollection.Indexes.CreateOneAsync(
-                new CreateIndexModel<Guitar>(yearIndex, new CreateIndexOptions { Name = "year_idx" })
-            );
-
-            // Create index on priceHistory.date
-            var priceHistoryDateIndex = Builders<Guitar>.IndexKeys.Descending("priceHistory.date");
-            await _guitarsCollection.Indexes.CreateOneAsync(
-                new CreateIndexModel<Guitar>(priceHistoryDateIndex, new CreateIndexOptions { Name = "price_history_date_idx" })
+            var scrapedAtIndex = Builders<MyListing>.IndexKeys.Descending(l => l.ScrapedAt);
+            await _myListingsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<MyListing>(scrapedAtIndex, new CreateIndexOptions { Name = "scraped_at_idx" })
             );
 
             _logger.LogInformation("MongoDB indexes created successfully");
@@ -57,87 +42,63 @@ public class MongoDbService
         }
     }
 
-    public async Task<Guitar> CreateGuitarAsync(Guitar guitar)
+    public async Task<MyListing> CreateMyListingAsync(MyListing listing)
     {
-        // Clear the Id to let MongoDB auto-generate it
-        guitar.Id = null;
+        listing.Id = null;
+        listing.ScrapedAt = DateTime.UtcNow;
 
-        guitar.CreatedAt = DateTime.UtcNow;
-        guitar.UpdatedAt = DateTime.UtcNow;
-
-        await _guitarsCollection.InsertOneAsync(guitar);
-        return guitar;
+        await _myListingsCollection.InsertOneAsync(listing);
+        return listing;
     }
 
-    public async Task<List<Guitar>> GetAllGuitarsAsync()
+    public async Task<List<MyListing>> GetAllMyListingsAsync()
     {
-        return await _guitarsCollection.Find(_ => true).ToListAsync();
+        return await _myListingsCollection.Find(_ => true)
+            .SortByDescending(l => l.ScrapedAt)
+            .ToListAsync();
     }
 
-    public async Task<List<Guitar>> GetGuitarsByBrandAsync(string brand)
+    public async Task<MyListing?> GetMyListingByIdAsync(string id)
     {
-        var filter = Builders<Guitar>.Filter.Eq(g => g.Brand, brand);
-        return await _guitarsCollection.Find(filter).ToListAsync();
+        var filter = Builders<MyListing>.Filter.Eq(l => l.Id, id);
+        return await _myListingsCollection.Find(filter).FirstOrDefaultAsync();
     }
 
-    public async Task<Guitar?> GetGuitarByModelAndYearAsync(string model, int? year)
+    public async Task<List<MyListing>> GetListingsByIdsAsync(IEnumerable<string> ids)
     {
-        var filterBuilder = Builders<Guitar>.Filter;
-        var filter = filterBuilder.And(
-            filterBuilder.Eq(g => g.Model, model),
-            filterBuilder.Eq(g => g.Year, year)
-        );
-
-        return await _guitarsCollection.Find(filter).FirstOrDefaultAsync();
+        var filter = Builders<MyListing>.Filter.In(l => l.Id, ids);
+        return await _myListingsCollection.Find(filter).ToListAsync();
     }
 
-    public async Task<bool> AddPriceSnapshotAsync(string guitarId, PriceSnapshot priceSnapshot)
-    {
-        var filter = Builders<Guitar>.Filter.Eq(g => g.Id, guitarId);
-        var update = Builders<Guitar>.Update
-            .Push(g => g.PriceHistory, priceSnapshot)
-            .Set(g => g.UpdatedAt, DateTime.UtcNow);
-
-        var result = await _guitarsCollection.UpdateOneAsync(filter, update);
-        return result.ModifiedCount > 0;
-    }
-
-    public async Task<List<Guitar>> SearchGuitarsAsync(string query)
+    public async Task<List<MyListing>> SearchMyListingsAsync(string query)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
-            return await GetAllGuitarsAsync();
+            return await GetAllMyListingsAsync();
         }
 
-        var filterBuilder = Builders<Guitar>.Filter;
+        var filterBuilder = Builders<MyListing>.Filter;
         var filter = filterBuilder.Or(
-            filterBuilder.Regex(g => g.Brand, new MongoDB.Bson.BsonRegularExpression(query, "i")),
-            filterBuilder.Regex(g => g.Model, new MongoDB.Bson.BsonRegularExpression(query, "i")),
-            filterBuilder.Regex(g => g.Finish, new MongoDB.Bson.BsonRegularExpression(query, "i")),
-            filterBuilder.Regex(g => g.Category, new MongoDB.Bson.BsonRegularExpression(query, "i"))
+            filterBuilder.Regex(l => l.ListingTitle, new MongoDB.Bson.BsonRegularExpression(query, "i")),
+            filterBuilder.Regex(l => l.Description, new MongoDB.Bson.BsonRegularExpression(query, "i"))
         );
 
-        return await _guitarsCollection.Find(filter).ToListAsync();
+        return await _myListingsCollection.Find(filter)
+            .SortByDescending(l => l.ScrapedAt)
+            .ToListAsync();
     }
 
-    public async Task<Guitar?> GetGuitarByIdAsync(string id)
+    public async Task<bool> UpdateMyListingAsync(string id, MyListing listing)
     {
-        var filter = Builders<Guitar>.Filter.Eq(g => g.Id, id);
-        return await _guitarsCollection.Find(filter).FirstOrDefaultAsync();
-    }
-
-    public async Task<bool> UpdateGuitarAsync(string id, Guitar guitar)
-    {
-        guitar.UpdatedAt = DateTime.UtcNow;
-        var filter = Builders<Guitar>.Filter.Eq(g => g.Id, id);
-        var result = await _guitarsCollection.ReplaceOneAsync(filter, guitar);
+        var filter = Builders<MyListing>.Filter.Eq(l => l.Id, id);
+        var result = await _myListingsCollection.ReplaceOneAsync(filter, listing);
         return result.ModifiedCount > 0;
     }
 
-    public async Task<bool> DeleteGuitarAsync(string id)
+    public async Task<bool> DeleteMyListingAsync(string id)
     {
-        var filter = Builders<Guitar>.Filter.Eq(g => g.Id, id);
-        var result = await _guitarsCollection.DeleteOneAsync(filter);
+        var filter = Builders<MyListing>.Filter.Eq(l => l.Id, id);
+        var result = await _myListingsCollection.DeleteOneAsync(filter);
         return result.DeletedCount > 0;
     }
 }

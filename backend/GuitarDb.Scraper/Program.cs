@@ -1,4 +1,4 @@
-﻿using GuitarDb.Scraper.Configuration;
+using GuitarDb.Scraper.Configuration;
 using GuitarDb.Scraper.Services;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -28,14 +28,13 @@ var host = Host.CreateDefaultBuilder(args)
         if (string.IsNullOrEmpty(mongoSettings.ConnectionString))
             throw new InvalidOperationException("MongoDB ConnectionString is required");
         if (string.IsNullOrEmpty(reverbSettings.ApiKey) || reverbSettings.ApiKey == "YOUR_API_KEY_HERE")
-            throw new InvalidOperationException("Reverb API Key is required. Please set it in appsettings.json or environment variables.");
+            throw new InvalidOperationException("Reverb API Key is required");
 
         services.AddSingleton(mongoSettings);
         services.AddSingleton(reverbSettings);
 
-        services.AddSingleton<GuitarRepository>();
+        services.AddSingleton<MyListingRepository>();
         services.AddSingleton<ReverbApiClient>();
-        services.AddSingleton<PriceAggregationService>();
         services.AddSingleton<ScraperOrchestrator>();
     })
     .ConfigureLogging(logging =>
@@ -49,52 +48,45 @@ var host = Host.CreateDefaultBuilder(args)
 var orchestrator = host.Services.GetRequiredService<ScraperOrchestrator>();
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
-// Parse command line arguments
-var options = ScraperOptions.Parse(args);
-var query = options.BuildQuery();
-
-logger.LogInformation("Guitar Price Scraper");
-logger.LogInformation("Parameters: {Options}", options);
-
-// Show usage help if requested
+// Check for --help flag
 if (args.Contains("--help") || args.Contains("-h"))
 {
     PrintHelp();
     return 0;
 }
 
+// Check for --keep flag (don't clear existing listings)
+var clearExisting = !args.Contains("--keep");
+
 try
 {
-    logger.LogInformation("Starting scraper with query: {Query}", query);
-    await orchestrator.RunAsync(query);
+    logger.LogInformation("Shop Listing Scraper");
+    logger.LogInformation("Clear existing: {Clear}", clearExisting);
+    
+    await orchestrator.RunAsync(clearExisting);
+    
     logger.LogInformation("Scraper completed successfully");
     return 0;
 }
 catch (Exception ex)
 {
-    logger.LogError(ex, "Scraper failed with unhandled exception");
+    logger.LogError(ex, "Scraper failed");
     return 1;
 }
 
 static void PrintHelp()
 {
     Console.WriteLine();
-    Console.WriteLine("Guitar Price Scraper - Usage:");
+    Console.WriteLine("Shop Listing Scraper - Usage:");
     Console.WriteLine();
-    Console.WriteLine("  dotnet run [brand] [options]");
-    Console.WriteLine();
-    Console.WriteLine("Arguments:");
-    Console.WriteLine("  brand              Brand to scrape (default: Gibson)");
+    Console.WriteLine("  dotnet run [options]");
     Console.WriteLine();
     Console.WriteLine("Options:");
-    Console.WriteLine("  --brand=<name>     Brand name (e.g., --brand=Fender)");
-    Console.WriteLine("  --model=<name>     Specific model to scrape (e.g., --model='Les Paul')");
-    Console.WriteLine("  --help, -h         Show this help message");
+    Console.WriteLine("  --keep         Don't clear existing listings before scraping");
+    Console.WriteLine("  --help, -h     Show this help message");
     Console.WriteLine();
     Console.WriteLine("Examples:");
-    Console.WriteLine("  dotnet run");
-    Console.WriteLine("  dotnet run Fender");
-    Console.WriteLine("  dotnet run --brand=Gibson --model='Les Paul'");
-    Console.WriteLine("  dotnet run --brand=Fender --model=Stratocaster");
+    Console.WriteLine("  dotnet run              # Scrape and replace all listings");
+    Console.WriteLine("  dotnet run --keep       # Scrape and append to existing listings");
     Console.WriteLine();
 }

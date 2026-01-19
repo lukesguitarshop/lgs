@@ -23,6 +23,15 @@ public class Guitar
     [BsonElement("category")]
     public string Category { get; set; } = "Electric";
 
+    [BsonElement("images")]
+    public List<string> Images { get; set; } = new();
+
+    [BsonElement("reverbLink")]
+    public string? ReverbLink { get; set; }
+
+    [BsonElement("shippingPrice")]
+    public decimal? ShippingPrice { get; set; }
+
     [BsonElement("priceHistory")]
     public List<PriceSnapshot> PriceHistory { get; set; } = new();
 

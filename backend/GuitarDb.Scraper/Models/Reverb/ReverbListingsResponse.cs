@@ -25,3 +25,9 @@ public class ReverbLink
     [JsonPropertyName("href")]
     public string Href { get; set; } = string.Empty;
 }
+
+public class ReverbSingleListingResponse
+{
+    [JsonPropertyName("listing")]
+    public ReverbListing? Listing { get; set; }
+}

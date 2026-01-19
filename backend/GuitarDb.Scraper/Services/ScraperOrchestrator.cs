@@ -1,4 +1,5 @@
 using GuitarDb.Scraper.Models.Domain;
+using GuitarDb.Scraper.Models.Reverb;
 using Microsoft.Extensions.Logging;
 
 namespace GuitarDb.Scraper.Services;
@@ -6,153 +7,120 @@ namespace GuitarDb.Scraper.Services;
 public class ScraperOrchestrator
 {
     private readonly ReverbApiClient _apiClient;
-    private readonly GuitarRepository _repository;
-    private readonly PriceAggregationService _aggregationService;
+    private readonly MyListingRepository _repository;
     private readonly ILogger<ScraperOrchestrator> _logger;
+    private readonly int _rateLimitDelayMs;
 
     public ScraperOrchestrator(
         ReverbApiClient apiClient,
-        GuitarRepository repository,
-        PriceAggregationService aggregationService,
+        MyListingRepository repository,
         ILogger<ScraperOrchestrator> logger)
     {
         _apiClient = apiClient;
         _repository = repository;
-        _aggregationService = aggregationService;
         _logger = logger;
+        _rateLimitDelayMs = 500;
     }
 
-    public async Task RunAsync(string query, CancellationToken cancellationToken = default)
+    public async Task RunAsync(bool clearExisting = true, CancellationToken cancellationToken = default)
     {
         var startTime = DateTime.UtcNow;
 
-        _logger.LogInformation("===== Starting Guitar Price Scraper =====");
-        _logger.LogInformation("Query: {Query}", query);
+        _logger.LogInformation("===== Starting My Listings Scraper =====");
         _logger.LogInformation("Start Time: {Time:yyyy-MM-dd HH:mm:ss} UTC", startTime);
-
-        var stats = new ScraperStats { StartTime = startTime };
 
         try
         {
-            _logger.LogInformation("Step 1: Fetching listings from Reverb API...");
-            var searchResult = await _apiClient.SearchGuitarsAsync(query, cancellationToken);
-            stats.TotalListingsFetched = searchResult.TotalListingsFetched;
-            stats.ApiCallsMade = searchResult.ApiCallsMade;
-
-            if (searchResult.Listings.Count == 0)
+            // Step 1: Clear existing listings if requested
+            if (clearExisting)
             {
-                _logger.LogWarning("No listings found for query: {Query}", query);
-                PrintSummary(stats);
+                _logger.LogInformation("Step 1: Clearing existing listings...");
+                await _repository.ClearAllAsync(cancellationToken);
+            }
+
+            // Step 2: Fetch my listings from Reverb (summary data)
+            _logger.LogInformation("Step 2: Fetching my listings from Reverb...");
+            var reverbListings = await _apiClient.FetchMyListingsAsync(cancellationToken);
+
+            if (reverbListings.Count == 0)
+            {
+                _logger.LogWarning("No live listings found");
+                PrintSummary(startTime, 0, 0);
                 return;
             }
 
-            _logger.LogInformation("Step 2: Grouping listings by guitar (Make + Model + Year)...");
-            var guitarGroups = _aggregationService.GroupByGuitar(searchResult.Listings);
-            stats.TotalGuitars = guitarGroups.Count;
+            // Step 3: Fetch full details for each listing to get all photos
+            _logger.LogInformation("Step 3: Fetching full details for {Count} listings...", reverbListings.Count);
+            var myListings = new List<MyListing>();
+            var totalPhotos = 0;
 
-            _logger.LogInformation("Step 3: Processing {Count} unique guitars...", guitarGroups.Count);
-
-            var processed = 0;
-            foreach (var (key, guitarListings) in guitarGroups)
+            for (var i = 0; i < reverbListings.Count; i++)
             {
-                processed++;
+                var listing = reverbListings[i];
+                _logger.LogInformation("  [{Current}/{Total}] Fetching details for: {Title}",
+                    i + 1, reverbListings.Count, listing.Title);
 
-                try
+                var detailedListing = await _apiClient.FetchListingDetailsAsync(listing.Id, cancellationToken);
+
+                if (detailedListing != null)
                 {
-                    var parts = key.Split('|');
-                    var make = parts[0];
-                    var model = parts[1];
-                    var yearStr = parts[2];
-                    var year = yearStr == "Unknown" ? (int?)null : int.Parse(yearStr);
-
-                    _logger.LogInformation("[{Current}/{Total}] Processing: {Make} {Model} ({Year})",
-                        processed, guitarGroups.Count, make, model, year?.ToString() ?? "Unknown Year");
-
-                    var snapshot = _aggregationService.CalculatePriceSnapshot(guitarListings);
-                    _logger.LogDebug("  - Calculated prices for {Count} listings", guitarListings.Count);
-
-                    var guitar = await _repository.FindByUniqueKeyAsync(make, model, year, cancellationToken);
-
-                    if (guitar == null)
-                    {
-                        guitar = new Guitar
-                        {
-                            Make = make,
-                            Model = model,
-                            Year = year,
-                            PriceHistory = new List<PriceSnapshot> { snapshot }
-                        };
-
-                        guitar = await _repository.UpsertGuitarAsync(guitar, cancellationToken);
-                        stats.GuitarsCreated++;
-                        _logger.LogInformation("  - Created new guitar document");
-                    }
-                    else
-                    {
-                        await _repository.AppendPriceSnapshotAsync(guitar.Id, snapshot, cancellationToken);
-                        stats.GuitarsUpdated++;
-                        _logger.LogInformation("  - Appended snapshot to existing guitar");
-                    }
-
-                    stats.GuitarsProcessed++;
+                    var myListing = ConvertToMyListing(detailedListing);
+                    myListings.Add(myListing);
+                    totalPhotos += myListing.Images.Count;
+                    _logger.LogDebug("    Found {PhotoCount} photos", myListing.Images.Count);
                 }
-                catch (Exception ex)
+                else
                 {
-                    stats.Errors++;
-                    _logger.LogError(ex, "  - Error processing guitar: {Key}", key);
+                    // Fall back to summary data if detail fetch fails
+                    var myListing = ConvertToMyListing(listing);
+                    myListings.Add(myListing);
+                    totalPhotos += myListing.Images.Count;
+                    _logger.LogWarning("    Using summary data ({PhotoCount} photos)", myListing.Images.Count);
+                }
+
+                // Rate limit between requests
+                if (i < reverbListings.Count - 1)
+                {
+                    await Task.Delay(_rateLimitDelayMs, cancellationToken);
                 }
             }
 
-            stats.EndTime = DateTime.UtcNow;
-            PrintSummary(stats);
+            // Step 4: Save to database
+            _logger.LogInformation("Step 4: Saving {Count} listings to database...", myListings.Count);
+            await _repository.InsertManyAsync(myListings, cancellationToken);
+
+            PrintSummary(startTime, myListings.Count, totalPhotos);
         }
         catch (Exception ex)
         {
-            stats.EndTime = DateTime.UtcNow;
-            _logger.LogError(ex, "Fatal error during scraping");
-            PrintSummary(stats);
+            _logger.LogError(ex, "Scraper failed with error");
             throw;
         }
     }
 
-    private void PrintSummary(ScraperStats stats)
+    private MyListing ConvertToMyListing(ReverbListing reverb)
     {
-        var duration = stats.EndTime - stats.StartTime;
-
-        _logger.LogInformation("");
-        _logger.LogInformation("╔═══════════════════════════════════════════════════════════════╗");
-        _logger.LogInformation("║              GUITAR PRICE SCRAPER SUMMARY                     ║");
-        _logger.LogInformation("╠═══════════════════════════════════════════════════════════════╣");
-        _logger.LogInformation("║ API Statistics:                                               ║");
-        _logger.LogInformation("║   • API Calls Made: {ApiCalls,-45} ║", stats.ApiCallsMade);
-        _logger.LogInformation("║   • Total Listings Fetched: {Listings,-36} ║", stats.TotalListingsFetched);
-        _logger.LogInformation("║                                                               ║");
-        _logger.LogInformation("║ Guitar Statistics:                                            ║");
-        _logger.LogInformation("║   • Unique Guitars Found: {Guitars,-38} ║", stats.TotalGuitars);
-        _logger.LogInformation("║   • New Guitars Created: {Created,-39} ║", stats.GuitarsCreated);
-        _logger.LogInformation("║   • Existing Guitars Updated: {Updated,-34} ║", stats.GuitarsUpdated);
-        _logger.LogInformation("║   • Guitars Skipped: {Skipped,-43} ║", stats.GuitarsSkipped);
-        _logger.LogInformation("║   • Processing Errors: {Errors,-41} ║", stats.Errors);
-        _logger.LogInformation("║                                                               ║");
-        _logger.LogInformation("║ Timing:                                                       ║");
-        _logger.LogInformation("║   • Start Time: {Start,-48} ║", stats.StartTime.ToString("yyyy-MM-dd HH:mm:ss") + " UTC");
-        _logger.LogInformation("║   • End Time: {End,-50} ║", stats.EndTime.ToString("yyyy-MM-dd HH:mm:ss") + " UTC");
-        _logger.LogInformation("║   • Duration: {Duration,-48} ║", $"{duration.Minutes}m {duration.Seconds}s");
-        _logger.LogInformation("╚═══════════════════════════════════════════════════════════════╝");
-        _logger.LogInformation("");
+        return new MyListing
+        {
+            ListingTitle = reverb.Title,
+            Description = reverb.Description,
+            Images = reverb.AllImageUrls,
+            ReverbLink = reverb.ListingUrl,
+            Condition = reverb.Condition?.DisplayName,
+            Price = reverb.Price?.Amount ?? 0,
+            Currency = reverb.Price?.Currency ?? "USD",
+            ScrapedAt = DateTime.UtcNow
+        };
     }
 
-    private class ScraperStats
+    private void PrintSummary(DateTime startTime, int listingsCount, int totalPhotos)
     {
-        public DateTime StartTime { get; set; }
-        public DateTime EndTime { get; set; }
-        public int ApiCallsMade { get; set; }
-        public int TotalListingsFetched { get; set; }
-        public int TotalGuitars { get; set; }
-        public int GuitarsProcessed { get; set; }
-        public int GuitarsCreated { get; set; }
-        public int GuitarsUpdated { get; set; }
-        public int GuitarsSkipped { get; set; }
-        public int Errors { get; set; }
+        var duration = DateTime.UtcNow - startTime;
+        _logger.LogInformation("");
+        _logger.LogInformation("===== SCRAPER SUMMARY =====");
+        _logger.LogInformation("Listings Scraped: {Count}", listingsCount);
+        _logger.LogInformation("Total Photos: {Photos}", totalPhotos);
+        _logger.LogInformation("Duration: {Duration}", duration);
+        _logger.LogInformation("===========================");
     }
 }
