@@ -1,18 +1,10 @@
-# Guitar Price Database
+# Luke's Guitar Shop
 
 A comprehensive price tracking system for Gibson guitars, leveraging real-time market data from Reverb to help collectors, dealers, and enthusiasts make informed buying and selling decisions.
 
 ## Overview
 
-This project tracks historical and current pricing data for Gibson guitars using the Reverb API. The system automatically scrapes guitar listings, stores them in MongoDB, and provides a modern web interface for analyzing price trends and market patterns.
-
-## Features
-
-- **Automated Data Collection**: Scheduled scraping of guitar listings from Reverb marketplace
-- **Historical Price Tracking**: Track price changes over time for specific models
-- **Market Analysis**: View trends, average prices, and price ranges by model and year
-- **RESTful API**: Access guitar data programmatically
-- **Modern Web Interface**: Interactive Next.js frontend for browsing and analyzing data
+Reverb style shop page with a scraper that pulls Luke's Guitar Shop Listings from the reverb.
 
 ## Tech Stack
 
