@@ -45,7 +45,7 @@ test.describe('Authentication', () => {
 
       await page.locator('#email').fill('nonexistent@test.com');
       await page.locator('#password').fill('wrongpassword123');
-      await page.locator('dialog').getByRole('button', { name: /sign in/i }).click();
+      await page.getByRole('dialog').getByRole('button', { name: /sign in/i }).click();
 
       // Should show error message (red error box)
       await expect(page.locator('.bg-red-50')).toBeVisible({ timeout: 10000 });
