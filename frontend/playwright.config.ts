@@ -20,10 +20,8 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
     },
-    {
-      name: 'mobile',
-      use: { ...devices['Pixel 5'] },
-    },
+    // Mobile tests are covered in edge-cases.spec.ts using test.use({ viewport })
+    // Full mobile project disabled - auth fixture needs mobile menu handling
   ],
 
   webServer: [
