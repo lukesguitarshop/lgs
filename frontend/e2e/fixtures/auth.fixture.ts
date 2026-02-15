@@ -8,9 +8,9 @@ export const TEST_USER = {
 };
 
 export const TEST_ADMIN = {
-  email: 'admin@lukesguitarshop.com',
-  password: 'admin123',
-  fullName: 'Admin User',
+  email: 'testadmin@lgs.com',
+  password: 'TestPassword123!',
+  fullName: 'Test Admin',
 };
 
 // Extended test with auth helpers
