@@ -22,11 +22,15 @@ export const test = base.extend<{
   loginAsUser: async ({ page }, use) => {
     const login = async () => {
       await page.goto('/');
-      await page.getByRole('button', { name: /login/i }).click();
-      await page.getByLabel(/email/i).fill(TEST_USER.email);
-      await page.getByLabel(/password/i).fill(TEST_USER.password);
+      // Click "Sign In" button to open login modal
       await page.getByRole('button', { name: /sign in/i }).click();
-      await expect(page.getByRole('button', { name: /profile/i })).toBeVisible({ timeout: 10000 });
+      // Fill login form in modal
+      await page.locator('#email').fill(TEST_USER.email);
+      await page.locator('#password').fill(TEST_USER.password);
+      // Submit form
+      await page.getByRole('button', { name: /sign in/i }).click();
+      // Wait for profile button (User icon) to appear
+      await expect(page.locator('nav button:has(svg)')).toBeVisible({ timeout: 10000 });
     };
     await use(login);
   },
@@ -34,20 +38,24 @@ export const test = base.extend<{
   loginAsAdmin: async ({ page }, use) => {
     const login = async () => {
       await page.goto('/');
-      await page.getByRole('button', { name: /login/i }).click();
-      await page.getByLabel(/email/i).fill(TEST_ADMIN.email);
-      await page.getByLabel(/password/i).fill(TEST_ADMIN.password);
       await page.getByRole('button', { name: /sign in/i }).click();
-      await expect(page.getByRole('button', { name: /profile/i })).toBeVisible({ timeout: 10000 });
+      await page.locator('#email').fill(TEST_ADMIN.email);
+      await page.locator('#password').fill(TEST_ADMIN.password);
+      await page.getByRole('button', { name: /sign in/i }).click();
+      // Wait for profile button (User icon) to appear
+      await expect(page.locator('nav button:has(svg)')).toBeVisible({ timeout: 10000 });
     };
     await use(login);
   },
 
   logout: async ({ page }, use) => {
     const logout = async () => {
-      await page.getByRole('button', { name: /profile/i }).click();
-      await page.getByRole('menuitem', { name: /logout/i }).click();
-      await expect(page.getByRole('button', { name: /login/i })).toBeVisible();
+      // Click profile button (User icon)
+      await page.locator('nav button:has(svg)').click();
+      // Click Sign Out
+      await page.getByRole('menuitem', { name: /sign out/i }).click();
+      // Wait for Sign In button to reappear
+      await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
     };
     await use(logout);
   },
