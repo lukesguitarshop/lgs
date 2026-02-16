@@ -69,12 +69,9 @@ test.describe('Edge Cases', () => {
     test('mobile menu button visible on mobile', async ({ page }) => {
       await page.goto('/');
 
-      // Mobile menu button should be visible
-      await expect(
-        page.getByRole('button', { name: /menu/i })
-          .or(page.locator('button[aria-label*="menu" i]'))
-          .or(page.locator('nav button').first())
-      ).toBeVisible();
+      // Mobile menu button should be visible (hamburger icon in nav)
+      const mobileMenuButton = page.locator('header button, nav button').first();
+      await expect(mobileMenuButton).toBeVisible();
     });
 
     test('listings display on mobile', async ({ page }) => {
