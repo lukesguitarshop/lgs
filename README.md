@@ -1,18 +1,10 @@
-# Guitar Price Database
+# Luke's Guitar Shop
 
 A comprehensive price tracking system for Gibson guitars, leveraging real-time market data from Reverb to help collectors, dealers, and enthusiasts make informed buying and selling decisions.
 
 ## Overview
 
-This project tracks historical and current pricing data for Gibson guitars using the Reverb API. The system automatically scrapes guitar listings, stores them in MongoDB, and provides a modern web interface for analyzing price trends and market patterns.
-
-## Features
-
-- **Automated Data Collection**: Scheduled scraping of guitar listings from Reverb marketplace
-- **Historical Price Tracking**: Track price changes over time for specific models
-- **Market Analysis**: View trends, average prices, and price ranges by model and year
-- **RESTful API**: Access guitar data programmatically
-- **Modern Web Interface**: Interactive Next.js frontend for browsing and analyzing data
+Reverb style shop page with a scraper that pulls Luke's Guitar Shop Listings from the reverb.
 
 ## Tech Stack
 
@@ -91,37 +83,3 @@ guitar-price-db/
 
 - **[Setup Guide](docs/SETUP.md)**: Detailed installation and configuration instructions
 - **[Database Schema](docs/DATABASE_SCHEMA.md)**: MongoDB collection structure and data models
-
-## API Endpoints
-
-The API will provide endpoints for:
-- Searching guitars by model, year, condition
-- Retrieving price history for specific models
-- Getting market statistics and trends
-- Managing favorite listings and alerts
-
-Detailed API documentation will be available via Swagger UI at `/swagger` when running the API.
-
-## Roadmap
-
-- [ ] Core API implementation
-- [ ] MongoDB integration with proper indexing
-- [ ] Reverb API scraper implementation
-- [ ] Scheduled scraping jobs
-- [ ] Next.js frontend with search and filtering
-- [ ] Price trend visualizations
-- [ ] User authentication and favorites
-- [ ] Email alerts for price drops
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit issues and pull requests.
-
-## License
-
-This project is for educational and personal use. Please respect Reverb's terms of service and API rate limits.
-
-## Acknowledgments
-
-- Reverb for providing marketplace data via their API
-- Gibson guitar enthusiasts and collectors community
