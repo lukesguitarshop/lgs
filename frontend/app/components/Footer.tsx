@@ -21,18 +21,6 @@ export default function Footer() {
             >
               Shop Info
             </Link>
-            <Link
-              href="/reviews"
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm cursor-pointer"
-            >
-              Reviews
-            </Link>
-            <Link
-              href="/contact"
-              className="text-muted-foreground hover:text-foreground transition-colors text-sm cursor-pointer"
-            >
-              Contact
-            </Link>
           </nav>
         </div>
       </div>
