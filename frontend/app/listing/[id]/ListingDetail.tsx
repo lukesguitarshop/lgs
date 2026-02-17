@@ -2,11 +2,17 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, ShoppingCart, ExternalLink, ArrowLeft, Check, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Copy, Heart, Tag, MessageSquare, AlertTriangle } from 'lucide-react';
 import JSZip from 'jszip';
+import DOMPurify from 'dompurify';
 import { addToCart, isInCart, CartItem } from '@/lib/cart';
+import { useAuth } from '@/contexts/AuthContext';
+import api from '@/lib/api';
+import { getAuthHeaders } from '@/lib/auth';
+import ReviewsCarousel from './ReviewsCarousel';
+import { MakeOfferModal } from '@/components/offers/MakeOfferModal';
 
 interface Listing {
   id: string;
@@ -18,6 +24,8 @@ interface Listing {
   price: number;
   currency: string;
   scraped_at: string;
+  listed_at: string | null;
+  disabled?: boolean;
 }
 
 function formatPrice(price: number, currency: string = 'USD'): string {
@@ -34,10 +42,17 @@ interface ListingDetailProps {
 }
 
 export default function ListingDetail({ listing }: ListingDetailProps) {
+  const router = useRouter();
+  const { isAuthenticated, setShowLoginModal } = useAuth();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [inCart, setInCart] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [descriptionCopied, setDescriptionCopied] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
+  const [showOfferModal, setShowOfferModal] = useState(false);
+  const [isMessageLoading, setIsMessageLoading] = useState(false);
   const images = listing.images && listing.images.length > 0 ? listing.images : [];
   const thumbnailContainerRef = useRef<HTMLDivElement>(null);
 
@@ -45,6 +60,80 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   useEffect(() => {
     setInCart(isInCart(listing.id));
   }, [listing.id]);
+
+  // Check if listing is favorited on mount
+  useEffect(() => {
+    const checkFavorite = async () => {
+      if (!isAuthenticated) {
+        setIsFavorite(false);
+        return;
+      }
+      try {
+        const response = await api.get<{ isFavorited: boolean }>(`/favorites/check/${listing.id}`, {
+          headers: getAuthHeaders(),
+        });
+        setIsFavorite(response.isFavorited);
+      } catch {
+        setIsFavorite(false);
+      }
+    };
+    checkFavorite();
+  }, [listing.id, isAuthenticated]);
+
+  const handleToggleFavorite = async () => {
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    setIsFavoriteLoading(true);
+    try {
+      if (isFavorite) {
+        await api.delete(`/favorites/${listing.id}`, {
+          headers: getAuthHeaders(),
+        });
+        setIsFavorite(false);
+      } else {
+        await api.post(`/favorites/${listing.id}`, null, {
+          headers: getAuthHeaders(),
+        });
+        setIsFavorite(true);
+      }
+    } catch (error) {
+      console.error('Failed to toggle favorite:', error);
+    } finally {
+      setIsFavoriteLoading(false);
+    }
+  };
+
+  const handleMakeOffer = () => {
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+      return;
+    }
+    setShowOfferModal(true);
+  };
+
+  const handleMessageSeller = async () => {
+    if (!isAuthenticated) {
+      setShowLoginModal(true);
+      return;
+    }
+
+    setIsMessageLoading(true);
+    try {
+      const response = await api.post<{ conversationId: string }>(
+        '/messages/contact-seller',
+        { listingId: listing.id },
+        { headers: getAuthHeaders() }
+      );
+      router.push(`/messages/${response.conversationId}`);
+    } catch (error) {
+      console.error('Failed to contact seller:', error);
+    } finally {
+      setIsMessageLoading(false);
+    }
+  };
 
   // Auto-scroll thumbnail strip to keep active thumbnail visible
   useEffect(() => {
@@ -144,20 +233,62 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
     }
   };
 
-  const plainDescription = listing.description
-    ? listing.description.replace(/<[^>]*>/g, '').trim()
-    : '';
+  const handleCopyDescription = async () => {
+    if (!listing.description) return;
+
+    // Convert HTML to formatted plain text
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = listing.description;
+
+    // Replace block elements with newlines for proper formatting
+    const blockElements = tempDiv.querySelectorAll('p, br, li, h1, h2, h3, h4, h5, h6, div');
+    blockElements.forEach((el) => {
+      if (el.tagName === 'BR') {
+        el.replaceWith('\n');
+      } else if (el.tagName === 'LI') {
+        el.prepend('• ');
+        el.append('\n');
+      } else {
+        el.append('\n');
+      }
+    });
+
+    const plainText = tempDiv.textContent || tempDiv.innerText || '';
+    // Clean up multiple consecutive newlines
+    const cleanedText = plainText.replace(/\n{3,}/g, '\n\n').trim();
+
+    try {
+      await navigator.clipboard.writeText(cleanedText);
+      setDescriptionCopied(true);
+      setTimeout(() => setDescriptionCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy description:', err);
+    }
+  };
+
+  const [sanitizedDescription, setSanitizedDescription] = useState('');
+
+  useEffect(() => {
+    if (listing.description) {
+      setSanitizedDescription(
+        DOMPurify.sanitize(listing.description, {
+          ALLOWED_TAGS: ['p', 'br', 'ul', 'ol', 'li', 'strong', 'em', 'b', 'i', 'a', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+          ALLOWED_ATTR: ['href', 'target', 'rel'],
+        })
+      );
+    }
+  }, [listing.description]);
 
   return (
     <div className="max-w-7xl mx-auto">
       {/* Back button */}
-      <Link
-        href="/"
-        className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors"
+      <button
+        onClick={() => router.back()}
+        className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to listings
-      </Link>
+        Back
+      </button>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
         {/* Left side - Image carousel */}
@@ -176,7 +307,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
           )}
 
           {/* Main image */}
-          <div className="relative aspect-square bg-white rounded-lg overflow-hidden border border-gray-200 shadow-sm">
+          <div className="relative aspect-square bg-card rounded-lg overflow-hidden border border-border shadow-sm">
             {images.length > 0 ? (
               <>
                 <Image
@@ -191,17 +322,17 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                   <>
                     <button
                       onClick={goToPrevious}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-md transition-all"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-card/90 hover:bg-card rounded-full p-2 shadow-md transition-all cursor-pointer"
                       aria-label="Previous image"
                     >
-                      <ChevronLeft className="h-6 w-6 text-gray-700" />
+                      <ChevronLeft className="h-6 w-6 text-foreground" />
                     </button>
                     <button
                       onClick={goToNext}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/90 hover:bg-white rounded-full p-2 shadow-md transition-all"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-card/90 hover:bg-card rounded-full p-2 shadow-md transition-all cursor-pointer"
                       aria-label="Next image"
                     >
-                      <ChevronRight className="h-6 w-6 text-gray-700" />
+                      <ChevronRight className="h-6 w-6 text-foreground" />
                     </button>
                   </>
                 )}
@@ -213,7 +344,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 )}
               </>
             ) : (
-              <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gradient-to-br from-gray-100 to-gray-200">
+              <div className="w-full h-full flex items-center justify-center text-muted-foreground bg-gradient-to-br from-muted to-muted/50">
                 <span className="text-8xl">🎸</span>
               </div>
             )}
@@ -226,10 +357,10 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 <button
                   key={index}
                   onClick={() => setCurrentImageIndex(index)}
-                  className={`relative flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 transition-all ${
+                  className={`relative flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 transition-all cursor-pointer ${
                     index === currentImageIndex
                       ? 'border-[#df5e15] ring-2 ring-[#df5e15]/30'
-                      : 'border-gray-200 hover:border-gray-300'
+                      : 'border-border hover:border-muted-foreground'
                   }`}
                 >
                   <Image
@@ -246,84 +377,164 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
         {/* Right side - Product info */}
         <div className="space-y-6">
+          {/* Unavailable banner */}
+          {listing.disabled && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+              <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-red-700">This listing is no longer available</p>
+                <p className="text-sm text-red-600 mt-1">This item has been sold or reserved.</p>
+              </div>
+            </div>
+          )}
+
           {/* Condition badge */}
           {listing.condition && (
-            <div className="text-sm text-gray-500">
+            <div className="text-sm text-muted-foreground">
               Used - {listing.condition}
             </div>
           )}
 
           {/* Title */}
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900 leading-tight">
+          <h1 className="text-2xl lg:text-3xl font-bold text-foreground leading-tight">
             {listing.listing_title}
           </h1>
 
           {/* Price section */}
-          <div className="border-t border-b border-gray-200 py-6">
+          <div className="border-t border-b border-border py-6">
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-gray-900">
+              <span className="text-3xl font-bold text-foreground">
                 {formatPrice(listing.price, listing.currency)}
               </span>
             </div>
             <p className="text-green-600 font-medium mt-1">+ Free Shipping</p>
           </div>
 
-          {/* Add to cart button */}
-          <Button
-            className={`w-full font-semibold py-6 text-lg transition-all ${
-              inCart
-                ? 'bg-green-600 hover:bg-green-700 text-white'
-                : 'bg-[#df5e15] hover:bg-[#c54d0a] text-white'
-            }`}
-            onClick={handleAddToCart}
-            disabled={inCart}
-          >
-            {inCart ? (
-              <>
-                <Check className="h-5 w-5 mr-2" />
-                {justAdded ? 'Added to Cart!' : 'In Cart'}
-              </>
-            ) : (
-              <>
-                <ShoppingCart className="h-5 w-5 mr-2" />
-                Add to Cart
-              </>
-            )}
-          </Button>
-
-          {/* View on Reverb link */}
-          {listing.reverb_link && (
-            <a
-              href={listing.reverb_link}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block"
+          {/* Add to cart and favorite buttons */}
+          <div className="flex gap-3">
+            <Button
+              className={`flex-1 font-semibold py-6 text-lg transition-all ${
+                listing.disabled
+                  ? 'bg-gray-400 text-white cursor-not-allowed'
+                  : inCart
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-[#df5e15] hover:bg-[#c54d0a] text-white'
+              }`}
+              onClick={handleAddToCart}
+              disabled={inCart || listing.disabled}
             >
-              <Button variant="outline" className="w-full py-6 text-lg">
-                <ExternalLink className="h-5 w-5 mr-2" />
-                View on Reverb
+              {listing.disabled ? (
+                <>
+                  <AlertTriangle className="h-5 w-5 mr-2" />
+                  Unavailable
+                </>
+              ) : inCart ? (
+                <>
+                  <Check className="h-5 w-5 mr-2" />
+                  {justAdded ? 'Added to Cart!' : 'In Cart'}
+                </>
+              ) : (
+                <>
+                  <ShoppingCart className="h-5 w-5 mr-2" />
+                  Add to Cart
+                </>
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              className={`py-6 px-4 transition-all ${
+                isFavorite
+                  ? 'text-red-500 border-red-200 hover:bg-red-50'
+                  : 'text-muted-foreground hover:text-red-500 hover:border-red-200'
+              }`}
+              onClick={handleToggleFavorite}
+              disabled={isFavoriteLoading}
+              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            >
+              <Heart className={`h-6 w-6 ${isFavorite ? 'fill-current' : ''}`} />
+            </Button>
+          </div>
+
+          {/* Make Offer and Message Seller buttons */}
+          {!listing.disabled && (
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1 py-6 text-lg"
+                onClick={handleMakeOffer}
+              >
+                <Tag className="h-5 w-5 mr-2" />
+                Make an Offer
               </Button>
-            </a>
+              <Button
+                variant="outline"
+                className="flex-1 py-6 text-lg"
+                onClick={handleMessageSeller}
+                disabled={isMessageLoading}
+              >
+                <MessageSquare className="h-5 w-5 mr-2" />
+                {isMessageLoading ? 'Opening...' : "Message Luke's Guitar Shop"}
+              </Button>
+            </div>
           )}
 
           {/* Description section */}
-          {plainDescription && (
-            <div className="pt-6 border-t border-gray-200">
-              <h2 className="text-lg font-semibold mb-4">Description</h2>
-              <div className="prose prose-gray max-w-none">
-                <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
-                  {plainDescription}
-                </p>
+          {sanitizedDescription && (
+            <div className="pt-6 border-t border-border">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-semibold">Description</h2>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleCopyDescription}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <Copy className="h-4 w-4 mr-1" />
+                  {descriptionCopied ? 'Copied!' : 'Copy'}
+                </Button>
               </div>
+              <div
+                className="text-muted-foreground leading-relaxed [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1 [&_p]:my-2 [&_br]:block [&_a]:text-[#df5e15] [&_a]:underline [&_strong]:font-semibold [&_b]:font-semibold"
+                dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
+              />
             </div>
           )}
 
           {/* Additional details */}
-          <div className="pt-6 border-t border-gray-200 text-sm text-gray-500">
-            <p>Listed on Reverb</p>
+          <div className="pt-6 border-t border-border text-sm text-muted-foreground flex items-center justify-between">
+            <p>
+              Listed on {listing.listed_at
+                ? new Date(listing.listed_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+                : 'Reverb'}
+            </p>
+            {listing.reverb_link && (
+              <a
+                href={listing.reverb_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-foreground transition-colors cursor-pointer"
+              >
+                View on Reverb
+              </a>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Reviews Carousel */}
+      <ReviewsCarousel />
+
+      {/* Make Offer Modal */}
+      <MakeOfferModal
+        open={showOfferModal}
+        onOpenChange={setShowOfferModal}
+        listing={{
+          id: listing.id,
+          title: listing.listing_title,
+          price: listing.price,
+          currency: listing.currency,
+        }}
+      />
     </div>
   );
 }

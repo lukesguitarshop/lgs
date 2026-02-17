@@ -6,6 +6,8 @@ export interface CartItem {
   price: number;
   currency: string;
   image: string;
+  isLocked?: boolean;
+  offerId?: string;
 }
 
 const CART_KEY = 'cart';
@@ -45,14 +47,23 @@ export function addToCart(item: CartItem): void {
 
 /**
  * Remove an item from the cart by ID
+ * Returns false if item is locked and cannot be removed
  */
-export function removeFromCart(itemId: string): void {
+export function removeFromCart(itemId: string): boolean {
   const cart = getCart();
-  const updatedCart = cart.filter((item) => item.id !== itemId);
+  const item = cart.find((i) => i.id === itemId);
+
+  // Prevent removal of locked items (from accepted offers)
+  if (item?.isLocked) {
+    return false;
+  }
+
+  const updatedCart = cart.filter((i) => i.id !== itemId);
   localStorage.setItem(CART_KEY, JSON.stringify(updatedCart));
 
   // Dispatch event so components can react to cart updates
   window.dispatchEvent(new Event('cartUpdated'));
+  return true;
 }
 
 /**
@@ -94,4 +105,13 @@ export function getCartTotal(): { total: number; currency: string } {
 export function isInCart(itemId: string): boolean {
   const cart = getCart();
   return cart.some((item) => item.id === itemId);
+}
+
+/**
+ * Trigger a refresh of pending cart items (from accepted offers)
+ * This dispatches an event that Header listens to
+ */
+export function refreshPendingCart(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event('pendingCartUpdated'));
 }

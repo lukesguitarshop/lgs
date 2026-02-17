@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import SearchClient from './components/SearchClient';
 
 interface Listing {
@@ -9,6 +10,8 @@ interface Listing {
   reverb_link: string | null;
   price: number;
   currency: string;
+  scraped_at: string;
+  listed_at: string | null;
 }
 
 async function getListings(): Promise<Listing[]> {
@@ -35,7 +38,9 @@ export default async function HomePage() {
 
   return (
     <div className="container mx-auto px-4 py-8">
-      <SearchClient initialListings={listings} />
+      <Suspense fallback={<div className="text-center py-8">Loading...</div>}>
+        <SearchClient initialListings={listings} />
+      </Suspense>
     </div>
   );
 }

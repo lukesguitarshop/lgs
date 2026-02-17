@@ -11,6 +11,7 @@ interface Listing {
   price: number;
   currency: string;
   scraped_at: string;
+  listed_at: string | null;
 }
 
 async function getListing(id: string): Promise<Listing | null> {
