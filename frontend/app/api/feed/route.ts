@@ -40,6 +40,11 @@ async function getListings(): Promise<Listing[]> {
 
 function escapeXml(text: string): string {
   return text
+    .replace(/[\u2018\u2019]/g, "'")  // Smart single quotes
+    .replace(/[\u201C\u201D]/g, '"')  // Smart double quotes
+    .replace(/[\u2013\u2014]/g, '-')  // En/em dashes
+    .replace(/\u00A0/g, ' ')          // Non-breaking space
+    .replace(/[^\x20-\x7E\n\r]/g, '') // Remove other non-ASCII
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
@@ -49,7 +54,14 @@ function escapeXml(text: string): string {
 
 function stripHtml(html: string | null): string {
   if (!html) return '';
-  return html.replace(/<[^>]*>/g, '').trim();
+  return html
+    .replace(/<[^>]*>/g, '')
+    .replace(/[\u2018\u2019]/g, "'")  // Smart single quotes
+    .replace(/[\u201C\u201D]/g, '"')  // Smart double quotes
+    .replace(/[\u2013\u2014]/g, '-')  // En/em dashes
+    .replace(/\u00A0/g, ' ')          // Non-breaking space
+    .replace(/[^\x20-\x7E\n\r]/g, '') // Remove other non-ASCII
+    .trim();
 }
 
 function mapConditionToGoogle(condition: string | null): string {
