@@ -13,18 +13,27 @@ interface Listing {
 }
 
 async function getListings(): Promise<Listing[]> {
+  // Use production API URL directly for server-side fetch
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.API_BASE_URL ||
+    'https://guitar-price-api.fly.dev/api';
+
   try {
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
     const res = await fetch(`${apiBaseUrl}/mylistings`, {
       next: { revalidate: 3600 },
+      headers: {
+        'Accept': 'application/json',
+      },
     });
 
     if (!res.ok) {
+      console.error('Feed: Failed to fetch listings:', res.status, res.statusText);
       return [];
     }
 
     return await res.json();
-  } catch {
+  } catch (error) {
+    console.error('Feed: Error fetching listings:', error);
     return [];
   }
 }
