@@ -118,6 +118,7 @@ export async function GET() {
       <g:price>${listing.price.toFixed(2)} ${listing.currency || 'USD'}</g:price>
       <g:brand>${escapeXml(extractBrand(listing.listing_title))}</g:brand>
       <g:condition>${mapConditionToGoogle(listing.condition)}</g:condition>
+      <g:identifier_exists>false</g:identifier_exists>
       <g:google_product_category>499732</g:google_product_category>
       <g:product_type>Musical Instruments &gt; String Instruments &gt; Guitars</g:product_type>
       <g:shipping>
