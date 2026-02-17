@@ -19,7 +19,7 @@ async function getListings(): Promise<Listing[]> {
     'https://guitar-price-api.fly.dev/api';
 
   try {
-    const res = await fetch(`${apiBaseUrl}/mylistings`, {
+    const res = await fetch(`${apiBaseUrl}/listings`, {
       next: { revalidate: 3600 },
       headers: {
         'Accept': 'application/json',
