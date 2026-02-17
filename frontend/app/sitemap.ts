@@ -8,20 +8,24 @@ interface Listing {
 }
 
 async function getListings(): Promise<Listing[]> {
+  // Use production API URL directly for server-side fetch
+  const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ||
+    process.env.API_BASE_URL ||
+    'https://guitar-price-api.fly.dev/api';
+
   try {
-    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
     const res = await fetch(`${apiBaseUrl}/mylistings`, {
-      next: { revalidate: 3600 }, // Revalidate every hour
+      next: { revalidate: 3600 },
     });
 
     if (!res.ok) {
-      console.error('Failed to fetch listings for sitemap');
+      console.error('Sitemap: Failed to fetch listings:', res.status);
       return [];
     }
 
     return await res.json();
   } catch (error) {
-    console.error('Error fetching listings for sitemap:', error);
+    console.error('Sitemap: Error fetching listings:', error);
     return [];
   }
 }
