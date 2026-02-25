@@ -126,11 +126,6 @@ export async function GET() {
         <g:service>Standard</g:service>
         <g:price>0.00 USD</g:price>
       </g:shipping>
-      <g:shipping>
-        <g:country>CA</g:country>
-        <g:service>Standard</g:service>
-        <g:price>0.00 CAD</g:price>
-      </g:shipping>
     </item>`;
   });
 
