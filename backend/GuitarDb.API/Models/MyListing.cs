@@ -7,6 +7,7 @@ public class MyListing
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
+    [BsonIgnoreIfNull]
     public string? Id { get; set; }
 
     [BsonElement("listing_title")]
@@ -34,4 +35,11 @@ public class MyListing
     [BsonElement("scraped_at")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime ScrapedAt { get; set; } = DateTime.UtcNow;
+
+    [BsonElement("listed_at")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? ListedAt { get; set; }
+
+    [BsonElement("disabled")]
+    public bool Disabled { get; set; } = false;
 }

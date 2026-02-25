@@ -28,7 +28,9 @@ public class MyListingsController : ControllerBase
             images = l.Images,
             reverb_link = l.ReverbLink,
             price = l.Price,
-            currency = l.Currency
+            currency = l.Currency,
+            scraped_at = l.ScrapedAt,
+            listed_at = l.ListedAt
         }));
     }
 
@@ -52,7 +54,9 @@ public class MyListingsController : ControllerBase
             reverb_link = listing.ReverbLink,
             price = listing.Price,
             currency = listing.Currency,
-            scraped_at = listing.ScrapedAt
+            scraped_at = listing.ScrapedAt,
+            listed_at = listing.ListedAt,
+            disabled = listing.Disabled
         });
     }
 }

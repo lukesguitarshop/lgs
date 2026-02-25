@@ -3,10 +3,12 @@ using MongoDB.Bson.Serialization.Attributes;
 
 namespace GuitarDb.Scraper.Models.Domain;
 
+[BsonIgnoreExtraElements]
 public class MyListing
 {
     [BsonId]
     [BsonRepresentation(BsonType.ObjectId)]
+    [BsonIgnoreIfNull]
     public string? Id { get; set; }
 
     [BsonElement("listing_title")]
@@ -33,4 +35,7 @@ public class MyListing
     [BsonElement("scraped_at")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime ScrapedAt { get; set; } = DateTime.UtcNow;
+
+    [BsonElement("disabled")]
+    public bool Disabled { get; set; } = false;
 }

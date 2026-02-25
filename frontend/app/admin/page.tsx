@@ -7,8 +7,9 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown } from 'lucide-react';
 import { OfferCard, AdminOffer } from '@/components/admin/OfferCard';
+import { DealFinderTab } from '@/components/admin/DealFinderTab';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ScraperResponse {
@@ -122,7 +123,7 @@ export default function AdminPage() {
   // Load active tab from localStorage on mount
   useEffect(() => {
     const savedTab = localStorage.getItem('adminActiveTab');
-    if (savedTab && ['listings', 'messages', 'offers', 'orders'].includes(savedTab)) {
+    if (savedTab && ['listings', 'messages', 'offers', 'orders', 'deals'].includes(savedTab)) {
       setActiveTab(savedTab);
     }
   }, []);
@@ -393,15 +394,18 @@ export default function AdminPage() {
       <p className="text-gray-600 mb-6">Manage your guitar listings database</p>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6">
           <TabsTrigger value="listings" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Listings</span>
-            <span className="sm:hidden">Listings</span>
+          </TabsTrigger>
+          <TabsTrigger value="deals" className="flex items-center gap-2">
+            <TrendingDown className="h-4 w-4" />
+            <span className="hidden sm:inline">Deals</span>
           </TabsTrigger>
           <TabsTrigger value="messages" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
-            <span>Messages</span>
+            <span className="hidden sm:inline">Messages</span>
             {conversations.reduce((sum, c) => sum + c.unreadCount, 0) > 0 && (
               <span className="px-1.5 py-0.5 bg-[#df5e15] text-white rounded-full text-xs">
                 {conversations.reduce((sum, c) => sum + c.unreadCount, 0)}
@@ -410,7 +414,7 @@ export default function AdminPage() {
           </TabsTrigger>
           <TabsTrigger value="offers" className="flex items-center gap-2">
             <Tag className="h-4 w-4" />
-            <span>Offers</span>
+            <span className="hidden sm:inline">Offers</span>
             {offers.filter(o => o.status === 'pending').length > 0 && (
               <span className="px-1.5 py-0.5 bg-yellow-500 text-white rounded-full text-xs">
                 {offers.filter(o => o.status === 'pending').length}
@@ -419,7 +423,7 @@ export default function AdminPage() {
           </TabsTrigger>
           <TabsTrigger value="orders" className="flex items-center gap-2">
             <Receipt className="h-4 w-4" />
-            <span>Orders</span>
+            <span className="hidden sm:inline">Orders</span>
           </TabsTrigger>
         </TabsList>
 
@@ -646,6 +650,11 @@ export default function AdminPage() {
           </div>
         </TabsContent>
 
+        {/* Deals Tab */}
+        <TabsContent value="deals">
+          <DealFinderTab />
+        </TabsContent>
+
         {/* Messages Tab */}
         <TabsContent value="messages">
           <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -745,9 +754,9 @@ export default function AdminPage() {
                         </p>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-2 mt-3">
+                        <div className="flex flex-wrap items-center gap-2 mt-3">
                           {replyingToId === conversation.id ? (
-                            <div className="flex items-center gap-2 w-full">
+                            <div className="flex flex-wrap items-center gap-2 w-full">
                               <Input
                                 ref={replyInputRef}
                                 type="text"
@@ -755,7 +764,7 @@ export default function AdminPage() {
                                 value={replyText}
                                 onChange={(e) => setReplyText(e.target.value)}
                                 disabled={sendingReply}
-                                className="flex-1 text-sm h-8"
+                                className="flex-1 min-w-0 text-sm h-8"
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') sendReply(conversation);
                                   if (e.key === 'Escape') cancelReply();
