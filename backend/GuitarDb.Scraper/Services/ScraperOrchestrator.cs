@@ -31,26 +31,48 @@ public class ScraperOrchestrator
 
         try
         {
-            // Step 1: Clear existing listings if requested
-            if (clearExisting)
-            {
-                _logger.LogInformation("Step 1: Clearing existing listings...");
-                await _repository.ClearAllAsync(cancellationToken);
-            }
+            // Step 1: Get existing listings from database
+            _logger.LogInformation("Step 1: Fetching existing listings from database...");
+            var existingListings = await _repository.GetAllAsync(cancellationToken);
+            var existingReverbLinks = existingListings
+                .Where(l => !string.IsNullOrEmpty(l.ReverbLink))
+                .Select(l => l.ReverbLink!)
+                .ToHashSet();
+            _logger.LogInformation("Found {Count} existing listings in database", existingListings.Count);
 
             // Step 2: Fetch my listings from Reverb (summary data)
             _logger.LogInformation("Step 2: Fetching my listings from Reverb...");
             var reverbListings = await _apiClient.FetchMyListingsAsync(cancellationToken);
 
+            // Step 3: Disable listings no longer on Reverb
+            var liveReverbLinks = reverbListings
+                .Where(l => !string.IsNullOrEmpty(l.ListingUrl))
+                .Select(l => l.ListingUrl!)
+                .ToHashSet();
+
+            var linksToDisable = existingReverbLinks
+                .Where(link => !liveReverbLinks.Contains(link))
+                .ToList();
+
+            if (linksToDisable.Count > 0)
+            {
+                _logger.LogInformation("Step 3: Disabling {Count} listings no longer on Reverb...", linksToDisable.Count);
+                await _repository.DisableByReverbLinksAsync(linksToDisable, cancellationToken);
+            }
+            else
+            {
+                _logger.LogInformation("Step 3: No listings to disable");
+            }
+
             if (reverbListings.Count == 0)
             {
-                _logger.LogWarning("No live listings found");
-                PrintSummary(startTime, 0, 0);
+                _logger.LogWarning("No live listings found on Reverb");
+                PrintSummary(startTime, 0, 0, linksToDisable.Count);
                 return;
             }
 
-            // Step 3: Fetch full details for each listing to get all photos
-            _logger.LogInformation("Step 3: Fetching full details for {Count} listings...", reverbListings.Count);
+            // Step 4: Fetch full details for each listing to get all photos
+            _logger.LogInformation("Step 4: Fetching full details for {Count} listings...", reverbListings.Count);
             var myListings = new List<MyListing>();
             var totalPhotos = 0;
 
@@ -85,11 +107,14 @@ public class ScraperOrchestrator
                 }
             }
 
-            // Step 4: Save to database
-            _logger.LogInformation("Step 4: Saving {Count} listings to database...", myListings.Count);
-            await _repository.InsertManyAsync(myListings, cancellationToken);
+            // Step 5: Upsert listings to database (update existing, insert new)
+            _logger.LogInformation("Step 5: Upserting {Count} listings to database...", myListings.Count);
+            foreach (var listing in myListings)
+            {
+                await _repository.UpsertByReverbLinkAsync(listing, cancellationToken);
+            }
 
-            PrintSummary(startTime, myListings.Count, totalPhotos);
+            PrintSummary(startTime, myListings.Count, totalPhotos, linksToDisable.Count);
         }
         catch (Exception ex)
         {
@@ -113,13 +138,14 @@ public class ScraperOrchestrator
         };
     }
 
-    private void PrintSummary(DateTime startTime, int listingsCount, int totalPhotos)
+    private void PrintSummary(DateTime startTime, int listingsCount, int totalPhotos, int disabledCount = 0)
     {
         var duration = DateTime.UtcNow - startTime;
         _logger.LogInformation("");
         _logger.LogInformation("===== SCRAPER SUMMARY =====");
         _logger.LogInformation("Listings Scraped: {Count}", listingsCount);
         _logger.LogInformation("Total Photos: {Photos}", totalPhotos);
+        _logger.LogInformation("Listings Disabled: {Disabled}", disabledCount);
         _logger.LogInformation("Duration: {Duration}", duration);
         _logger.LogInformation("===========================");
     }

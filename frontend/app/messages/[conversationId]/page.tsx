@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, MessageSquare, Send, User, Tag, Paperclip, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import api from '@/lib/api';
+import { api } from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
 import { MakeOfferModal } from '@/components/offers/MakeOfferModal';
 
@@ -101,9 +101,7 @@ export default function ConversationPage() {
 
     const fetchConversation = async () => {
       try {
-        const conversations = await api.get<Conversation[]>('/messages/conversations', {
-          headers: getAuthHeaders(),
-        });
+        const conversations = await api.authGet<Conversation[]>('/messages/conversations');
         const conv = conversations.find(c => c.id === conversationId);
         setConversation(conv || null);
       } catch (error) {
@@ -151,9 +149,7 @@ export default function ConversationPage() {
 
     const fetchMessages = async () => {
       try {
-        const data = await api.get<Message[]>(`/messages/conversation/${conversationId}`, {
-          headers: getAuthHeaders(),
-        });
+        const data = await api.authGet<Message[]>(`/messages/conversation/${conversationId}`);
         setMessages(data);
         setError(null);
       } catch (error) {
@@ -213,12 +209,10 @@ export default function ConversationPage() {
 
         sentMessage = await response.json();
       } else {
-        sentMessage = await api.post<Message>('/messages', {
+        sentMessage = await api.authPost<Message>('/messages', {
           recipientId: conversation.otherUserId,
           messageText: newMessage.trim(),
           listingId: conversation.listingId,
-        }, {
-          headers: getAuthHeaders(),
         });
       }
 

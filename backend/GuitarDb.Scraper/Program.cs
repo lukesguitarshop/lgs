@@ -36,6 +36,16 @@ var host = Host.CreateDefaultBuilder(args)
         services.AddSingleton<MyListingRepository>();
         services.AddSingleton<ReverbApiClient>();
         services.AddSingleton<ScraperOrchestrator>();
+
+        // Deal Finder services
+        var dealFinderSettings = configuration.GetSection("DealFinder").Get<DealFinderSettings>();
+        if (dealFinderSettings != null)
+        {
+            services.AddSingleton(dealFinderSettings);
+            services.AddSingleton<PotentialBuyRepository>();
+            services.AddSingleton<PriceGuideCache>();
+            services.AddSingleton<DealFinderOrchestrator>();
+        }
     })
     .ConfigureLogging(logging =>
     {
@@ -45,7 +55,6 @@ var host = Host.CreateDefaultBuilder(args)
     })
     .Build();
 
-var orchestrator = host.Services.GetRequiredService<ScraperOrchestrator>();
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
 
 // Check for --help flag
@@ -55,38 +64,54 @@ if (args.Contains("--help") || args.Contains("-h"))
     return 0;
 }
 
-// Check for --keep flag (don't clear existing listings)
-var clearExisting = !args.Contains("--keep");
+// Check for --deal-finder flag
+var runDealFinder = args.Contains("--deal-finder");
 
 try
 {
-    logger.LogInformation("Shop Listing Scraper");
-    logger.LogInformation("Clear existing: {Clear}", clearExisting);
-    
-    await orchestrator.RunAsync(clearExisting);
-    
-    logger.LogInformation("Scraper completed successfully");
+    if (runDealFinder)
+    {
+        logger.LogInformation("Running Deal Finder mode");
+        var dealFinder = host.Services.GetRequiredService<DealFinderOrchestrator>();
+        await dealFinder.RunAsync();
+    }
+    else
+    {
+        // Existing scraper logic
+        var clearExisting = !args.Contains("--keep");
+        logger.LogInformation("Shop Listing Scraper");
+        logger.LogInformation("Clear existing: {Clear}", clearExisting);
+
+        var orchestrator = host.Services.GetRequiredService<ScraperOrchestrator>();
+        await orchestrator.RunAsync(clearExisting);
+    }
+
+    logger.LogInformation("Completed successfully");
     return 0;
 }
 catch (Exception ex)
 {
-    logger.LogError(ex, "Scraper failed");
+    logger.LogError(ex, "Failed");
     return 1;
 }
 
 static void PrintHelp()
 {
     Console.WriteLine();
-    Console.WriteLine("Shop Listing Scraper - Usage:");
+    Console.WriteLine("GuitarDb Scraper - Usage:");
     Console.WriteLine();
     Console.WriteLine("  dotnet run [options]");
     Console.WriteLine();
+    Console.WriteLine("Modes:");
+    Console.WriteLine("  (default)        Scrape your own Reverb listings");
+    Console.WriteLine("  --deal-finder    Search marketplace for deals below price guide");
+    Console.WriteLine();
     Console.WriteLine("Options:");
-    Console.WriteLine("  --keep         Don't clear existing listings before scraping");
-    Console.WriteLine("  --help, -h     Show this help message");
+    Console.WriteLine("  --keep           Don't clear existing listings before scraping");
+    Console.WriteLine("  --help, -h       Show this help message");
     Console.WriteLine();
     Console.WriteLine("Examples:");
-    Console.WriteLine("  dotnet run              # Scrape and replace all listings");
-    Console.WriteLine("  dotnet run --keep       # Scrape and append to existing listings");
+    Console.WriteLine("  dotnet run                   # Scrape your listings");
+    Console.WriteLine("  dotnet run --deal-finder     # Find marketplace deals");
     Console.WriteLine();
 }

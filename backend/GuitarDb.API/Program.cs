@@ -1,5 +1,9 @@
 using GuitarDb.API.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.IdentityModel.Tokens;
 using System.Reflection;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,15 +29,50 @@ builder.Services.AddSwaggerGen(options =>
 // Register MongoDB service as singleton
 builder.Services.AddSingleton<MongoDbService>();
 
-// Register Reverb API client with HttpClient as scoped service
-// Note: ReverbApiClient and ReverbToGuitarMapper are commented out as they're not used by current endpoints
-// The scraper handles data import separately
-// builder.Services.AddHttpClient<ReverbApiClient>(client =>
-// {
-//     client.Timeout = TimeSpan.FromSeconds(30);
-// });
+// Register ScraperService with HttpClient for Reverb API
+builder.Services.AddHttpClient<ScraperService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(5); // Scraper may take a while
+});
 
-// builder.Services.AddScoped<ReverbToGuitarMapper>();
+// Register AuthService
+builder.Services.AddSingleton<AuthService>();
+
+// Register EmailService
+builder.Services.AddSingleton<EmailService>();
+
+// Register Deal Finder services
+builder.Services.AddHttpClient<ReverbDealFinderClient>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(10);
+});
+builder.Services.AddSingleton<PriceGuideCache>();
+builder.Services.AddSingleton<DealFinderService>();
+
+// Configure JWT Authentication
+var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]
+    ?? throw new InvalidOperationException("JWT secret key is not configured");
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "LukesGuitarShop";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "LukesGuitarShopUsers";
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSecretKey))
+    };
+});
 
 // Configure CORS
 var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
@@ -44,9 +83,17 @@ builder.Services.AddCors(options =>
     options.AddPolicy("AllowFrontend",
         policy =>
         {
-            policy.WithOrigins(allowedOrigins)
+            policy.SetIsOriginAllowed(origin =>
+                {
+                    // Allow configured origins
+                    if (allowedOrigins.Contains(origin)) return true;
+                    // Allow all Vercel preview URLs
+                    if (origin.EndsWith(".vercel.app")) return true;
+                    return false;
+                })
                   .AllowAnyHeader()
-                  .AllowAnyMethod();
+                  .AllowAnyMethod()
+                  .AllowCredentials();
         });
 });
 
@@ -68,8 +115,21 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+// Serve static files (for uploaded images)
+var webRootPath = builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
+if (!Directory.Exists(webRootPath))
+{
+    Directory.CreateDirectory(webRootPath);
+}
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new PhysicalFileProvider(webRootPath),
+    RequestPath = ""
+});
+
 app.UseCors("AllowFrontend");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

@@ -28,13 +28,37 @@
 
 ## URLs
 
+### Production
 | Service | URL |
 |---------|-----|
-| **Live Site** | https://frontend-eta-seven-13.vercel.app |
+| **Live Site** | https://lukesguitarshop.com |
 | **API** | https://guitar-price-api.fly.dev/api |
 | **API Docs** | https://guitar-price-api.fly.dev/swagger |
+| **Database** | GuitarDb (MongoDB Atlas) |
+
+### Development
+| Service | URL |
+|---------|-----|
+| **Frontend** | https://lgs-dev.vercel.app |
+| **API** | https://guitar-price-api-dev.fly.dev/api |
+| **Database** | GuitarDb_Dev (MongoDB Atlas - same cluster) |
+
+### Other
+| Service | URL |
+|---------|-----|
 | **GitHub Repo** | https://github.com/lukesguitarshop/guitar-price-database |
 | **MongoDB Atlas** | https://cloud.mongodb.com |
+
+---
+
+## Environments
+
+| Component | Production | Development |
+|-----------|------------|-------------|
+| **Frontend** | lukesguitarshop.com | lgs-dev.vercel.app |
+| **API** | guitar-price-api.fly.dev | guitar-price-api-dev.fly.dev |
+| **Database** | GuitarDb | GuitarDb_Dev |
+| **Fly.io Config** | `fly.toml` | `fly.dev.toml` |
 
 ---
 
@@ -46,16 +70,21 @@ guitar-price-db/
 ├── frontend/                    # Next.js frontend
 │   ├── app/                     # Pages & components
 │   ├── .env.production          # Production API URL
+│   ├── .env.development         # Development API URL
 │   └── package.json
 │
 ├── backend/
 │   ├── GuitarDb.API/            # .NET Web API
 │   │   ├── Dockerfile           # For Fly.io deployment
-│   │   ├── fly.toml             # Fly.io config
+│   │   ├── fly.toml             # Fly.io config (production)
+│   │   ├── fly.dev.toml         # Fly.io config (development)
 │   │   └── appsettings.json     # Config (no secrets!)
 │   │
 │   └── GuitarDb.Scraper/        # .NET Scraper
 │       └── appsettings.json     # Local config
+│
+├── scripts/
+│   └── mirror-prod-to-dev.js   # Copies prod data to dev database
 │
 └── .github/
     └── workflows/
@@ -103,11 +132,13 @@ http://localhost:5000/swagger # API docs
 
 ### Deploy Commands
 
-| What | Command | When |
-|------|---------|------|
-| **Frontend** | `cd frontend && vercel --prod` | Auto on git push, or manual |
-| **Backend** | `cd backend/GuitarDb.API && flyctl deploy` | Manual only |
-| **Scraper** | Runs automatically every 6 hours | Or trigger manually in GitHub Actions |
+| What | Environment | Command |
+|------|-------------|---------|
+| **Frontend** | Production | `cd frontend && vercel --prod` |
+| **Frontend** | Development | Auto on PR/branch (Vercel Preview) |
+| **Backend** | Production | `cd backend/GuitarDb.API && flyctl deploy` |
+| **Backend** | Development | `cd backend/GuitarDb.API && flyctl deploy --config fly.dev.toml` |
+| **Scraper** | Production | Runs automatically every 6 hours (GitHub Actions) |
 
 ---
 
@@ -186,11 +217,55 @@ cd backend/GuitarDb.API && flyctl deploy
 
 ---
 
+## Development Environment
+
+### Mirror Production Data to Dev
+
+To copy all data from production database to development:
+
+```bash
+mongosh "mongodb+srv://lukeydude17:PASSWORD@lukesguitarshop.dode96j.mongodb.net" --file scripts/mirror-prod-to-dev.js
+```
+
+This copies all collections from `GuitarDb` to `GuitarDb_Dev`.
+
+### Dev Environment Secrets
+
+The dev Fly.io app (`guitar-price-api-dev`) has the same secrets as production but points to:
+- `MongoDb__DatabaseName=GuitarDb_Dev`
+- `FrontendUrl=https://lgs-dev.vercel.app` (or preview URLs)
+
+To view/update dev secrets:
+```bash
+flyctl secrets list --app guitar-price-api-dev
+flyctl secrets set --app guitar-price-api-dev KEY="value"
+```
+
+### Dev API Logs
+
+```bash
+flyctl logs --app guitar-price-api-dev
+```
+
+### Deploy Dev Frontend
+
+After deploying a new preview, update the stable alias:
+
+```bash
+# Deploy and get new preview URL
+vercel
+
+# Re-alias to stable URL (replace <preview-url> with the URL from above)
+vercel alias <preview-url> lgs-dev.vercel.app
+```
+
+---
+
 ## Costs
 
 | Service | Cost |
 |---------|------|
 | Vercel | **Free** |
-| Fly.io | **Free** (auto-sleeps when idle) |
-| MongoDB Atlas | **Free** (512MB) |
+| Fly.io | **Free** (auto-sleeps when idle) - includes dev app |
+| MongoDB Atlas | **Free** (512MB) - includes dev database |
 | GitHub Actions | **Free** |

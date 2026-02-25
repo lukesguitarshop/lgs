@@ -41,8 +41,16 @@ async function fetchApi<T>(
       let errorMessage = `API request failed: ${response.statusText}`;
       try {
         const errorBody = await response.json();
-        if (errorBody.error) errorMessage = errorBody.error;
-        else if (errorBody.message) errorMessage = errorBody.message;
+        if (errorBody.errors) {
+          // ASP.NET validation errors
+          errorMessage = `Validation errors: ${JSON.stringify(errorBody.errors)}`;
+        } else if (errorBody.error) {
+          errorMessage = errorBody.error;
+        } else if (errorBody.message) {
+          errorMessage = errorBody.message;
+        } else if (errorBody.title) {
+          errorMessage = errorBody.title;
+        }
       } catch {
         // Response body is not JSON, use default message
       }
@@ -143,6 +151,83 @@ export const api = {
       headers: { ...getAuthHeaders(), ...options?.headers },
     });
   },
+
+  // Authenticated DELETE request (includes JWT token if available)
+  authDelete: <T>(endpoint: string, options?: RequestInit): Promise<T> => {
+    return fetchApi<T>(endpoint, {
+      ...options,
+      method: 'DELETE',
+      headers: { ...getAuthHeaders(), ...options?.headers },
+    });
+  },
 };
+
+// Deal Finder API
+import type { PotentialBuy, PotentialBuyStats, PaginatedPotentialBuys } from './types/potential-buy';
+
+export async function getPotentialBuys(
+  status?: string,
+  sort?: string,
+  page = 1,
+  perPage = 20
+): Promise<PaginatedPotentialBuys> {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (sort) params.set('sort', sort);
+  params.set('page', String(page));
+  params.set('perPage', String(perPage));
+
+  return api.authGet<PaginatedPotentialBuys>(`/admin/potential-buys?${params}`);
+}
+
+export async function getPotentialBuyStats(): Promise<PotentialBuyStats> {
+  return api.authGet<PotentialBuyStats>('/admin/potential-buys/stats');
+}
+
+export async function dismissPotentialBuy(id: string): Promise<{ message: string }> {
+  return api.authPatch<{ message: string }>(`/admin/potential-buys/${id}/dismiss`);
+}
+
+export async function dismissPotentialBuysBulk(ids: string[]): Promise<{ message: string; dismissed: number }> {
+  return api.authPost<{ message: string; dismissed: number }>('/admin/potential-buys/dismiss-bulk', { ids });
+}
+
+export async function dismissAllPotentialBuys(): Promise<{ message: string; dismissed: number }> {
+  return api.authPost<{ message: string; dismissed: number }>('/admin/potential-buys/dismiss-all');
+}
+
+export async function markPotentialBuyPurchased(id: string): Promise<{ message: string }> {
+  return api.authPatch<{ message: string }>(`/admin/potential-buys/${id}/purchased`);
+}
+
+export async function deletePotentialBuy(id: string): Promise<{ message: string }> {
+  return api.authDelete<{ message: string }>(`/admin/potential-buys/${id}`);
+}
+
+export async function deleteAllPotentialBuys(): Promise<{ success: boolean; message: string; deleted: number }> {
+  return api.authPost<{ success: boolean; message: string; deleted: number }>('/admin/potential-buys/cleanup?deleteAll=true');
+}
+
+// Deal Finder Scraper
+export interface DealFinderResult {
+  success: boolean;
+  message: string;
+  listingsChecked?: number;
+  dealsFound?: number;
+  duration?: string;
+  error?: string;
+}
+
+export interface DealFinderStatus {
+  isRunning: boolean;
+}
+
+export async function runDealFinder(): Promise<DealFinderResult> {
+  return api.authPost<DealFinderResult>('/admin/run-deal-finder');
+}
+
+export async function getDealFinderStatus(): Promise<DealFinderStatus> {
+  return api.authGet<DealFinderStatus>('/admin/deal-finder/status');
+}
 
 export default api;
