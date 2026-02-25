@@ -41,7 +41,12 @@ builder.Services.AddSingleton<AuthService>();
 // Register EmailService
 builder.Services.AddSingleton<EmailService>();
 
-// Register DealFinderService
+// Register Deal Finder services
+builder.Services.AddHttpClient<ReverbDealFinderClient>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(10);
+});
+builder.Services.AddSingleton<PriceGuideCache>();
 builder.Services.AddSingleton<DealFinderService>();
 
 // Configure JWT Authentication

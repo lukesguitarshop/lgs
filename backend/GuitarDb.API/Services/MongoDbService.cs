@@ -1255,4 +1255,57 @@ public class MongoDbService
         var result = await _potentialBuysCollection.DeleteManyAsync(_ => true, ct);
         return result.DeletedCount;
     }
+
+    /// <summary>
+    /// Get potential buy by Reverb listing ID.
+    /// </summary>
+    public async Task<PotentialBuy?> GetPotentialBuyByReverbListingIdAsync(long reverbListingId, CancellationToken ct = default)
+    {
+        return await _potentialBuysCollection
+            .Find(x => x.ReverbListingId == reverbListingId)
+            .FirstOrDefaultAsync(ct);
+    }
+
+    /// <summary>
+    /// Upsert a potential buy (insert or update based on Reverb listing ID).
+    /// </summary>
+    public async Task UpsertPotentialBuyAsync(PotentialBuy potentialBuy, CancellationToken ct = default)
+    {
+        var existing = await GetPotentialBuyByReverbListingIdAsync(potentialBuy.ReverbListingId, ct);
+
+        if (existing != null)
+        {
+            potentialBuy.Id = existing.Id;
+            potentialBuy.FirstSeenAt = existing.FirstSeenAt;
+            potentialBuy.Dismissed = existing.Dismissed;
+            potentialBuy.Purchased = existing.Purchased;
+        }
+
+        var filter = Builders<PotentialBuy>.Filter.Eq(x => x.ReverbListingId, potentialBuy.ReverbListingId);
+        var options = new ReplaceOptions { IsUpsert = true };
+        await _potentialBuysCollection.ReplaceOneAsync(filter, potentialBuy, options, ct);
+    }
+
+    /// <summary>
+    /// Delete listings that weren't seen in the current scrape run (no longer on Reverb).
+    /// </summary>
+    public async Task<long> DeleteStalePotentialBuysAsync(DateTime scraperRunStartTime, CancellationToken ct = default)
+    {
+        var filter = Builders<PotentialBuy>.Filter.And(
+            Builders<PotentialBuy>.Filter.Lt(x => x.LastCheckedAt, scraperRunStartTime),
+            Builders<PotentialBuy>.Filter.Eq(x => x.Dismissed, false),
+            Builders<PotentialBuy>.Filter.Eq(x => x.Purchased, false)
+        );
+
+        var result = await _potentialBuysCollection.DeleteManyAsync(filter, ct);
+        return result.DeletedCount;
+    }
+
+    /// <summary>
+    /// Get total count of potential buys.
+    /// </summary>
+    public async Task<long> GetPotentialBuysTotalCountAsync(CancellationToken ct = default)
+    {
+        return await _potentialBuysCollection.CountDocumentsAsync(_ => true, cancellationToken: ct);
+    }
 }

@@ -47,6 +47,15 @@ public class ReverbListing
     [JsonPropertyName("published_at")]
     public DateTime? PublishedAt { get; set; }
 
+    [JsonPropertyName("price_guide_id")]
+    public string? PriceGuideId { get; set; }
+
+    [JsonPropertyName("comparison_shopping_page_id")]
+    public string? ComparisonShoppingPageId { get; set; }
+
+    [JsonPropertyName("finish")]
+    public string? Finish { get; set; }
+
     [JsonIgnore]
     public int? ParsedYear => int.TryParse(Year, out var y) ? y : null;
 
@@ -59,6 +68,12 @@ public class ReverbListing
         .Where(url => !string.IsNullOrEmpty(url))
         .Cast<string>()
         .ToList();
+
+    [JsonIgnore]
+    public bool IsLocalPickupOnly =>
+        Shipping?.Local == true &&
+        (Shipping.Rates == null || Shipping.Rates.Count == 0) &&
+        (Shipping.UsRate == null || Shipping.UsRate.Amount == 0);
 }
 
 public class ReverbListingLinks
