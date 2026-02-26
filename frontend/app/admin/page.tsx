@@ -11,6 +11,7 @@ import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, To
 import { OfferCard, AdminOffer } from '@/components/admin/OfferCard';
 import { DealFinderTab } from '@/components/admin/DealFinderTab';
 import { UsersTab } from '@/components/admin/UsersTab';
+import { NewMessageModal } from '@/components/admin/NewMessageModal';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ScraperResponse {
@@ -120,6 +121,7 @@ export default function AdminPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState('listings');
+  const [showNewMessageModal, setShowNewMessageModal] = useState(false);
 
   // Load active tab from localStorage on mount
   useEffect(() => {
@@ -671,14 +673,23 @@ export default function AdminPage() {
                 </h2>
                 <p className="text-gray-600 text-sm mt-1">View and respond to customer inquiries</p>
               </div>
-              <Button
-                onClick={fetchConversations}
-                disabled={loadingConversations}
-                variant="outline"
-                className="text-sm"
-              >
-                {loadingConversations ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setShowNewMessageModal(true)}
+                  className="bg-[#df5e15] hover:bg-[#c54d0a] text-white text-sm"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  New Message
+                </Button>
+                <Button
+                  onClick={fetchConversations}
+                  disabled={loadingConversations}
+                  variant="outline"
+                  className="text-sm"
+                >
+                  {loadingConversations ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                </Button>
+              </div>
             </div>
 
             {/* Messages count */}
@@ -827,6 +838,13 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+
+          {/* New Message Modal */}
+          <NewMessageModal
+            isOpen={showNewMessageModal}
+            onClose={() => setShowNewMessageModal(false)}
+            onConversationCreated={fetchConversations}
+          />
         </TabsContent>
 
         {/* Offers Tab */}
