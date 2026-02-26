@@ -1308,4 +1308,111 @@ public class MongoDbService
     {
         return await _potentialBuysCollection.CountDocumentsAsync(_ => true, cancellationToken: ct);
     }
+
+    // Admin User Management operations
+
+    /// <summary>
+    /// Get paginated users with optional search and filters for admin management.
+    /// </summary>
+    public async Task<(List<User> Users, long TotalCount)> GetUsersAsync(
+        string? search = null,
+        bool? isAdmin = null,
+        bool? isGuest = null,
+        bool? emailVerified = null,
+        int page = 1,
+        int perPage = 20)
+    {
+        var filterBuilder = Builders<User>.Filter;
+        var filters = new List<FilterDefinition<User>>();
+
+        // Search by email or full name
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var searchFilter = filterBuilder.Or(
+                filterBuilder.Regex(u => u.Email, new MongoDB.Bson.BsonRegularExpression(search, "i")),
+                filterBuilder.Regex(u => u.FullName, new MongoDB.Bson.BsonRegularExpression(search, "i"))
+            );
+            filters.Add(searchFilter);
+        }
+
+        // Filter by admin status
+        if (isAdmin.HasValue)
+        {
+            filters.Add(filterBuilder.Eq(u => u.IsAdmin, isAdmin.Value));
+        }
+
+        // Filter by guest status
+        if (isGuest.HasValue)
+        {
+            filters.Add(filterBuilder.Eq(u => u.IsGuest, isGuest.Value));
+        }
+
+        // Filter by email verified status
+        if (emailVerified.HasValue)
+        {
+            filters.Add(filterBuilder.Eq(u => u.EmailVerified, emailVerified.Value));
+        }
+
+        var combinedFilter = filters.Count > 0
+            ? filterBuilder.And(filters)
+            : filterBuilder.Empty;
+
+        var totalCount = await _usersCollection.CountDocumentsAsync(combinedFilter);
+
+        var users = await _usersCollection.Find(combinedFilter)
+            .SortByDescending(u => u.CreatedAt)
+            .Skip((page - 1) * perPage)
+            .Limit(perPage)
+            .ToListAsync();
+
+        return (users, totalCount);
+    }
+
+    /// <summary>
+    /// Delete a user by ID.
+    /// </summary>
+    public async Task<bool> DeleteUserAsync(string id)
+    {
+        var filter = Builders<User>.Filter.Eq(u => u.Id, id);
+        var result = await _usersCollection.DeleteOneAsync(filter);
+        if (result.DeletedCount > 0)
+        {
+            _logger.LogInformation("Deleted user: {UserId}", id);
+        }
+        return result.DeletedCount > 0;
+    }
+
+    /// <summary>
+    /// Delete all data associated with a user (favorites, offers, pending cart items, etc.).
+    /// </summary>
+    public async Task DeleteUserRelatedDataAsync(string userId)
+    {
+        // Delete user's favorites
+        var favoritesFilter = Builders<Favorite>.Filter.Eq(f => f.UserId, userId);
+        var favoritesResult = await _favoritesCollection.DeleteManyAsync(favoritesFilter);
+
+        // Delete user's offers
+        var offersFilter = Builders<Offer>.Filter.Eq(o => o.BuyerId, userId);
+        var offersResult = await _offersCollection.DeleteManyAsync(offersFilter);
+
+        // Delete user's pending cart items
+        var pendingCartFilter = Builders<PendingCartItem>.Filter.Eq(p => p.UserId, userId);
+        var pendingCartResult = await _pendingCartItemsCollection.DeleteManyAsync(pendingCartFilter);
+
+        // Delete user's messages
+        var messagesFilter = Builders<Message>.Filter.Or(
+            Builders<Message>.Filter.Eq(m => m.SenderId, userId),
+            Builders<Message>.Filter.Eq(m => m.RecipientId, userId)
+        );
+        var messagesResult = await _messagesCollection.DeleteManyAsync(messagesFilter);
+
+        // Delete conversations where user is a participant
+        var conversationsFilter = Builders<Conversation>.Filter.AnyEq(c => c.ParticipantIds, userId);
+        var conversationsResult = await _conversationsCollection.DeleteManyAsync(conversationsFilter);
+
+        _logger.LogInformation(
+            "Deleted related data for user {UserId}: {Favorites} favorites, {Offers} offers, {PendingCart} pending cart items, {Messages} messages, {Conversations} conversations",
+            userId, favoritesResult.DeletedCount, offersResult.DeletedCount, pendingCartResult.DeletedCount,
+            messagesResult.DeletedCount, conversationsResult.DeletedCount);
+    }
 }

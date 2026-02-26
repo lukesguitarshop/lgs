@@ -7,9 +7,11 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users } from 'lucide-react';
 import { OfferCard, AdminOffer } from '@/components/admin/OfferCard';
 import { DealFinderTab } from '@/components/admin/DealFinderTab';
+import { UsersTab } from '@/components/admin/UsersTab';
+import { NewMessageModal } from '@/components/admin/NewMessageModal';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface ScraperResponse {
@@ -119,11 +121,12 @@ export default function AdminPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState('listings');
+  const [showNewMessageModal, setShowNewMessageModal] = useState(false);
 
   // Load active tab from localStorage on mount
   useEffect(() => {
     const savedTab = localStorage.getItem('adminActiveTab');
-    if (savedTab && ['listings', 'messages', 'offers', 'orders', 'deals'].includes(savedTab)) {
+    if (savedTab && ['listings', 'messages', 'offers', 'orders', 'deals', 'users'].includes(savedTab)) {
       setActiveTab(savedTab);
     }
   }, []);
@@ -394,7 +397,7 @@ export default function AdminPage() {
       <p className="text-gray-600 mb-6">Manage your guitar listings database</p>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6">
+        <TabsList className="grid w-full grid-cols-6 mb-6">
           <TabsTrigger value="listings" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Listings</span>
@@ -424,6 +427,10 @@ export default function AdminPage() {
           <TabsTrigger value="orders" className="flex items-center gap-2">
             <Receipt className="h-4 w-4" />
             <span className="hidden sm:inline">Orders</span>
+          </TabsTrigger>
+          <TabsTrigger value="users" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            <span className="hidden sm:inline">Users</span>
           </TabsTrigger>
         </TabsList>
 
@@ -666,14 +673,23 @@ export default function AdminPage() {
                 </h2>
                 <p className="text-gray-600 text-sm mt-1">View and respond to customer inquiries</p>
               </div>
-              <Button
-                onClick={fetchConversations}
-                disabled={loadingConversations}
-                variant="outline"
-                className="text-sm"
-              >
-                {loadingConversations ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setShowNewMessageModal(true)}
+                  className="bg-[#df5e15] hover:bg-[#c54d0a] text-white text-sm"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  New Message
+                </Button>
+                <Button
+                  onClick={fetchConversations}
+                  disabled={loadingConversations}
+                  variant="outline"
+                  className="text-sm"
+                >
+                  {loadingConversations ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                </Button>
+              </div>
             </div>
 
             {/* Messages count */}
@@ -822,6 +838,13 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+
+          {/* New Message Modal */}
+          <NewMessageModal
+            isOpen={showNewMessageModal}
+            onClose={() => setShowNewMessageModal(false)}
+            onConversationCreated={fetchConversations}
+          />
         </TabsContent>
 
         {/* Offers Tab */}
@@ -1104,6 +1127,11 @@ export default function AdminPage() {
               </div>
             )}
           </div>
+        </TabsContent>
+
+        {/* Users Tab */}
+        <TabsContent value="users">
+          <UsersTab />
         </TabsContent>
       </Tabs>
     </div>

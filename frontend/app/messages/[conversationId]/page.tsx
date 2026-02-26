@@ -540,7 +540,7 @@ function MessageBubble({ message }: MessageBubbleProps) {
         className={`max-w-[80%] rounded-lg px-4 py-2 ${
           message.isMine
             ? 'bg-[#df5e15] text-white'
-            : 'bg-muted text-foreground'
+            : 'bg-muted text-foreground border border-gray-300'
         }`}
       >
         {/* Display images if present */}
