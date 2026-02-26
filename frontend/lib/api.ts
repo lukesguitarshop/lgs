@@ -230,4 +230,39 @@ export async function getDealFinderStatus(): Promise<DealFinderStatus> {
   return api.authGet<DealFinderStatus>('/admin/deal-finder/status');
 }
 
+// User Management API
+import type { AdminUser, PaginatedUsers, UpdateUserRequest } from './types/admin-user';
+
+export async function getAdminUsers(
+  search?: string,
+  isAdmin?: boolean,
+  isGuest?: boolean,
+  emailVerified?: boolean,
+  page = 1,
+  perPage = 20
+): Promise<PaginatedUsers> {
+  const params = new URLSearchParams();
+  if (search) params.set('search', search);
+  if (isAdmin !== undefined) params.set('isAdmin', String(isAdmin));
+  if (isGuest !== undefined) params.set('isGuest', String(isGuest));
+  if (emailVerified !== undefined) params.set('emailVerified', String(emailVerified));
+  params.set('page', String(page));
+  params.set('perPage', String(perPage));
+
+  return api.authGet<PaginatedUsers>(`/admin/users?${params}`);
+}
+
+export async function updateAdminUser(
+  id: string,
+  data: UpdateUserRequest
+): Promise<AdminUser> {
+  return api.authPut<AdminUser>(`/admin/users/${id}`, data);
+}
+
+export async function deleteAdminUser(
+  id: string
+): Promise<{ success: boolean; message: string }> {
+  return api.authDelete<{ success: boolean; message: string }>(`/admin/users/${id}`);
+}
+
 export default api;

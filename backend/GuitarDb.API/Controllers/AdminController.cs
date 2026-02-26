@@ -1051,4 +1051,243 @@ public class AdminController : ControllerBase
             return StatusCode(500, new { error = "Failed to cleanup", details = ex.Message });
         }
     }
+
+    // User Management endpoints
+
+    /// <summary>
+    /// Get all users with optional search and filters for admin management
+    /// </summary>
+    [HttpGet("users")]
+    public async Task<IActionResult> GetAllUsersForAdmin(
+        [FromQuery] string? search = null,
+        [FromQuery] bool? isAdmin = null,
+        [FromQuery] bool? isGuest = null,
+        [FromQuery] bool? emailVerified = null,
+        [FromQuery] int page = 1,
+        [FromQuery] int perPage = 20)
+    {
+        try
+        {
+            var (users, totalCount) = await _mongoDbService.GetUsersAsync(search, isAdmin, isGuest, emailVerified, page, perPage);
+
+            var result = users.Select(u => new AdminUserDto
+            {
+                Id = u.Id!,
+                Email = u.Email,
+                FullName = u.FullName,
+                CreatedAt = u.CreatedAt,
+                IsGuest = u.IsGuest,
+                GuestSessionId = u.GuestSessionId,
+                ShippingAddress = u.ShippingAddress != null ? new AdminUserShippingAddressDto
+                {
+                    FullName = u.ShippingAddress.FullName,
+                    Line1 = u.ShippingAddress.Line1,
+                    Line2 = u.ShippingAddress.Line2,
+                    City = u.ShippingAddress.City,
+                    State = u.ShippingAddress.State,
+                    PostalCode = u.ShippingAddress.PostalCode,
+                    Country = u.ShippingAddress.Country
+                } : null,
+                IsAdmin = u.IsAdmin,
+                EmailVerified = u.EmailVerified
+            }).ToList();
+
+            return Ok(new PaginatedUsersResponse
+            {
+                Items = result,
+                Total = (int)totalCount,
+                Page = page,
+                PerPage = perPage,
+                TotalPages = (int)Math.Ceiling((double)totalCount / perPage)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get users");
+            return StatusCode(500, new { error = "Failed to load users", details = ex.Message });
+        }
+    }
+
+    /// <summary>
+    /// Update a user's details (admin only)
+    /// </summary>
+    [HttpPut("users/{id}")]
+    public async Task<IActionResult> UpdateUser(string id, [FromBody] UpdateUserRequest request)
+    {
+        var user = await _mongoDbService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { error = "User not found" });
+        }
+
+        // Get current admin's ID from JWT claims
+        var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        // Prevent admin from removing their own admin status
+        if (id == currentUserId && request.IsAdmin == false && user.IsAdmin)
+        {
+            return BadRequest(new { error = "Cannot remove your own admin status" });
+        }
+
+        // Check for email uniqueness if email is being changed
+        if (!string.IsNullOrEmpty(request.Email) && request.Email.ToLowerInvariant() != user.Email?.ToLowerInvariant())
+        {
+            var existingUser = await _mongoDbService.GetUserByEmailAsync(request.Email);
+            if (existingUser != null)
+            {
+                return BadRequest(new { error = "Email is already in use by another user" });
+            }
+            user.Email = request.Email.ToLowerInvariant();
+        }
+
+        // Update fields if provided
+        if (!string.IsNullOrEmpty(request.FullName))
+        {
+            user.FullName = request.FullName;
+        }
+
+        if (request.IsAdmin.HasValue)
+        {
+            user.IsAdmin = request.IsAdmin.Value;
+        }
+
+        if (request.EmailVerified.HasValue)
+        {
+            user.EmailVerified = request.EmailVerified.Value;
+        }
+
+        if (request.IsGuest.HasValue)
+        {
+            user.IsGuest = request.IsGuest.Value;
+        }
+
+        if (request.ShippingAddress != null)
+        {
+            user.ShippingAddress = new Models.UserShippingAddress
+            {
+                FullName = request.ShippingAddress.FullName,
+                Line1 = request.ShippingAddress.Line1,
+                Line2 = request.ShippingAddress.Line2,
+                City = request.ShippingAddress.City,
+                State = request.ShippingAddress.State,
+                PostalCode = request.ShippingAddress.PostalCode,
+                Country = request.ShippingAddress.Country
+            };
+        }
+        else if (request.ClearShippingAddress == true)
+        {
+            user.ShippingAddress = null;
+        }
+
+        var success = await _mongoDbService.UpdateUserAsync(id, user);
+        if (!success)
+        {
+            return StatusCode(500, new { error = "Failed to update user" });
+        }
+
+        _logger.LogInformation("Admin updated user: {UserId}", id);
+
+        return Ok(new AdminUserDto
+        {
+            Id = user.Id!,
+            Email = user.Email,
+            FullName = user.FullName,
+            CreatedAt = user.CreatedAt,
+            IsGuest = user.IsGuest,
+            GuestSessionId = user.GuestSessionId,
+            ShippingAddress = user.ShippingAddress != null ? new AdminUserShippingAddressDto
+            {
+                FullName = user.ShippingAddress.FullName,
+                Line1 = user.ShippingAddress.Line1,
+                Line2 = user.ShippingAddress.Line2,
+                City = user.ShippingAddress.City,
+                State = user.ShippingAddress.State,
+                PostalCode = user.ShippingAddress.PostalCode,
+                Country = user.ShippingAddress.Country
+            } : null,
+            IsAdmin = user.IsAdmin,
+            EmailVerified = user.EmailVerified
+        });
+    }
+
+    /// <summary>
+    /// Delete a user and all associated data (admin only)
+    /// </summary>
+    [HttpDelete("users/{id}")]
+    public async Task<IActionResult> DeleteUser(string id)
+    {
+        var user = await _mongoDbService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { error = "User not found" });
+        }
+
+        // Get current admin's ID from JWT claims
+        var currentUserId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+        // Prevent admin from deleting themselves
+        if (id == currentUserId)
+        {
+            return BadRequest(new { error = "Cannot delete your own account" });
+        }
+
+        // Delete all related data first
+        await _mongoDbService.DeleteUserRelatedDataAsync(id);
+
+        // Delete the user
+        var success = await _mongoDbService.DeleteUserAsync(id);
+        if (!success)
+        {
+            return StatusCode(500, new { error = "Failed to delete user" });
+        }
+
+        _logger.LogInformation("Admin deleted user: {UserId} ({Email})", id, user.Email ?? user.GuestSessionId);
+
+        return Ok(new { success = true, message = "User deleted successfully" });
+    }
+
+    // User Management DTOs
+    public class AdminUserDto
+    {
+        public string Id { get; set; } = string.Empty;
+        public string? Email { get; set; }
+        public string FullName { get; set; } = string.Empty;
+        public DateTime CreatedAt { get; set; }
+        public bool IsGuest { get; set; }
+        public string? GuestSessionId { get; set; }
+        public AdminUserShippingAddressDto? ShippingAddress { get; set; }
+        public bool IsAdmin { get; set; }
+        public bool EmailVerified { get; set; }
+    }
+
+    public class AdminUserShippingAddressDto
+    {
+        public string FullName { get; set; } = string.Empty;
+        public string Line1 { get; set; } = string.Empty;
+        public string? Line2 { get; set; }
+        public string City { get; set; } = string.Empty;
+        public string State { get; set; } = string.Empty;
+        public string PostalCode { get; set; } = string.Empty;
+        public string Country { get; set; } = string.Empty;
+    }
+
+    public class PaginatedUsersResponse
+    {
+        public List<AdminUserDto> Items { get; set; } = new();
+        public int Total { get; set; }
+        public int Page { get; set; }
+        public int PerPage { get; set; }
+        public int TotalPages { get; set; }
+    }
+
+    public class UpdateUserRequest
+    {
+        public string? Email { get; set; }
+        public string? FullName { get; set; }
+        public bool? IsAdmin { get; set; }
+        public bool? EmailVerified { get; set; }
+        public bool? IsGuest { get; set; }
+        public AdminUserShippingAddressDto? ShippingAddress { get; set; }
+        public bool? ClearShippingAddress { get; set; }
+    }
 }
