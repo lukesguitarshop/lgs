@@ -208,7 +208,7 @@ export function DealFinderTab() {
             Guitars priced below their Reverb Price Guide value
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={handleRunScraper}
             disabled={scraperRunning}
@@ -305,7 +305,7 @@ export function DealFinderTab() {
 
         {/* Bulk Action Buttons - only show on deals filter */}
         {statusFilter === 'deals' && deals.length > 0 && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => {
                 const links = deals.filter(d => d.reverbLink).map(d => d.reverbLink!);
