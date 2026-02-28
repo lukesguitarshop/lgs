@@ -116,6 +116,7 @@ export default function AdminPage() {
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [expandedOrderItems, setExpandedOrderItems] = useState<string | null>(null);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
@@ -1064,16 +1065,45 @@ export default function AdminPage() {
                         </td>
                         <td className="py-3 px-2">
                           <div className="space-y-1">
-                            {order.items.map((item, idx) => (
-                              <div key={idx} className="text-xs">
-                                <span className="text-gray-900 line-clamp-1" title={item.listingTitle}>
-                                  {item.listingTitle.length > 25 ? item.listingTitle.substring(0, 25) + '...' : item.listingTitle}
-                                </span>
-                                <span className="text-gray-500 ml-1">
-                                  ({item.quantity}x ${item.price.toLocaleString()})
-                                </span>
-                              </div>
-                            ))}
+                            {expandedOrderItems === order.id ? (
+                              <>
+                                {order.items.map((item, idx) => (
+                                  <div key={idx} className="text-xs">
+                                    <span className="text-gray-900 break-words">
+                                      {item.listingTitle}
+                                    </span>
+                                    <span className="text-gray-500 ml-1">
+                                      ({item.quantity}x ${item.price.toLocaleString()})
+                                    </span>
+                                  </div>
+                                ))}
+                                <button
+                                  onClick={() => setExpandedOrderItems(null)}
+                                  className="text-xs text-[#df5e15] hover:underline"
+                                >
+                                  Collapse
+                                </button>
+                              </>
+                            ) : (
+                              <>
+                                {order.items.map((item, idx) => (
+                                  <div key={idx} className="text-xs">
+                                    <span className="text-gray-900 line-clamp-1" title={item.listingTitle}>
+                                      {item.listingTitle.length > 25 ? item.listingTitle.substring(0, 25) + '...' : item.listingTitle}
+                                    </span>
+                                    <span className="text-gray-500 ml-1">
+                                      ({item.quantity}x ${item.price.toLocaleString()})
+                                    </span>
+                                  </div>
+                                ))}
+                                <button
+                                  onClick={() => setExpandedOrderItems(order.id)}
+                                  className="text-xs text-[#df5e15] hover:underline"
+                                >
+                                  Expand
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-2">
