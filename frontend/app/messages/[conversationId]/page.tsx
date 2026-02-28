@@ -10,6 +10,7 @@ import { ArrowLeft, Loader2, MessageSquare, Send, User, Tag, Paperclip, X } from
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
+import { linkifyText } from '@/lib/utils';
 import { MakeOfferModal } from '@/components/offers/MakeOfferModal';
 
 interface Message {
@@ -564,7 +565,7 @@ function MessageBubble({ message }: MessageBubbleProps) {
           </div>
         )}
         {message.messageText && (
-          <p className="text-sm whitespace-pre-wrap break-words">{message.messageText}</p>
+          <p className="text-sm whitespace-pre-wrap break-words">{linkifyText(message.messageText)}</p>
         )}
         <p
           className={`text-xs mt-1 ${
