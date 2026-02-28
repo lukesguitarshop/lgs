@@ -421,7 +421,7 @@ export default function ShopInfoPage() {
         <h1 className="text-4xl font-bold mb-6">Luke's Guitar Shop</h1>
 
         <Tabs defaultValue="about" className="w-full">
-          <TabsList className="grid w-full grid-cols-4 mb-8">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 mb-8">
             <TabsTrigger value="about">About</TabsTrigger>
             <TabsTrigger value="return-policy">Return Policy</TabsTrigger>
             <TabsTrigger value="reviews">Reviews</TabsTrigger>
