@@ -49,6 +49,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   const [justAdded, setJustAdded] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [descriptionCopied, setDescriptionCopied] = useState(false);
+  const [titleCopied, setTitleCopied] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
   const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
   const [showOfferModal, setShowOfferModal] = useState(false);
@@ -79,6 +80,12 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
     };
     checkFavorite();
   }, [listing.id, isAuthenticated]);
+
+  const copyTitle = async () => {
+    await navigator.clipboard.writeText(listing.listing_title);
+    setTitleCopied(true);
+    setTimeout(() => setTitleCopied(false), 2000);
+  };
 
   const handleToggleFavorite = async () => {
     if (!isAuthenticated) {
@@ -396,9 +403,22 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
           )}
 
           {/* Title */}
-          <h1 className="text-2xl lg:text-3xl font-bold text-foreground leading-tight">
-            {listing.listing_title}
-          </h1>
+          <div className="flex items-start gap-2">
+            <h1 className="text-2xl lg:text-3xl font-bold text-foreground leading-tight">
+              {listing.listing_title}
+            </h1>
+            <button
+              onClick={copyTitle}
+              className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 mt-1"
+              title="Copy title"
+            >
+              {titleCopied ? (
+                <Check className="h-5 w-5 text-green-500" />
+              ) : (
+                <Copy className="h-5 w-5" />
+              )}
+            </button>
+          </div>
 
           {/* Price section */}
           <div className="border-t border-b border-border py-6">
@@ -468,12 +488,12 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
               </Button>
               <Button
                 variant="outline"
-                className="flex-1 py-6 text-lg"
+                className="flex-1 py-6 text-base sm:text-lg"
                 onClick={handleMessageSeller}
                 disabled={isMessageLoading}
               >
                 <MessageSquare className="h-5 w-5 mr-2" />
-                {isMessageLoading ? 'Opening...' : "Message Luke's Guitar Shop"}
+                {isMessageLoading ? 'Opening...' : "Message Seller"}
               </Button>
             </div>
           )}
