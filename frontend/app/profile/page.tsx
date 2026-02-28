@@ -47,6 +47,7 @@ export default function ProfilePage() {
   const { user, isAuthenticated, isLoading, setShowLoginModal } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [expandedOrderItems, setExpandedOrderItems] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -118,7 +119,7 @@ export default function ProfilePage() {
 
         {/* User Information */}
         <Card className="mb-6">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <div className="w-16 h-16 rounded-full bg-[#df5e15] flex items-center justify-center">
                 <User className="h-8 w-8 text-white" />
@@ -128,12 +129,14 @@ export default function ProfilePage() {
                 <p className="text-muted-foreground">{user.email || 'Guest User'}</p>
               </div>
             </div>
-            <Link href="/profile/edit">
-              <Button variant="outline" size="sm">
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Profile
-              </Button>
-            </Link>
+            <div className="w-full sm:w-auto">
+              <Link href="/profile/edit">
+                <Button variant="outline" size="sm" className="w-full sm:w-auto">
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Profile
+                </Button>
+              </Link>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
@@ -216,11 +219,37 @@ export default function ProfilePage() {
                       </div>
                     </div>
                     <div className="text-sm text-muted-foreground">
-                      {order.items.map((item, idx) => (
-                        <p key={idx} className="truncate">
-                          {item.quantity}x {item.listingTitle}
-                        </p>
-                      ))}
+                      {expandedOrderItems === order.id ? (
+                        <>
+                          {order.items.map((item, idx) => (
+                            <p key={idx} className="break-words">
+                              {item.quantity}x {item.listingTitle}
+                            </p>
+                          ))}
+                          <button
+                            onClick={() => setExpandedOrderItems(null)}
+                            className="text-xs text-[#df5e15] hover:underline mt-1"
+                          >
+                            Show less
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {order.items.slice(0, 2).map((item, idx) => (
+                            <p key={idx} className="truncate">
+                              {item.quantity}x {item.listingTitle}
+                            </p>
+                          ))}
+                          {order.items.length > 0 && (
+                            <button
+                              onClick={() => setExpandedOrderItems(order.id)}
+                              className="text-xs text-[#df5e15] hover:underline mt-1"
+                            >
+                              {order.items.length > 2 ? `Show all ${order.items.length} items` : 'Show full titles'}
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
                   </div>
                 ))}
