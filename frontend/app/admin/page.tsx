@@ -553,29 +553,40 @@ export default function AdminPage() {
                           )}
                         </td>
                         <td className="py-3 px-2">
-                          <button
-                            onClick={() => toggleListing(listing.id)}
-                            disabled={togglingId === listing.id}
-                            className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                              listing.disabled
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
-                                : 'bg-gray-600 hover:bg-gray-700 text-white'
-                            } disabled:opacity-50`}
-                          >
-                            {togglingId === listing.id ? (
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                            ) : listing.disabled ? (
-                              <>
-                                <ToggleRight className="h-3 w-3" />
-                                Enable
-                              </>
-                            ) : (
-                              <>
-                                <ToggleLeft className="h-3 w-3" />
-                                Disable
-                              </>
-                            )}
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={`/listing/${listing.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                            >
+                              <ExternalLink className="h-3 w-3" />
+                              View
+                            </a>
+                            <button
+                              onClick={() => toggleListing(listing.id)}
+                              disabled={togglingId === listing.id}
+                              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                                listing.disabled
+                                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                                  : 'bg-gray-600 hover:bg-gray-700 text-white'
+                              } disabled:opacity-50`}
+                            >
+                              {togglingId === listing.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : listing.disabled ? (
+                                <>
+                                  <ToggleRight className="h-3 w-3" />
+                                  Enable
+                                </>
+                              ) : (
+                                <>
+                                  <ToggleLeft className="h-3 w-3" />
+                                  Disable
+                                </>
+                              )}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
