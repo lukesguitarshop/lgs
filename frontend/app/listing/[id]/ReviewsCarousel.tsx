@@ -179,7 +179,7 @@ export default function ReviewsCarousel() {
       <div className="relative">
         <div
           ref={containerRef}
-          className="flex gap-4 overflow-x-auto px-2 py-4 scroll-smooth snap-x snap-mandatory scrollbar-hide"
+          className="flex gap-4 overflow-x-auto px-4 py-4 scroll-smooth snap-x snap-mandatory scrollbar-hide"
           style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
         >
           {/* Spacer for left padding */}
