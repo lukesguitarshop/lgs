@@ -203,7 +203,8 @@ public class MessagesController : ControllerBase
                 recipient.Email,
                 sender?.FullName ?? "Someone",
                 preview,
-                listing?.ListingTitle);
+                listing?.ListingTitle,
+                conversation.Id);
         }
 
         return Ok(new MessageDto
@@ -349,7 +350,8 @@ public class MessagesController : ControllerBase
                 recipient.Email,
                 sender?.FullName ?? "Someone",
                 preview,
-                listing?.ListingTitle);
+                listing?.ListingTitle,
+                conversation.Id);
         }
 
         return Ok(new MessageDto

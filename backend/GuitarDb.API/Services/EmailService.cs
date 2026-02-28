@@ -14,6 +14,7 @@ public class EmailService
     private readonly string? _fromEmail;
     private readonly string _fromName;
     private readonly string? _sellerEmail;
+    private readonly string? _frontendUrl;
     private readonly bool _isEnabled;
 
     public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
@@ -28,6 +29,7 @@ public class EmailService
         _fromEmail = _configuration["Email:FromEmail"] ?? _smtpUsername;
         _fromName = _configuration["Email:FromName"] ?? "Luke's Guitar Shop";
         _sellerEmail = _configuration["Seller:Email"];
+        _frontendUrl = _configuration["FrontendUrl"];
 
         // Email is enabled if SMTP credentials are configured
         _isEnabled = !string.IsNullOrEmpty(_smtpHost) &&
@@ -324,7 +326,8 @@ public class EmailService
         string recipientEmail,
         string senderName,
         string messagePreview,
-        string? listingTitle = null)
+        string? listingTitle = null,
+        string? conversationId = null)
     {
         if (!_isEnabled || string.IsNullOrEmpty(recipientEmail))
         {
@@ -336,6 +339,10 @@ public class EmailService
             ? $"New Message from {senderName} about {listingTitle}"
             : $"New Message from {senderName}";
 
+        var conversationLink = !string.IsNullOrEmpty(conversationId) && !string.IsNullOrEmpty(_frontendUrl)
+            ? $@"<p><a href=""{_frontendUrl}/messages/{conversationId}"" style=""display: inline-block; background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"">View Conversation</a></p>"
+            : "";
+
         var body = $@"
 <h2>New Message</h2>
 <p>You have received a new message from {senderName}.</p>
@@ -346,6 +353,8 @@ public class EmailService
 
 <h3>Message Preview</h3>
 <p style=""background-color: #f5f5f5; padding: 15px; border-radius: 5px;"">{messagePreview}</p>
+
+{conversationLink}
 
 <p>Log in to your account to view the full conversation and reply.</p>
 
