@@ -684,7 +684,7 @@ export default function AdminPage() {
                 </h2>
                 <p className="text-gray-600 text-sm mt-1">View and respond to customer inquiries</p>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   onClick={() => setShowNewMessageModal(true)}
                   className="bg-[#df5e15] hover:bg-[#c54d0a] text-white text-sm"
