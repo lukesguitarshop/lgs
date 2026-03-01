@@ -365,6 +365,179 @@ public class EmailService
         await SendEmailAsync(recipientEmail, subject, body);
     }
 
+    /// <summary>
+    /// Send email notification when an offer is made (new or counter)
+    /// </summary>
+    public async Task SendOfferNotificationAsync(
+        string recipientEmail,
+        string listingTitle,
+        decimal offerAmount,
+        string conversationId,
+        bool isCounter)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(recipientEmail))
+        {
+            _logger.LogDebug("Skipping offer notification - email not configured");
+            return;
+        }
+
+        var subject = isCounter
+            ? $"Counter Offer: {offerAmount:C} for {listingTitle}"
+            : $"New Offer: {offerAmount:C} for {listingTitle}";
+
+        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+
+        var body = $@"
+<h2>{(isCounter ? "Counter Offer Received" : "New Offer Received")}</h2>
+<p>You have received {(isCounter ? "a counter offer" : "a new offer")} on <strong>{listingTitle}</strong>.</p>
+
+<h3>Offer Details</h3>
+<ul>
+    <li><strong>Amount:</strong> {offerAmount:C}</li>
+</ul>
+
+<p style=""margin: 24px 0;"">
+    <a href=""{conversationUrl}"" style=""background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View Conversation</a>
+</p>
+
+<p>This offer expires in 48 hours. Please respond before it expires.</p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+";
+
+        await SendEmailAsync(recipientEmail, subject, body);
+    }
+
+    /// <summary>
+    /// Send email notification when an offer is declined
+    /// </summary>
+    public async Task SendOfferDeclinedNotificationAsync(
+        string recipientEmail,
+        string listingTitle,
+        string conversationId,
+        string? reason = null)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(recipientEmail))
+        {
+            _logger.LogDebug("Skipping offer declined notification - email not configured");
+            return;
+        }
+
+        var subject = $"Offer Declined: {listingTitle}";
+        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+
+        var body = $@"
+<h2>Offer Declined</h2>
+<p>An offer on <strong>{listingTitle}</strong> has been declined.</p>
+
+{(string.IsNullOrEmpty(reason) ? "" : $@"
+<h3>Reason</h3>
+<p>{reason}</p>
+")}
+
+<p><a href=""{conversationUrl}"">View Conversation</a></p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+";
+
+        await SendEmailAsync(recipientEmail, subject, body);
+    }
+
+    /// <summary>
+    /// Send email notification when an offer expires
+    /// </summary>
+    public async Task SendOfferExpiredNotificationAsync(
+        string recipientEmail,
+        string listingTitle,
+        string conversationId)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(recipientEmail))
+        {
+            _logger.LogDebug("Skipping offer expired notification - email not configured");
+            return;
+        }
+
+        var subject = $"Offer Expired: {listingTitle}";
+        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+
+        var body = $@"
+<h2>Offer Expired</h2>
+<p>An offer on <strong>{listingTitle}</strong> has expired due to no response within 48 hours.</p>
+
+<p><a href=""{conversationUrl}"">View Conversation</a></p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+";
+
+        await SendEmailAsync(recipientEmail, subject, body);
+    }
+
+    /// <summary>
+    /// Send email notification when an offer is accepted (with conversation link)
+    /// </summary>
+    public async Task SendOfferAcceptedWithLinkAsync(
+        string recipientEmail,
+        string listingTitle,
+        decimal acceptedAmount,
+        string conversationId,
+        bool isBuyer)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(recipientEmail))
+        {
+            _logger.LogDebug("Skipping offer accepted notification - email not configured");
+            return;
+        }
+
+        var subject = $"Offer Accepted: {listingTitle}";
+        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+        var cartUrl = $"{_frontendUrl}/cart";
+
+        var body = isBuyer
+            ? $@"
+<h2>Congratulations! Your Offer Was Accepted</h2>
+<p>The seller has accepted your offer on <strong>{listingTitle}</strong>.</p>
+
+<h3>Order Details</h3>
+<ul>
+    <li><strong>Item:</strong> {listingTitle}</li>
+    <li><strong>Accepted Price:</strong> {acceptedAmount:C}</li>
+</ul>
+
+<p style=""margin: 24px 0;"">
+    <a href=""{cartUrl}"" style=""background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Complete Purchase</a>
+</p>
+
+<p><strong>Important:</strong> Please complete your purchase within 72 hours to secure this item at the agreed price.</p>
+
+<p><a href=""{conversationUrl}"">View Conversation</a></p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+"
+            : $@"
+<h2>You Accepted an Offer</h2>
+<p>You have accepted an offer on <strong>{listingTitle}</strong>.</p>
+
+<h3>Sale Details</h3>
+<ul>
+    <li><strong>Item:</strong> {listingTitle}</li>
+    <li><strong>Accepted Price:</strong> {acceptedAmount:C}</li>
+</ul>
+
+<p>The buyer has been notified and has 72 hours to complete the purchase.</p>
+
+<p><a href=""{conversationUrl}"">View Conversation</a></p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+";
+
+        await SendEmailAsync(recipientEmail, subject, body);
+    }
+
     private async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
     {
         if (!_isEnabled)
