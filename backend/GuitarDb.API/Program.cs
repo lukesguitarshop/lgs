@@ -49,6 +49,9 @@ builder.Services.AddHttpClient<ReverbDealFinderClient>(client =>
 builder.Services.AddSingleton<PriceGuideCache>();
 builder.Services.AddSingleton<DealFinderService>();
 
+// Register background services
+builder.Services.AddHostedService<OfferExpirationService>();
+
 // Configure JWT Authentication
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]
     ?? throw new InvalidOperationException("JWT secret key is not configured");
