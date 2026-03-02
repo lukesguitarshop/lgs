@@ -57,7 +57,7 @@ public class EmailService
             return;
         }
 
-        var subject = $"New Offer: {offerAmount:C} for {listingTitle}";
+        var subject = $"New Offer: ${offerAmount:N2} for {listingTitle}";
         var body = $@"
 <h2>New Offer Received</h2>
 <p>You have received a new offer on your listing.</p>
@@ -65,7 +65,7 @@ public class EmailService
 <h3>Offer Details</h3>
 <ul>
     <li><strong>Listing:</strong> {listingTitle}</li>
-    <li><strong>Offer Amount:</strong> {offerAmount:C}</li>
+    <li><strong>Offer Amount:</strong> ${offerAmount:N2}</li>
     <li><strong>Buyer:</strong> {buyerName}</li>
 </ul>
 
@@ -99,7 +99,7 @@ public class EmailService
             return;
         }
 
-        var subject = $"Counter Offer: {counterOffer:C} for {listingTitle}";
+        var subject = $"Counter Offer: ${counterOffer:N2} for {listingTitle}";
         var body = $@"
 <h2>Counter Offer Received</h2>
 <p>The seller has made a counter offer on your offer.</p>
@@ -107,8 +107,8 @@ public class EmailService
 <h3>Offer Details</h3>
 <ul>
     <li><strong>Listing:</strong> {listingTitle}</li>
-    <li><strong>Your Offer:</strong> {originalOffer:C}</li>
-    <li><strong>Counter Offer:</strong> {counterOffer:C}</li>
+    <li><strong>Your Offer:</strong> ${originalOffer:N2}</li>
+    <li><strong>Counter Offer:</strong> ${counterOffer:N2}</li>
 </ul>
 
 {(string.IsNullOrEmpty(sellerMessage) ? "" : $@"
@@ -149,7 +149,7 @@ public class EmailService
 <h3>Order Details</h3>
 <ul>
     <li><strong>Listing:</strong> {listingTitle}</li>
-    <li><strong>Accepted Price:</strong> {acceptedAmount:C}</li>
+    <li><strong>Accepted Price:</strong> ${acceptedAmount:N2}</li>
 </ul>
 
 <p>Please proceed to checkout to complete your purchase.</p>
@@ -164,7 +164,7 @@ public class EmailService
 <h3>Sale Details</h3>
 <ul>
     <li><strong>Listing:</strong> {listingTitle}</li>
-    <li><strong>Sale Price:</strong> {acceptedAmount:C}</li>
+    <li><strong>Sale Price:</strong> ${acceptedAmount:N2}</li>
 </ul>
 
 <p>The buyer has been notified to complete their purchase.</p>
@@ -198,7 +198,7 @@ public class EmailService
 <h3>Sale Details</h3>
 <ul>
     <li><strong>Listing:</strong> {listingTitle}</li>
-    <li><strong>Sale Price:</strong> {acceptedAmount:C}</li>
+    <li><strong>Sale Price:</strong> ${acceptedAmount:N2}</li>
     <li><strong>Buyer:</strong> {buyerName}</li>
 </ul>
 
@@ -234,7 +234,7 @@ public class EmailService
 <h3>Offer Details</h3>
 <ul>
     <li><strong>Listing:</strong> {listingTitle}</li>
-    <li><strong>Your Offer:</strong> {offerAmount:C}</li>
+    <li><strong>Your Offer:</strong> ${offerAmount:N2}</li>
 </ul>
 
 {(string.IsNullOrEmpty(reason) ? "" : $@"
@@ -382,8 +382,8 @@ public class EmailService
         }
 
         var subject = isCounter
-            ? $"Counter Offer: {offerAmount:C} for {listingTitle}"
-            : $"New Offer: {offerAmount:C} for {listingTitle}";
+            ? $"Counter Offer: ${offerAmount:N2} for {listingTitle}"
+            : $"New Offer: ${offerAmount:N2} for {listingTitle}";
 
         var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
 
@@ -393,7 +393,7 @@ public class EmailService
 
 <h3>Offer Details</h3>
 <ul>
-    <li><strong>Amount:</strong> {offerAmount:C}</li>
+    <li><strong>Amount:</strong> ${offerAmount:N2}</li>
 </ul>
 
 <p style=""margin: 24px 0;"">
@@ -503,7 +503,7 @@ public class EmailService
 <h3>Order Details</h3>
 <ul>
     <li><strong>Item:</strong> {listingTitle}</li>
-    <li><strong>Accepted Price:</strong> {acceptedAmount:C}</li>
+    <li><strong>Accepted Price:</strong> ${acceptedAmount:N2}</li>
 </ul>
 
 <p style=""margin: 24px 0;"">
@@ -524,7 +524,7 @@ public class EmailService
 <h3>Sale Details</h3>
 <ul>
     <li><strong>Item:</strong> {listingTitle}</li>
-    <li><strong>Accepted Price:</strong> {acceptedAmount:C}</li>
+    <li><strong>Accepted Price:</strong> ${acceptedAmount:N2}</li>
 </ul>
 
 <p>The buyer has been notified and has 72 hours to complete the purchase.</p>
