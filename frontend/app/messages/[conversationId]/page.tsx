@@ -136,7 +136,7 @@ function ConversationPageContent() {
 
     const fetchListingPrice = async () => {
       try {
-        const listing = await api.get<{ price: number; currency: string; disabled?: boolean }>(`/mylistings/${conversation.listingId}`);
+        const listing = await api.get<{ price: number; currency: string; disabled?: boolean }>(`/listings/${conversation.listingId}`);
         // Set price if listing exists (even if disabled - needed for counter offers)
         if (listing && listing.price) {
           setListingPrice({ price: listing.price, currency: listing.currency });
