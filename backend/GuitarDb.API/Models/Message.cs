@@ -39,4 +39,11 @@ public class Message
 
     [BsonElement("is_read")]
     public bool IsRead { get; set; } = false;
+
+    [BsonElement("type")]
+    public string Type { get; set; } = "text";  // "text", "offer", "accept", "decline", "expire"
+
+    [BsonElement("offer_amount")]
+    [BsonIgnoreIfNull]
+    public decimal? OfferAmount { get; set; }
 }
