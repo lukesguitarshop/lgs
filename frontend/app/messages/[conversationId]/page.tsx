@@ -512,7 +512,7 @@ function ConversationPageContent() {
               )}
 
               {/* Make Offer Button */}
-              {conversation?.listingId && conversation?.offerStatus !== 'active' && conversation?.offerStatus !== 'accepted' && (
+              {conversation?.listingId && listingPrice && conversation?.offerStatus !== 'active' && conversation?.offerStatus !== 'accepted' && (
                 <div className="mb-3">
                   <Button
                     type="button"
