@@ -15,6 +15,7 @@ public class MessagesController : ControllerBase
     private readonly EmailService _emailService;
     private readonly ILogger<MessagesController> _logger;
     private readonly IWebHostEnvironment _environment;
+    private static readonly TimeSpan OfferExpiration = TimeSpan.FromHours(48);
 
     public MessagesController(
         MongoDbService mongoDbService,
@@ -466,6 +467,249 @@ public class MessagesController : ControllerBase
             ListingId = request.ListingId,
             ListingTitle = listing.ListingTitle
         });
+    }
+
+    /// <summary>
+    /// Make an offer in a conversation (must have listingId)
+    /// </summary>
+    [HttpPost("conversations/{conversationId}/offer")]
+    public async Task<IActionResult> MakeOffer(string conversationId, [FromBody] MakeOfferRequest request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized(new { error = "Invalid token" });
+
+        if (request.OfferAmount <= 0)
+            return BadRequest(new { error = "Offer amount must be positive" });
+
+        if (request.OfferAmount > 99999)
+            return BadRequest(new { error = "Offer amount cannot exceed $99,999" });
+
+        var conversation = await _mongoDbService.GetConversationByIdAsync(conversationId);
+        if (conversation == null)
+            return NotFound(new { error = "Conversation not found" });
+
+        if (!conversation.ParticipantIds.Contains(userId))
+            return Forbid();
+
+        if (conversation.ListingId == null)
+            return BadRequest(new { error = "Cannot make offer - conversation not linked to a listing" });
+
+        if (conversation.OfferStatus == "active")
+            return BadRequest(new { error = "There is already an active offer in this conversation" });
+
+        // Determine buyer/seller
+        var admin = await _mongoDbService.GetAdminUserAsync();
+        var isBuyer = userId != admin?.Id;
+        var otherUserId = conversation.ParticipantIds.First(p => p != userId);
+        var pendingActionBy = isBuyer ? "seller" : "buyer";
+
+        // Create offer message
+        var message = await _mongoDbService.CreateMessageAsync(new Message
+        {
+            ConversationId = conversationId,
+            SenderId = userId,
+            RecipientId = otherUserId,
+            ListingId = conversation.ListingId,
+            MessageText = request.Message ?? $"Offer: ${request.OfferAmount:N0}",
+            Type = "offer",
+            OfferAmount = request.OfferAmount
+        });
+
+        // Update conversation state
+        await _mongoDbService.UpdateConversationOfferStateAsync(
+            conversationId,
+            activeOfferAmount: request.OfferAmount,
+            activeOfferBy: userId,
+            pendingActionBy: pendingActionBy,
+            offerExpiresAt: DateTime.UtcNow.Add(OfferExpiration),
+            offerStatus: "active"
+        );
+
+        await _mongoDbService.UpdateConversationLastMessageAsync(conversationId, $"Offer: ${request.OfferAmount:N0}");
+
+        // Send email notification
+        var recipient = await _mongoDbService.GetUserByIdAsync(otherUserId);
+        var sender = await _mongoDbService.GetUserByIdAsync(userId);
+        var listing = await _mongoDbService.GetMyListingByIdAsync(conversation.ListingId);
+
+        if (recipient?.Email != null)
+        {
+            await _emailService.SendOfferNotificationAsync(
+                recipient.Email,
+                listing?.ListingTitle ?? "a listing",
+                request.OfferAmount,
+                conversationId,
+                isCounter: false
+            );
+        }
+
+        return Ok(new { success = true, messageId = message.Id });
+    }
+
+    /// <summary>
+    /// Accept the active offer
+    /// </summary>
+    [HttpPost("conversations/{conversationId}/accept")]
+    public async Task<IActionResult> AcceptOffer(string conversationId)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized(new { error = "Invalid token" });
+
+        var conversation = await _mongoDbService.GetConversationByIdAsync(conversationId);
+        if (conversation == null)
+            return NotFound(new { error = "Conversation not found" });
+
+        if (!conversation.ParticipantIds.Contains(userId))
+            return Forbid();
+
+        if (conversation.OfferStatus != "active")
+            return BadRequest(new { error = "No active offer to accept" });
+
+        // Verify it's the recipient's turn
+        var admin = await _mongoDbService.GetAdminUserAsync();
+        var isBuyer = userId != admin?.Id;
+        var expectedPendingBy = isBuyer ? "buyer" : "seller";
+
+        if (conversation.PendingActionBy != expectedPendingBy)
+            return BadRequest(new { error = "It's not your turn to respond to this offer" });
+
+        var otherUserId = conversation.ParticipantIds.First(p => p != userId);
+        var acceptedAmount = conversation.ActiveOfferAmount ?? 0;
+
+        // Create accept message
+        await _mongoDbService.CreateMessageAsync(new Message
+        {
+            ConversationId = conversationId,
+            SenderId = userId,
+            RecipientId = otherUserId,
+            ListingId = conversation.ListingId,
+            MessageText = $"Accepted offer of ${acceptedAmount:N0}",
+            Type = "accept",
+            OfferAmount = acceptedAmount
+        });
+
+        // Update conversation state
+        await _mongoDbService.UpdateConversationOfferStateAsync(
+            conversationId,
+            activeOfferAmount: null,
+            activeOfferBy: null,
+            pendingActionBy: null,
+            offerExpiresAt: null,
+            offerStatus: "accepted",
+            acceptedAmount: acceptedAmount
+        );
+
+        await _mongoDbService.UpdateConversationLastMessageAsync(conversationId, $"Offer accepted: ${acceptedAmount:N0}");
+
+        // Send email notification
+        var recipient = await _mongoDbService.GetUserByIdAsync(otherUserId);
+        var listing = await _mongoDbService.GetMyListingByIdAsync(conversation.ListingId);
+
+        // The recipient of the acceptance email is the other user (the one who made the offer)
+        var otherUserIsBuyer = conversation.ActiveOfferBy != admin?.Id;
+
+        if (recipient?.Email != null)
+        {
+            await _emailService.SendOfferAcceptedWithLinkAsync(
+                recipient.Email,
+                listing?.ListingTitle ?? "a listing",
+                acceptedAmount,
+                conversationId,
+                isBuyer: otherUserIsBuyer
+            );
+        }
+
+        // Add to pending cart items (72 hour hold)
+        if (conversation.ListingId != null && listing != null)
+        {
+            await _mongoDbService.CreatePendingCartItemAsync(new PendingCartItem
+            {
+                UserId = conversation.ActiveOfferBy ?? otherUserId,
+                ListingId = conversation.ListingId,
+                OfferId = conversationId,
+                Price = acceptedAmount,
+                ListingTitle = listing.ListingTitle ?? "",
+                ListingImage = listing.Images?.FirstOrDefault() ?? "",
+                ExpiresAt = DateTime.UtcNow.AddHours(72)
+            });
+        }
+
+        return Ok(new { success = true, acceptedAmount });
+    }
+
+    /// <summary>
+    /// Decline the active offer
+    /// </summary>
+    [HttpPost("conversations/{conversationId}/decline")]
+    public async Task<IActionResult> DeclineOffer(string conversationId, [FromBody] DeclineOfferRequest? request = null)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized(new { error = "Invalid token" });
+
+        var conversation = await _mongoDbService.GetConversationByIdAsync(conversationId);
+        if (conversation == null)
+            return NotFound(new { error = "Conversation not found" });
+
+        if (!conversation.ParticipantIds.Contains(userId))
+            return Forbid();
+
+        if (conversation.OfferStatus != "active")
+            return BadRequest(new { error = "No active offer to decline" });
+
+        // Verify it's the recipient's turn
+        var admin = await _mongoDbService.GetAdminUserAsync();
+        var isBuyer = userId != admin?.Id;
+        var expectedPendingBy = isBuyer ? "buyer" : "seller";
+
+        if (conversation.PendingActionBy != expectedPendingBy)
+            return BadRequest(new { error = "It's not your turn to respond to this offer" });
+
+        var otherUserId = conversation.ParticipantIds.First(p => p != userId);
+        var declinedAmount = conversation.ActiveOfferAmount ?? 0;
+
+        // Create decline message
+        var messageText = string.IsNullOrWhiteSpace(request?.Reason)
+            ? $"Declined offer of ${declinedAmount:N0}"
+            : $"Declined offer of ${declinedAmount:N0}: {request.Reason}";
+
+        await _mongoDbService.CreateMessageAsync(new Message
+        {
+            ConversationId = conversationId,
+            SenderId = userId,
+            RecipientId = otherUserId,
+            ListingId = conversation.ListingId,
+            MessageText = messageText,
+            Type = "decline",
+            OfferAmount = declinedAmount
+        });
+
+        // Update conversation state
+        await _mongoDbService.UpdateConversationOfferStateAsync(
+            conversationId,
+            activeOfferAmount: null,
+            activeOfferBy: null,
+            pendingActionBy: null,
+            offerExpiresAt: null,
+            offerStatus: "declined"
+        );
+
+        await _mongoDbService.UpdateConversationLastMessageAsync(conversationId, "Offer declined");
+
+        // Send email notification
+        var recipient = await _mongoDbService.GetUserByIdAsync(otherUserId);
+        var listing = await _mongoDbService.GetMyListingByIdAsync(conversation.ListingId);
+
+        if (recipient?.Email != null)
+        {
+            await _emailService.SendOfferDeclinedNotificationAsync(
+                recipient.Email,
+                listing?.ListingTitle ?? "a listing",
+                conversationId,
+                request?.Reason
+            );
+        }
+
+        return Ok(new { success = true });
     }
 
     private string? GetUserId()
