@@ -858,6 +858,50 @@ public class MongoDbService
         return result.MatchedCount > 0;
     }
 
+    public async Task UpdateConversationOfferStateAsync(
+        string conversationId,
+        decimal? activeOfferAmount,
+        string? activeOfferBy,
+        string? pendingActionBy,
+        DateTime? offerExpiresAt,
+        string? offerStatus,
+        decimal? acceptedAmount = null)
+    {
+        var update = Builders<Conversation>.Update
+            .Set(c => c.ActiveOfferAmount, activeOfferAmount)
+            .Set(c => c.ActiveOfferBy, activeOfferBy)
+            .Set(c => c.PendingActionBy, pendingActionBy)
+            .Set(c => c.OfferExpiresAt, offerExpiresAt)
+            .Set(c => c.OfferStatus, offerStatus)
+            .Set(c => c.AcceptedAmount, acceptedAmount);
+
+        await _conversationsCollection.UpdateOneAsync(
+            c => c.Id == conversationId,
+            update);
+    }
+
+    public async Task<List<Conversation>> GetConversationsWithOffersAsync(string? status = null)
+    {
+        var filter = Builders<Conversation>.Filter.Ne(c => c.OfferStatus, null);
+        if (status != null)
+        {
+            filter = Builders<Conversation>.Filter.Eq(c => c.OfferStatus, status);
+        }
+        return await _conversationsCollection
+            .Find(filter)
+            .SortByDescending(c => c.LastMessageAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<Conversation>> GetConversationsWithExpiredOffersAsync()
+    {
+        var filter = Builders<Conversation>.Filter.And(
+            Builders<Conversation>.Filter.Eq(c => c.OfferStatus, "active"),
+            Builders<Conversation>.Filter.Lt(c => c.OfferExpiresAt, DateTime.UtcNow)
+        );
+        return await _conversationsCollection.Find(filter).ToListAsync();
+    }
+
     // Message operations
     public async Task<Message> CreateMessageAsync(Message message)
     {
