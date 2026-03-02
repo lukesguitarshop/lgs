@@ -29,4 +29,29 @@ public class Conversation
     [BsonElement("created_at")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+    [BsonElement("active_offer_amount")]
+    [BsonIgnoreIfNull]
+    public decimal? ActiveOfferAmount { get; set; }
+
+    [BsonElement("active_offer_by")]
+    [BsonIgnoreIfNull]
+    public string? ActiveOfferBy { get; set; }
+
+    [BsonElement("pending_action_by")]
+    [BsonIgnoreIfNull]
+    public string? PendingActionBy { get; set; }  // "buyer" or "seller"
+
+    [BsonElement("offer_expires_at")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    [BsonIgnoreIfNull]
+    public DateTime? OfferExpiresAt { get; set; }
+
+    [BsonElement("offer_status")]
+    [BsonIgnoreIfNull]
+    public string? OfferStatus { get; set; }  // "active", "accepted", "declined", "expired"
+
+    [BsonElement("accepted_amount")]
+    [BsonIgnoreIfNull]
+    public decimal? AcceptedAmount { get; set; }
 }
