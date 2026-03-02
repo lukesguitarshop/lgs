@@ -60,7 +60,7 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess }: MakeO
     try {
       const conversation = await api.authPost<{ id: string }>('/conversations', {
         listingId: listing.id,
-        initialOfferAmount: amount,
+        offerAmount: amount,
       });
 
       setIsSuccess(true);

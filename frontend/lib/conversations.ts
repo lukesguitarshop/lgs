@@ -50,25 +50,24 @@ export async function getConversation(id: string): Promise<Conversation> {
 
 export async function startConversation(
   listingId: string,
-  initialOfferAmount?: number,
-  message?: string,
-  buyerId?: string
+  offerAmount?: number,
+  message?: string
 ): Promise<Conversation> {
   return api.post<Conversation>(
     '/conversations',
-    { listingId, initialOfferAmount, message, buyerId },
+    { listingId, offerAmount, message },
     { headers: getAuthHeaders() }
   );
 }
 
 export async function makeOffer(
   conversationId: string,
-  amount: number,
+  offerAmount: number,
   message?: string
 ): Promise<Conversation> {
   return api.post<Conversation>(
     `/conversations/${conversationId}/offer`,
-    { amount, message },
+    { offerAmount, message },
     { headers: getAuthHeaders() }
   );
 }
