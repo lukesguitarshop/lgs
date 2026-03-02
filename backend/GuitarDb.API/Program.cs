@@ -49,8 +49,13 @@ builder.Services.AddHttpClient<ReverbDealFinderClient>(client =>
 builder.Services.AddSingleton<PriceGuideCache>();
 builder.Services.AddSingleton<DealFinderService>();
 
+// Register UPS tracking service
+builder.Services.AddHttpClient<UpsTrackingService>();
+builder.Services.AddSingleton<UpsTrackingService>();
+
 // Register background services
 builder.Services.AddHostedService<OfferExpirationService>();
+builder.Services.AddHostedService<DeliveryTrackingService>();
 
 // Configure JWT Authentication
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]

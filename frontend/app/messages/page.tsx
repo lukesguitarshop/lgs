@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Loader2, MessageSquare, Circle } from 'lucide-react';
+import { ArrowLeft, Loader2, MessageSquare, Circle, Tag } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
@@ -22,6 +23,13 @@ interface Conversation {
   lastMessageAt: string | null;
   createdAt: string;
   unreadCount: number;
+  // Offer fields
+  activeOfferAmount?: number;
+  activeOfferBy?: string;
+  pendingActionBy?: 'buyer' | 'seller';
+  offerExpiresAt?: string;
+  offerStatus?: 'active' | 'accepted' | 'declined' | 'expired';
+  acceptedAmount?: number;
 }
 
 function formatTimeAgo(dateString: string | null): string {
@@ -45,10 +53,18 @@ function formatTimeAgo(dateString: string | null): string {
   });
 }
 
-export default function MessagesPage() {
+function MessagesPageContent() {
   const { isAuthenticated, isLoading: authLoading, setShowLoginModal } = useAuth();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'offers'>('all');
+  const searchParams = useSearchParams();
+
+  // Read filter from URL params
+  useEffect(() => {
+    const filterParam = searchParams.get('filter');
+    setFilter(filterParam === 'offers' ? 'offers' : 'all');
+  }, [searchParams]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -77,6 +93,11 @@ export default function MessagesPage() {
     const interval = setInterval(fetchConversations, 5000);
     return () => clearInterval(interval);
   }, [isAuthenticated, authLoading]);
+
+  // Filter conversations based on filter state
+  const filteredConversations = filter === 'offers'
+    ? conversations.filter(c => c.offerStatus != null)
+    : conversations;
 
   if (authLoading || isLoading) {
     return (
@@ -142,31 +163,85 @@ export default function MessagesPage() {
         <p className="text-muted-foreground mt-2">
           Your conversations with sellers
         </p>
+
+        {/* Filter tabs */}
+        <div className="flex gap-2 mt-4">
+          <Button
+            variant={filter === 'all' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('all')}
+            className={filter === 'all' ? 'bg-[#df5e15] hover:bg-[#c54d0a]' : ''}
+          >
+            <MessageSquare className="h-4 w-4 mr-1" />
+            All Messages
+          </Button>
+          <Button
+            variant={filter === 'offers' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setFilter('offers')}
+            className={filter === 'offers' ? 'bg-[#df5e15] hover:bg-[#c54d0a]' : ''}
+          >
+            <Tag className="h-4 w-4 mr-1" />
+            With Offers
+          </Button>
+        </div>
       </div>
 
-      {conversations.length === 0 ? (
+      {filteredConversations.length === 0 ? (
         <Card className="p-12 text-center">
           <div className="flex flex-col items-center gap-4">
-            <MessageSquare className="h-16 w-16 text-muted-foreground" />
-            <h2 className="text-2xl font-semibold">No messages yet</h2>
-            <p className="text-muted-foreground">
-              When you message a seller about a guitar, your conversations will appear here.
-            </p>
-            <Link href="/">
-              <Button className="bg-[#df5e15] hover:bg-[#c54d0a] text-white">
-                Browse Listings
-              </Button>
-            </Link>
+            {filter === 'offers' ? (
+              <>
+                <Tag className="h-16 w-16 text-muted-foreground" />
+                <h2 className="text-2xl font-semibold">No offers</h2>
+                <p className="text-muted-foreground">
+                  Offers will appear here.
+                </p>
+                <Button
+                  onClick={() => setFilter('all')}
+                  className="bg-[#df5e15] hover:bg-[#c54d0a] text-white"
+                >
+                  View All Messages
+                </Button>
+              </>
+            ) : (
+              <>
+                <MessageSquare className="h-16 w-16 text-muted-foreground" />
+                <h2 className="text-2xl font-semibold">No messages yet</h2>
+                <p className="text-muted-foreground">
+                  When you message a seller about a guitar, your conversations will appear here.
+                </p>
+                <Link href="/">
+                  <Button className="bg-[#df5e15] hover:bg-[#c54d0a] text-white">
+                    Browse Listings
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </Card>
       ) : (
         <div className="space-y-2">
-          {conversations.map(conversation => (
+          {filteredConversations.map(conversation => (
             <ConversationCard key={conversation.id} conversation={conversation} />
           ))}
         </div>
       )}
     </div>
+  );
+}
+
+export default function MessagesPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    }>
+      <MessagesPageContent />
+    </Suspense>
   );
 }
 
@@ -211,11 +286,23 @@ function ConversationCard({ conversation }: ConversationCardProps) {
               </span>
             </div>
 
-            {conversation.listingTitle && (
-              <p className="text-sm text-muted-foreground truncate mb-1">
-                Re: {conversation.listingTitle}
-              </p>
-            )}
+            <div className="flex items-center gap-2 mb-1">
+              {conversation.listingTitle && (
+                <p className="text-sm text-muted-foreground truncate">
+                  Re: {conversation.listingTitle}
+                </p>
+              )}
+              {conversation.offerStatus === 'active' && (
+                <Badge className="bg-blue-100 text-blue-800 text-xs flex-shrink-0">
+                  ${conversation.activeOfferAmount?.toLocaleString()} offer
+                </Badge>
+              )}
+              {conversation.offerStatus === 'accepted' && (
+                <Badge className="bg-green-100 text-green-800 text-xs flex-shrink-0">
+                  Accepted
+                </Badge>
+              )}
+            </div>
 
             <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
               {conversation.lastMessage || 'No messages yet'}

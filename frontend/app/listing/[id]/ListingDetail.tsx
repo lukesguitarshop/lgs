@@ -54,6 +54,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [isMessageLoading, setIsMessageLoading] = useState(false);
+  const [existingOfferConversationId, setExistingOfferConversationId] = useState<string | null>(null);
   const images = listing.images && listing.images.length > 0 ? listing.images : [];
   const thumbnailContainerRef = useRef<HTMLDivElement>(null);
 
@@ -79,6 +80,34 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
       }
     };
     checkFavorite();
+  }, [listing.id, isAuthenticated]);
+
+  // Check if user has an existing conversation with an offer for this listing
+  useEffect(() => {
+    const checkExistingOffer = async () => {
+      if (!isAuthenticated) {
+        setExistingOfferConversationId(null);
+        return;
+      }
+      try {
+        interface ConversationWithOffer {
+          id: string;
+          listingId: string | null;
+          offerStatus?: string;
+        }
+        const conversations = await api.get<ConversationWithOffer[]>('/messages/conversations', {
+          headers: getAuthHeaders(),
+        });
+        // Find a conversation for this listing that has an offer (active, accepted, or declined)
+        const existingConv = conversations.find(
+          c => c.listingId === listing.id && c.offerStatus != null
+        );
+        setExistingOfferConversationId(existingConv?.id || null);
+      } catch {
+        setExistingOfferConversationId(null);
+      }
+    };
+    checkExistingOffer();
   }, [listing.id, isAuthenticated]);
 
   const copyTitle = async () => {
@@ -116,6 +145,11 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   const handleMakeOffer = () => {
     if (!isAuthenticated) {
       setShowLoginModal(true);
+      return;
+    }
+    // If there's an existing conversation with an offer, go to it
+    if (existingOfferConversationId) {
+      router.push(`/messages/${existingOfferConversationId}?from=listing&listingId=${listing.id}`);
       return;
     }
     setShowOfferModal(true);
@@ -484,7 +518,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 onClick={handleMakeOffer}
               >
                 <Tag className="h-5 w-5 mr-2" />
-                Make an Offer
+                {existingOfferConversationId ? 'View Offer(s)' : 'Make an Offer'}
               </Button>
               <Button
                 variant="outline"

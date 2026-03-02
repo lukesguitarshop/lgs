@@ -1,4 +1,4 @@
-// Migration script for converting old Offer documents to OfferConversation format
+// Migration script for converting old Offer documents to unified Conversation/Message format
 // Run this as a one-time migration when deploying the new conversation system
 
 using GuitarDb.API.Models;
@@ -9,21 +9,23 @@ namespace GuitarDb.API.Scripts;
 public class MigrateOffersToConversations
 {
     private readonly IMongoCollection<Offer> _offersCollection;
-    private readonly IMongoCollection<OfferConversation> _conversationsCollection;
+    private readonly IMongoCollection<Conversation> _conversationsCollection;
+    private readonly IMongoCollection<Message> _messagesCollection;
     private readonly IMongoCollection<User> _usersCollection;
     private readonly ILogger<MigrateOffersToConversations> _logger;
 
     public MigrateOffersToConversations(IMongoDatabase database, ILogger<MigrateOffersToConversations> logger)
     {
         _offersCollection = database.GetCollection<Offer>("offers");
-        _conversationsCollection = database.GetCollection<OfferConversation>("offer_conversations");
+        _conversationsCollection = database.GetCollection<Conversation>("conversations");
+        _messagesCollection = database.GetCollection<Message>("messages");
         _usersCollection = database.GetCollection<User>("users");
         _logger = logger;
     }
 
     public async Task MigrateAsync()
     {
-        _logger.LogInformation("Starting offer to conversation migration...");
+        _logger.LogInformation("Starting offer to unified conversation migration...");
 
         // Get the admin user (single-seller shop - admin is always the seller)
         var adminUser = await _usersCollection
@@ -48,117 +50,127 @@ public class MigrateOffersToConversations
         {
             try
             {
-                // Check if already migrated
-                var existing = await _conversationsCollection
-                    .Find(c => c.BuyerId == offer.BuyerId && c.ListingId == offer.ListingId)
+                // Find or create conversation
+                var conversation = await _conversationsCollection
+                    .Find(c => c.ParticipantIds.Contains(offer.BuyerId) &&
+                              c.ParticipantIds.Contains(adminUser.Id!) &&
+                              c.ListingId == offer.ListingId)
                     .FirstOrDefaultAsync();
 
-                if (existing != null)
+                if (conversation == null)
                 {
-                    _logger.LogDebug("Offer {OfferId} already migrated, skipping", offer.Id);
+                    conversation = new Conversation
+                    {
+                        ParticipantIds = new List<string> { offer.BuyerId, adminUser.Id! },
+                        ListingId = offer.ListingId,
+                        CreatedAt = offer.CreatedAt
+                    };
+                    await _conversationsCollection.InsertOneAsync(conversation);
+                    _logger.LogDebug("Created new conversation {ConversationId} for offer {OfferId}", conversation.Id, offer.Id);
+                }
+                else if (conversation.OfferStatus != null)
+                {
+                    _logger.LogDebug("Offer {OfferId} already has offer state, skipping", offer.Id);
                     skippedCount++;
                     continue;
                 }
 
-                // Convert messages to events
-                var events = new List<ConversationEvent>();
+                // Convert offer messages to Message documents
                 foreach (var msg in offer.Messages)
                 {
+                    var messageType = "text";
+                    decimal? offerAmount = null;
+
                     if (msg.IsSystemMessage && msg.MessageText.Contains("Offer of"))
                     {
-                        events.Add(new ConversationEvent
-                        {
-                            Type = ConversationEventType.Offer,
-                            SenderId = msg.SenderId,
-                            OfferAmount = offer.InitialOfferAmount,
-                            CreatedAt = msg.CreatedAt
-                        });
+                        messageType = "offer";
+                        offerAmount = offer.InitialOfferAmount;
                     }
                     else if (msg.IsSystemMessage && msg.MessageText.Contains("Counter offer"))
                     {
-                        events.Add(new ConversationEvent
-                        {
-                            Type = ConversationEventType.Offer,
-                            SenderId = msg.SenderId,
-                            OfferAmount = offer.CounterOfferAmount ?? 0,
-                            CreatedAt = msg.CreatedAt
-                        });
+                        messageType = "offer";
+                        offerAmount = offer.CounterOfferAmount ?? 0;
                     }
                     else if (msg.IsSystemMessage && msg.MessageText.Contains("accepted"))
                     {
-                        events.Add(new ConversationEvent
-                        {
-                            Type = ConversationEventType.Accept,
-                            SenderId = msg.SenderId,
-                            OfferAmount = offer.CounterOfferAmount ?? offer.CurrentOfferAmount,
-                            CreatedAt = msg.CreatedAt
-                        });
+                        messageType = "accept";
+                        offerAmount = offer.CounterOfferAmount ?? offer.CurrentOfferAmount;
                     }
                     else if (msg.IsSystemMessage && msg.MessageText.Contains("rejected"))
                     {
-                        events.Add(new ConversationEvent
-                        {
-                            Type = ConversationEventType.Decline,
-                            SenderId = msg.SenderId,
-                            CreatedAt = msg.CreatedAt
-                        });
+                        messageType = "decline";
+                        offerAmount = offer.CurrentOfferAmount;
                     }
-                    else
+
+                    var senderId = msg.SenderId ?? (msg.IsSystemMessage ? adminUser.Id! : offer.BuyerId);
+                    var recipientId = senderId == offer.BuyerId ? adminUser.Id! : offer.BuyerId;
+
+                    var message = new Message
                     {
-                        events.Add(new ConversationEvent
-                        {
-                            Type = ConversationEventType.Message,
-                            SenderId = msg.SenderId,
-                            MessageText = msg.MessageText,
-                            CreatedAt = msg.CreatedAt
-                        });
-                    }
+                        ConversationId = conversation.Id!,
+                        SenderId = senderId,
+                        RecipientId = recipientId,
+                        ListingId = offer.ListingId,
+                        MessageText = msg.MessageText,
+                        Type = messageType,
+                        OfferAmount = offerAmount,
+                        CreatedAt = msg.CreatedAt,
+                        IsRead = true
+                    };
+                    await _messagesCollection.InsertOneAsync(message);
                 }
 
-                // Map status
-                var status = offer.Status switch
-                {
-                    "accepted" => ConversationStatus.Accepted,
-                    "rejected" => ConversationStatus.Declined,
-                    _ => ConversationStatus.Active
-                };
-
-                // Determine pending action
+                // Map offer status to conversation state
+                string? offerStatus = null;
+                decimal? activeOfferAmount = null;
+                string? activeOfferBy = null;
                 string? pendingActionBy = null;
-                decimal? pendingOfferAmount = null;
-                if (status == ConversationStatus.Active)
+                decimal? acceptedAmount = null;
+
+                switch (offer.Status)
                 {
-                    if (offer.Status == "countered")
-                    {
-                        pendingActionBy = ActionBy.Buyer;
-                        pendingOfferAmount = offer.CounterOfferAmount;
-                    }
-                    else if (offer.Status == "pending")
-                    {
-                        pendingActionBy = ActionBy.Seller;
-                        pendingOfferAmount = offer.CurrentOfferAmount;
-                    }
+                    case "accepted":
+                        offerStatus = "accepted";
+                        acceptedAmount = offer.CounterOfferAmount ?? offer.CurrentOfferAmount;
+                        break;
+                    case "rejected":
+                        offerStatus = "declined";
+                        break;
+                    case "countered":
+                        offerStatus = "active";
+                        activeOfferAmount = offer.CounterOfferAmount ?? offer.CurrentOfferAmount;
+                        activeOfferBy = adminUser.Id!;
+                        pendingActionBy = "buyer";
+                        break;
+                    case "pending":
+                        offerStatus = "active";
+                        activeOfferAmount = offer.CurrentOfferAmount;
+                        activeOfferBy = offer.BuyerId;
+                        pendingActionBy = "seller";
+                        break;
                 }
 
-                var conversation = new OfferConversation
+                // Update conversation with offer state
+                var lastMessage = offer.Messages.LastOrDefault();
+                var updateDef = Builders<Conversation>.Update
+                    .Set(c => c.ActiveOfferAmount, activeOfferAmount)
+                    .Set(c => c.ActiveOfferBy, activeOfferBy)
+                    .Set(c => c.PendingActionBy, pendingActionBy)
+                    .Set(c => c.OfferStatus, offerStatus)
+                    .Set(c => c.AcceptedAmount, acceptedAmount)
+                    .Set(c => c.LastMessage, lastMessage?.MessageText)
+                    .Set(c => c.LastMessageAt, lastMessage?.CreatedAt ?? offer.UpdatedAt);
+
+                if (offerStatus == "active")
                 {
-                    ListingId = offer.ListingId,
-                    BuyerId = offer.BuyerId,
-                    SellerId = adminUser.Id!,
-                    PendingActionBy = pendingActionBy,
-                    PendingOfferAmount = pendingOfferAmount,
-                    Status = status,
-                    AcceptedAmount = status == ConversationStatus.Accepted
-                        ? (offer.CounterOfferAmount ?? offer.CurrentOfferAmount)
-                        : null,
-                    Events = events,
-                    CreatedAt = offer.CreatedAt,
-                    UpdatedAt = offer.UpdatedAt
-                };
+                    updateDef = updateDef.Set(c => c.OfferExpiresAt, DateTime.UtcNow.AddHours(48));
+                }
 
-                await _conversationsCollection.InsertOneAsync(conversation);
+                await _conversationsCollection.UpdateOneAsync(
+                    c => c.Id == conversation.Id,
+                    updateDef);
+
                 migratedCount++;
-
                 _logger.LogDebug("Migrated offer {OfferId} to conversation {ConversationId}", offer.Id, conversation.Id);
             }
             catch (Exception ex)

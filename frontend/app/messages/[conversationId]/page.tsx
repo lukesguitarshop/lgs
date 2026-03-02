@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, MessageSquare, Send, User, Tag, Paperclip, X } from 'lucide-react';
@@ -24,6 +24,8 @@ interface Message {
   createdAt: string;
   isRead: boolean;
   isMine: boolean;
+  type: 'text' | 'offer' | 'accept' | 'decline' | 'expire' | 'counter';
+  offerAmount?: number;
 }
 
 interface Conversation {
@@ -37,6 +39,13 @@ interface Conversation {
   lastMessageAt: string | null;
   createdAt: string;
   unreadCount: number;
+  // Offer fields
+  activeOfferAmount?: number;
+  activeOfferBy?: string;
+  pendingActionBy?: 'buyer' | 'seller';
+  offerExpiresAt?: string;
+  offerStatus?: 'active' | 'accepted' | 'declined' | 'expired';
+  acceptedAmount?: number;
 }
 
 function formatTime(dateString: string): string {
@@ -73,9 +82,13 @@ function shouldShowDateSeparator(currentMsg: Message, prevMsg: Message | null): 
   return currentDate !== prevDate;
 }
 
-export default function ConversationPage() {
+function ConversationPageContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const conversationId = params.conversationId as string;
+  const fromAdmin = searchParams.get('from') === 'admin';
+  const fromListing = searchParams.get('from') === 'listing';
+  const listingIdParam = searchParams.get('listingId');
   const { isAuthenticated, isLoading: authLoading, setShowLoginModal } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
@@ -85,6 +98,7 @@ export default function ConversationPage() {
   const [error, setError] = useState<string | null>(null);
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [listingPrice, setListingPrice] = useState<{ price: number; currency: string } | null>(null);
+  const [isActioning, setIsActioning] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -123,15 +137,14 @@ export default function ConversationPage() {
     const fetchListingPrice = async () => {
       try {
         const listing = await api.get<{ price: number; currency: string; disabled?: boolean }>(`/mylistings/${conversation.listingId}`);
-        // Only set price if listing exists and is not disabled (sold)
-        if (listing && listing.price && !listing.disabled) {
+        // Set price if listing exists (even if disabled - needed for counter offers)
+        if (listing && listing.price) {
           setListingPrice({ price: listing.price, currency: listing.currency });
         } else {
           setListingPrice(null);
         }
       } catch {
-        // Silently handle - listing may be sold or deleted
-        // The Make Offer button simply won't appear
+        // Silently handle - listing may be deleted
         setListingPrice(null);
       }
     };
@@ -268,6 +281,83 @@ export default function ConversationPage() {
     }
   };
 
+  const refreshConversation = async () => {
+    const convs = await api.authGet<Conversation[]>('/messages/conversations');
+    const updated = convs.find(c => c.id === conversationId);
+    if (updated) setConversation(updated);
+  };
+
+  const refreshMessages = async () => {
+    const updatedMessages = await api.authGet<Message[]>(`/messages/conversation/${conversationId}`);
+    setMessages(updatedMessages);
+  };
+
+  const handleAcceptOffer = async () => {
+    if (!conversationId || isActioning) return;
+
+    setIsActioning(true);
+    setError(null);
+    try {
+      await api.authPost(`/messages/conversations/${conversationId}/accept`, {});
+      await refreshMessages();
+      await refreshConversation();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to accept offer');
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
+  const handleDeclineOffer = async () => {
+    if (!conversationId || isActioning) return;
+
+    setIsActioning(true);
+    setError(null);
+    try {
+      await api.authPost(`/messages/conversations/${conversationId}/decline`, {});
+      await refreshMessages();
+      await refreshConversation();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to decline offer');
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
+  const handleMakeOffer = async (amount: number) => {
+    if (!conversationId || isActioning) return;
+
+    setIsActioning(true);
+    setError(null);
+    try {
+      // Use counter endpoint if there's an active offer, otherwise use regular offer endpoint
+      const endpoint = conversation?.offerStatus === 'active'
+        ? `/messages/conversations/${conversationId}/counter`
+        : `/messages/conversations/${conversationId}/offer`;
+
+      await api.authPost(endpoint, {
+        offerAmount: amount,
+      });
+      await refreshMessages();
+      await refreshConversation();
+      setShowOfferModal(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '';
+      if (errorMessage.toLowerCase().includes('active offer')) {
+        setError('There is already an active offer in this conversation.');
+      } else {
+        setError(errorMessage || 'Failed to make offer');
+      }
+    } finally {
+      setIsActioning(false);
+    }
+  };
+
+  // Determine if it's the user's turn to respond to an offer
+  // If the other person sent the active offer, it's my turn to respond
+  const isMyTurn = conversation?.offerStatus === 'active' &&
+    conversation?.activeOfferBy === conversation?.otherUserId;
+
   if (authLoading || isLoading) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -282,11 +372,11 @@ export default function ConversationPage() {
     return (
       <div className="container mx-auto px-4 py-8">
         <Link
-          href="/messages"
+          href={fromAdmin ? "/admin" : fromListing && listingIdParam ? `/listing/${listingIdParam}` : "/messages"}
           className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to messages
+          {fromAdmin ? 'Back to Admin Portal' : fromListing ? 'Back to listing' : 'Back to messages'}
         </Link>
 
         <Card className="p-12 text-center">
@@ -311,11 +401,11 @@ export default function ConversationPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <Link
-        href="/messages"
+        href={fromAdmin ? "/admin" : fromListing && listingIdParam ? `/listing/${listingIdParam}` : "/messages"}
         className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
-        Back to messages
+        {fromAdmin ? 'Back to Admin Portal' : fromListing ? 'Back to listing' : 'Back to messages'}
       </Link>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -362,6 +452,16 @@ export default function ConversationPage() {
                     const prevMessage = index > 0 ? messages[index - 1] : null;
                     const showDateSeparator = shouldShowDateSeparator(message, prevMessage);
 
+                    // This is the active offer if amount and sender match the conversation's active offer
+                    const isThisActiveOffer = message.type === 'offer' &&
+                      conversation?.offerStatus === 'active' &&
+                      message.offerAmount === conversation?.activeOfferAmount &&
+                      message.senderId === conversation?.activeOfferBy;
+
+                    // An offer was countered if it's an offer but not the active one (and there is still an active offer)
+                    const wasCountered = message.type === 'offer' && !isThisActiveOffer &&
+                      conversation?.offerStatus === 'active';
+
                     return (
                       <div key={message.id}>
                         {showDateSeparator && (
@@ -371,7 +471,16 @@ export default function ConversationPage() {
                             </div>
                           </div>
                         )}
-                        <MessageBubble message={message} />
+                        <MessageBubble
+                          message={message}
+                          isMyTurn={isMyTurn && isThisActiveOffer}
+                          isActiveOffer={isThisActiveOffer}
+                          wasCountered={wasCountered}
+                          onAccept={handleAcceptOffer}
+                          onDecline={handleDeclineOffer}
+                          onCounter={() => setShowOfferModal(true)}
+                          isActioning={isActioning}
+                        />
                       </div>
                     );
                   })}
@@ -382,6 +491,42 @@ export default function ConversationPage() {
 
             {/* Message Input */}
             <div className="border-t p-4">
+              {/* Offer Status Banner */}
+              {conversation?.offerStatus === 'active' && (
+                <div className="mb-3 p-3 bg-[#df5e15]/10 border border-[#df5e15]/30 rounded-lg">
+                  <div className="text-sm text-[#df5e15]">
+                    <span className="font-medium">Active offer: </span>
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(conversation.activeOfferAmount || 0)}
+                    {isMyTurn && <span className="ml-2 opacity-80">(Your turn to respond)</span>}
+                  </div>
+                </div>
+              )}
+
+              {conversation?.offerStatus === 'accepted' && (
+                <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="text-sm text-green-800">
+                    <span className="font-medium">Accepted: </span>
+                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(conversation.acceptedAmount || 0)}
+                  </div>
+                </div>
+              )}
+
+              {/* Make Offer Button */}
+              {conversation?.listingId && conversation?.offerStatus !== 'active' && conversation?.offerStatus !== 'accepted' && (
+                <div className="mb-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowOfferModal(true)}
+                    className="flex items-center gap-1"
+                  >
+                    <Tag className="h-4 w-4" />
+                    Make Offer
+                  </Button>
+                </div>
+              )}
+
               {/* Image Previews */}
               {imagePreviews.length > 0 && (
                 <div className="flex gap-2 mb-3 flex-wrap">
@@ -514,16 +659,18 @@ export default function ConversationPage() {
       </div>
 
       {/* Make Offer Modal */}
-      {conversation?.listingId && listingPrice && (
+      {conversation?.listingId && (listingPrice || conversation?.activeOfferAmount) && (
         <MakeOfferModal
           open={showOfferModal}
           onOpenChange={setShowOfferModal}
           listing={{
             id: conversation.listingId,
             title: conversation.listingTitle || 'Listing',
-            price: listingPrice.price,
-            currency: listingPrice.currency,
+            price: listingPrice?.price || conversation?.activeOfferAmount || 0,
+            currency: listingPrice?.currency || 'USD',
           }}
+          onOfferSubmit={handleMakeOffer}
+          isCounter={conversation?.offerStatus === 'active' || conversation?.offerStatus === 'declined' || conversation?.offerStatus === 'expired'}
         />
       )}
     </div>
@@ -532,9 +679,125 @@ export default function ConversationPage() {
 
 interface MessageBubbleProps {
   message: Message;
+  isMyTurn?: boolean;
+  isActiveOffer?: boolean;
+  wasCountered?: boolean;
+  onAccept?: () => void;
+  onDecline?: () => void;
+  onCounter?: () => void;
+  isActioning?: boolean;
 }
 
-function MessageBubble({ message }: MessageBubbleProps) {
+function formatPrice(amount: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(amount);
+}
+
+function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccept, onDecline, onCounter, isActioning }: MessageBubbleProps) {
+  // Handle system messages (accept, decline, expire)
+  if (message.type === 'accept') {
+    return (
+      <div className="flex justify-center my-4">
+        <div className="bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
+          <span>Offer accepted: {formatPrice(message.offerAmount || 0)}</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (message.type === 'decline') {
+    return (
+      <div className="flex justify-center my-4">
+        <div className="bg-red-100 text-red-800 px-4 py-2 rounded-full text-sm font-medium">
+          Offer declined
+        </div>
+      </div>
+    );
+  }
+
+  if (message.type === 'expire') {
+    return (
+      <div className="flex justify-center my-4">
+        <div className="bg-gray-100 text-gray-600 px-4 py-2 rounded-full text-sm font-medium">
+          Offer expired
+        </div>
+      </div>
+    );
+  }
+
+  if (message.type === 'counter') {
+    return (
+      <div className="flex justify-center my-4">
+        <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium">
+          Offer countered
+        </div>
+      </div>
+    );
+  }
+
+  // Handle offer messages
+  if (message.type === 'offer') {
+    return (
+      <div className={`flex ${message.isMine ? 'justify-end' : 'justify-start'}`}>
+        <div className={`max-w-[80%] rounded-lg p-4 ${
+          message.isMine ? 'bg-[#df5e15] text-white' : 'bg-muted text-foreground border border-gray-300'
+        }`}>
+          <div className="text-xs uppercase tracking-wide opacity-75 mb-1">
+            {message.isMine ? 'Your Offer' : 'Their Offer'}
+          </div>
+          <div className="text-2xl">
+            {formatPrice(message.offerAmount || 0)}
+          </div>
+          {wasCountered && (
+            <p className={`text-xs mt-1 ${message.isMine ? 'text-orange-200' : 'text-muted-foreground'}`}>
+              Countered
+            </p>
+          )}
+          {isActiveOffer && !wasCountered && (
+            <p className={`text-xs mt-1 ${message.isMine ? 'text-orange-200' : 'text-muted-foreground'}`}>
+              {message.isMine ? 'Waiting for seller to respond' : 'Waiting for buyer to respond'}
+            </p>
+          )}
+          <p className={`text-xs mt-2 ${message.isMine ? 'text-orange-200' : 'text-muted-foreground'}`}>
+            {formatTime(message.createdAt)}
+          </p>
+          {!message.isMine && isMyTurn && isActiveOffer && !wasCountered && (
+            <div className="flex gap-2 mt-3">
+              <Button
+                size="sm"
+                onClick={onAccept}
+                disabled={isActioning}
+                className="bg-green-500 hover:bg-green-600 text-white"
+              >
+                Accept
+              </Button>
+              <Button
+                size="sm"
+                onClick={onCounter}
+                disabled={isActioning}
+                className="bg-white hover:bg-gray-100 text-gray-900 border border-gray-300"
+              >
+                Counter
+              </Button>
+              <Button
+                size="sm"
+                onClick={onDecline}
+                disabled={isActioning}
+                className="bg-red-500 hover:bg-red-600 text-white"
+              >
+                Decline
+              </Button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Regular text message
   return (
     <div className={`flex ${message.isMine ? 'justify-end' : 'justify-start'}`}>
       <div
@@ -576,5 +839,19 @@ function MessageBubble({ message }: MessageBubbleProps) {
         </p>
       </div>
     </div>
+  );
+}
+
+export default function ConversationPage() {
+  return (
+    <Suspense fallback={
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    }>
+      <ConversationPageContent />
+    </Suspense>
   );
 }

@@ -60,6 +60,14 @@ public class Order
     [BsonElement("guest_email")]
     [BsonIgnoreIfNull]
     public string? GuestEmail { get; set; }
+
+    [BsonElement("tracking_carrier")]
+    [BsonIgnoreIfNull]
+    public string? TrackingCarrier { get; set; }
+
+    [BsonElement("tracking_number")]
+    [BsonIgnoreIfNull]
+    public string? TrackingNumber { get; set; }
 }
 
 public class OrderItem

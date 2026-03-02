@@ -538,6 +538,70 @@ public class EmailService
         await SendEmailAsync(recipientEmail, subject, body);
     }
 
+    /// <summary>
+    /// Send email notification when an order has shipped with tracking info
+    /// </summary>
+    public async Task SendOrderShippedNotificationAsync(
+        string recipientEmail,
+        string orderId,
+        string trackingCarrier,
+        string trackingNumber,
+        List<string> itemTitles)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(recipientEmail))
+        {
+            _logger.LogDebug("Skipping order shipped notification - email not configured");
+            return;
+        }
+
+        var trackingUrl = GetTrackingUrl(trackingCarrier, trackingNumber);
+        var subject = "Your Order Has Shipped!";
+
+        var itemsList = string.Join("", itemTitles.Select(t => $"<li>{t}</li>"));
+
+        var trackingLink = !string.IsNullOrEmpty(trackingUrl)
+            ? $@"<p style=""margin: 24px 0;"">
+                <a href=""{trackingUrl}"" style=""background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Track Your Package</a>
+            </p>"
+            : "";
+
+        var body = $@"
+<h2>Great News! Your Order Has Shipped</h2>
+<p>Your order from Luke's Guitar Shop is on its way!</p>
+
+<h3>Tracking Information</h3>
+<ul>
+    <li><strong>Carrier:</strong> {trackingCarrier}</li>
+    <li><strong>Tracking Number:</strong> {trackingNumber}</li>
+</ul>
+
+{trackingLink}
+
+<h3>Items in Your Order</h3>
+<ul>
+{itemsList}
+</ul>
+
+<p>Order Reference: #{orderId[^8..].ToUpper()}</p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+";
+
+        await SendEmailAsync(recipientEmail, subject, body);
+    }
+
+    private static string? GetTrackingUrl(string carrier, string trackingNumber)
+    {
+        return carrier.ToUpper() switch
+        {
+            "UPS" => $"https://www.ups.com/track?tracknum={trackingNumber}",
+            "USPS" => $"https://tools.usps.com/go/TrackConfirmAction?tLabels={trackingNumber}",
+            "FEDEX" => $"https://www.fedex.com/fedextrack/?trknbr={trackingNumber}",
+            _ => null
+        };
+    }
+
     private async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
     {
         if (!_isEnabled)

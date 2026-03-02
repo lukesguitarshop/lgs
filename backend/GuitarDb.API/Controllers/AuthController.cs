@@ -272,7 +272,9 @@ public class AuthController : ControllerBase
                 ListingTitle = i.ListingTitle,
                 Price = i.Price,
                 Quantity = i.Quantity
-            }).ToList() ?? new List<OrderItemDto>()
+            }).ToList() ?? new List<OrderItemDto>(),
+            TrackingCarrier = o.TrackingCarrier,
+            TrackingNumber = o.TrackingNumber
         }));
     }
 
@@ -535,6 +537,8 @@ public class OrderSummaryDto
     public DateTime CreatedAt { get; set; }
     public int ItemCount { get; set; }
     public List<OrderItemDto> Items { get; set; } = new();
+    public string? TrackingCarrier { get; set; }
+    public string? TrackingNumber { get; set; }
 }
 
 public class OrderItemDto

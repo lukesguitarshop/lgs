@@ -41,58 +41,68 @@ public class OfferExpirationService : BackgroundService
         var mongoDbService = scope.ServiceProvider.GetRequiredService<MongoDbService>();
         var emailService = scope.ServiceProvider.GetRequiredService<EmailService>();
 
-        var expiredConversations = await mongoDbService.GetExpiredOfferConversationsAsync();
+        // Process conversations with expired offers (new unified system)
+        var expiredConversations = await mongoDbService.GetConversationsWithExpiredOffersAsync();
 
-        if (expiredConversations.Count == 0)
+        if (expiredConversations.Count > 0)
         {
-            return;
-        }
+            _logger.LogInformation("Processing {Count} expired conversation offers", expiredConversations.Count);
 
-        _logger.LogInformation("Processing {Count} expired conversations", expiredConversations.Count);
-
-        foreach (var conversation in expiredConversations)
-        {
-            try
+            foreach (var conv in expiredConversations)
             {
-                // Add expire event
-                await mongoDbService.AddOfferConversationEventAsync(conversation.Id!, new ConversationEvent
+                try
                 {
-                    Type = ConversationEventType.Expire,
-                    MessageText = "Offer expired after 48 hours with no response"
-                });
+                    var otherUserId = conv.ParticipantIds.FirstOrDefault(p => p != conv.ActiveOfferBy);
 
-                // Update status
-                await mongoDbService.ExpireOfferConversationAsync(conversation.Id!);
-
-                // Send emails to both parties
-                var listing = await mongoDbService.GetMyListingByIdAsync(conversation.ListingId);
-                if (listing != null)
-                {
-                    var buyer = await mongoDbService.GetUserByIdAsync(conversation.BuyerId);
-                    var seller = await mongoDbService.GetUserByIdAsync(conversation.SellerId);
-
-                    if (buyer?.Email != null)
+                    // Create expire message
+                    if (otherUserId != null && conv.ActiveOfferBy != null)
                     {
-                        await emailService.SendOfferExpiredNotificationAsync(
-                            buyer.Email,
-                            listing.ListingTitle,
-                            conversation.Id!);
+                        await mongoDbService.CreateMessageAsync(new Message
+                        {
+                            ConversationId = conv.Id!,
+                            SenderId = "system",
+                            RecipientId = otherUserId,
+                            ListingId = conv.ListingId,
+                            MessageText = $"Offer of ${conv.ActiveOfferAmount:N0} expired after 48 hours",
+                            Type = "expire",
+                            OfferAmount = conv.ActiveOfferAmount
+                        });
                     }
 
-                    if (seller?.Email != null)
+                    // Update conversation state
+                    await mongoDbService.UpdateConversationOfferStateAsync(
+                        conv.Id!,
+                        activeOfferAmount: null,
+                        activeOfferBy: null,
+                        pendingActionBy: null,
+                        offerExpiresAt: null,
+                        offerStatus: "expired"
+                    );
+
+                    await mongoDbService.UpdateConversationLastMessageAsync(conv.Id!, "Offer expired");
+
+                    // Send notification to offer maker
+                    if (conv.ActiveOfferBy != null && conv.ListingId != null)
                     {
-                        await emailService.SendOfferExpiredNotificationAsync(
-                            seller.Email,
-                            listing.ListingTitle,
-                            conversation.Id!);
+                        var offerMaker = await mongoDbService.GetUserByIdAsync(conv.ActiveOfferBy);
+                        var listing = await mongoDbService.GetMyListingByIdAsync(conv.ListingId);
+
+                        if (offerMaker?.Email != null)
+                        {
+                            await emailService.SendOfferExpiredNotificationAsync(
+                                offerMaker.Email,
+                                listing?.ListingTitle ?? "a listing",
+                                conv.Id!
+                            );
+                        }
                     }
+
+                    _logger.LogInformation("Expired offer in conversation {ConversationId}", conv.Id);
                 }
-
-                _logger.LogInformation("Expired conversation {ConversationId}", conversation.Id);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error expiring conversation {ConversationId}", conversation.Id);
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error expiring offer in conversation {ConversationId}", conv.Id);
+                }
             }
         }
     }

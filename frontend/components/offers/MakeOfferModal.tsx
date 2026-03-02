@@ -23,6 +23,10 @@ interface MakeOfferModalProps {
     currency: string;
   };
   onSuccess?: () => void;
+  /** If provided, the modal will call this instead of making the API call */
+  onOfferSubmit?: (amount: number) => Promise<void>;
+  /** Whether this is a counter-offer in an existing conversation */
+  isCounter?: boolean;
 }
 
 function formatPrice(price: number, currency: string = 'USD'): string {
@@ -34,7 +38,7 @@ function formatPrice(price: number, currency: string = 'USD'): string {
   }).format(price);
 }
 
-export function MakeOfferModal({ open, onOpenChange, listing, onSuccess }: MakeOfferModalProps) {
+export function MakeOfferModal({ open, onOpenChange, listing, onSuccess, onOfferSubmit, isCounter }: MakeOfferModalProps) {
   const [offerAmount, setOfferAmount] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -58,19 +62,40 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess }: MakeO
     setIsLoading(true);
 
     try {
-      const conversation = await api.authPost<{ id: string }>('/conversations', {
-        listingId: listing.id,
-        offerAmount: amount,
-      });
+      // If a custom submit handler is provided, use it
+      if (onOfferSubmit) {
+        await onOfferSubmit(amount);
+        setIsSuccess(true);
+        // Close modal after short delay
+        setTimeout(() => {
+          handleClose(false);
+          onSuccess?.();
+        }, 1500);
+      } else {
+        // Create or find conversation, then make offer
+        const conversation = await api.authPost<{ conversationId: string }>('/messages/contact-seller', {
+          listingId: listing.id,
+        });
 
-      setIsSuccess(true);
+        // Make offer on the conversation
+        await api.authPost(`/messages/conversations/${conversation.conversationId}/offer`, {
+          offerAmount: amount,
+        });
 
-      // Redirect to conversation after short delay to show success
-      setTimeout(() => {
-        window.location.href = `/conversations/${conversation.id}`;
-      }, 1500);
+        setIsSuccess(true);
+
+        // Redirect to conversation after short delay to show success
+        setTimeout(() => {
+          window.location.href = `/messages/${conversation.conversationId}`;
+        }, 1500);
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to submit offer. Please try again.');
+      const errorMessage = err instanceof Error ? err.message : '';
+      if (errorMessage.toLowerCase().includes('active offer')) {
+        setError('There is already an active offer in this conversation.');
+      } else {
+        setError(errorMessage || 'Failed to submit offer. Please try again.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -89,9 +114,11 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess }: MakeO
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Make an Offer</DialogTitle>
+          <DialogTitle>{isCounter ? 'Counter Offer' : 'Make an Offer'}</DialogTitle>
           <DialogDescription>
-            Submit your offer for this listing. The seller will review and respond.
+            {isCounter
+              ? 'Submit your counter offer. The other party will review and respond.'
+              : 'Submit your offer for this listing. The seller will review and respond.'}
           </DialogDescription>
         </DialogHeader>
 

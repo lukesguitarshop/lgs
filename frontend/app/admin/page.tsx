@@ -8,7 +8,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users } from 'lucide-react';
-import { OfferCard, AdminOffer } from '@/components/admin/OfferCard';
 import { DealFinderTab } from '@/components/admin/DealFinderTab';
 import { UsersTab } from '@/components/admin/UsersTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
@@ -45,6 +44,26 @@ interface Conversation {
   unreadCount: number;
 }
 
+interface ConversationOffer {
+  id: string;
+  buyerId: string;
+  buyerName: string;
+  buyerEmail: string | null;
+  listingId: string | null;
+  listingTitle: string | null;
+  listingImage: string | null;
+  listingPrice: number | null;
+  activeOfferAmount: number | null;
+  activeOfferBy: string | null;
+  pendingActionBy: string | null;
+  offerExpiresAt: string | null;
+  offerStatus: string | null;
+  acceptedAmount: number | null;
+  lastMessage: string | null;
+  lastMessageAt: string | null;
+  createdAt: string;
+}
+
 interface AdminOrderItem {
   listingId: string;
   listingTitle: string;
@@ -74,6 +93,8 @@ interface AdminOrder {
   createdAt: string;
   buyerName: string;
   buyerEmail: string;
+  trackingCarrier: string | null;
+  trackingNumber: string | null;
 }
 
 function formatTimeAgo(dateString: string | null): string {
@@ -107,16 +128,19 @@ export default function AdminPage() {
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editPriceValue, setEditPriceValue] = useState<string>('');
   const [savingPriceId, setSavingPriceId] = useState<string | null>(null);
-  const [offers, setOffers] = useState<AdminOffer[]>([]);
+  const [conversationOffers, setConversationOffers] = useState<ConversationOffer[]>([]);
   const [loadingOffers, setLoadingOffers] = useState(false);
   const [offerStatusFilter, setOfferStatusFilter] = useState<string>('all');
-  const [offerListingFilter, setOfferListingFilter] = useState<string>('all');
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
   const [orders, setOrders] = useState<AdminOrder[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
   const [expandedOrderItems, setExpandedOrderItems] = useState<string | null>(null);
+  const [editingTrackingId, setEditingTrackingId] = useState<string | null>(null);
+  const [trackingCarrier, setTrackingCarrier] = useState<string>('');
+  const [trackingNumber, setTrackingNumber] = useState<string>('');
+  const [savingTracking, setSavingTracking] = useState(false);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
@@ -153,8 +177,8 @@ export default function AdminPage() {
   const fetchOffers = async () => {
     setLoadingOffers(true);
     try {
-      const data = await api.authGet<AdminOffer[]>('/admin/offers');
-      setOffers(data);
+      const data = await api.authGet<ConversationOffer[]>('/admin/conversation-offers');
+      setConversationOffers(data);
     } catch (err) {
       console.error('Failed to fetch offers:', err);
     } finally {
@@ -187,6 +211,45 @@ export default function AdminPage() {
     }
   };
 
+  const startEditTracking = (order: AdminOrder) => {
+    setEditingTrackingId(order.id);
+    setTrackingCarrier(order.trackingCarrier || '');
+    setTrackingNumber(order.trackingNumber || '');
+  };
+
+  const cancelEditTracking = () => {
+    setEditingTrackingId(null);
+    setTrackingCarrier('');
+    setTrackingNumber('');
+  };
+
+  const saveTracking = async (orderId: string) => {
+    setSavingTracking(true);
+    try {
+      await api.authPatch(`/admin/orders/${orderId}/tracking`, {
+        trackingCarrier: trackingCarrier || null,
+        trackingNumber: trackingNumber || null,
+      });
+      // Update local state - also set status to "shipped" if tracking is added
+      const newStatus = trackingCarrier && trackingNumber ? 'shipped' : undefined;
+      setOrders(orders.map(o =>
+        o.id === orderId
+          ? {
+              ...o,
+              trackingCarrier: trackingCarrier || null,
+              trackingNumber: trackingNumber || null,
+              ...(newStatus && { status: newStatus })
+            }
+          : o
+      ));
+      cancelEditTracking();
+    } catch (err) {
+      console.error('Failed to save tracking:', err);
+    } finally {
+      setSavingTracking(false);
+    }
+  };
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
   };
@@ -199,6 +262,20 @@ export default function AdminPage() {
       hour: 'numeric',
       minute: '2-digit',
     });
+  };
+
+  const getStatusDisplay = (status: string): string => {
+    switch (status.toLowerCase()) {
+      case 'completed':
+      case 'paid':
+        return 'Payment Received';
+      case 'shipped':
+        return 'Shipped';
+      case 'delivered':
+        return 'Delivered';
+      default:
+        return status;
+    }
   };
 
   const startReply = (conversationId: string) => {
@@ -239,27 +316,12 @@ export default function AdminPage() {
     }
   };
 
-  const handleOfferUpdate = (offerId: string, updatedOffer: AdminOffer | null) => {
-    if (updatedOffer) {
-      setOffers(prev => prev.map(o => o.id === offerId ? updatedOffer : o));
-    } else {
-      setOffers(prev => prev.filter(o => o.id !== offerId));
-    }
-  };
-
-  const filteredOffers = offers.filter(offer => {
-    if (offerStatusFilter !== 'all' && offer.status !== offerStatusFilter) {
-      return false;
-    }
-    if (offerListingFilter !== 'all' && offer.listingId !== offerListingFilter) {
+  const filteredConversationOffers = conversationOffers.filter(offer => {
+    if (offerStatusFilter !== 'all' && offer.offerStatus !== offerStatusFilter) {
       return false;
     }
     return true;
   });
-
-  const uniqueListingsInOffers = Array.from(
-    new Map(offers.map(o => [o.listingId, { id: o.listingId, title: o.listingTitle }])).values()
-  );
 
   const toggleListing = async (id: string) => {
     setTogglingId(id);
@@ -419,9 +481,9 @@ export default function AdminPage() {
           <TabsTrigger value="offers" className="flex items-center gap-2">
             <Tag className="h-4 w-4" />
             <span className="hidden sm:inline">Offers</span>
-            {offers.filter(o => o.status === 'pending').length > 0 && (
+            {conversationOffers.filter(o => o.offerStatus === 'active').length > 0 && (
               <span className="px-1.5 py-0.5 bg-yellow-500 text-white rounded-full text-xs">
-                {offers.filter(o => o.status === 'pending').length}
+                {conversationOffers.filter(o => o.offerStatus === 'active').length}
               </span>
             )}
           </TabsTrigger>
@@ -830,7 +892,7 @@ export default function AdminPage() {
                                 <Send className="h-3 w-3 mr-1" />
                                 Quick Reply
                               </Button>
-                              <Link href={`/messages/${conversation.id}`}>
+                              <Link href={`/messages/${conversation.id}?from=admin`}>
                                 <Button
                                   size="sm"
                                   variant="outline"
@@ -884,7 +946,7 @@ export default function AdminPage() {
             <div className="flex flex-wrap gap-4 mb-4 pb-4 border-b border-gray-100">
               <div className="flex items-center gap-2">
                 <Filter className="h-4 w-4 text-gray-500" />
-                <span className="text-sm text-gray-600">Filters:</span>
+                <span className="text-sm text-gray-600">Filter:</span>
               </div>
               <div className="flex items-center gap-2">
                 <label className="text-sm text-gray-600">Status:</label>
@@ -894,38 +956,20 @@ export default function AdminPage() {
                   className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#df5e15] focus:border-transparent outline-none"
                 >
                   <option value="all">All</option>
-                  <option value="pending">Pending</option>
-                  <option value="countered">Countered</option>
+                  <option value="active">Active</option>
                   <option value="accepted">Accepted</option>
-                  <option value="rejected">Rejected</option>
+                  <option value="declined">Declined</option>
+                  <option value="expired">Expired</option>
                 </select>
               </div>
-              <div className="flex items-center gap-2">
-                <label className="text-sm text-gray-600">Listing:</label>
-                <select
-                  value={offerListingFilter}
-                  onChange={(e) => setOfferListingFilter(e.target.value)}
-                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#df5e15] focus:border-transparent outline-none max-w-[200px]"
-                >
-                  <option value="all">All Listings</option>
-                  {uniqueListingsInOffers.map(listing => (
-                    <option key={listing.id} value={listing.id}>
-                      {listing.title.length > 30 ? listing.title.substring(0, 30) + '...' : listing.title}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {(offerStatusFilter !== 'all' || offerListingFilter !== 'all') && (
+              {offerStatusFilter !== 'all' && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    setOfferStatusFilter('all');
-                    setOfferListingFilter('all');
-                  }}
+                  onClick={() => setOfferStatusFilter('all')}
                   className="text-xs"
                 >
-                  Clear Filters
+                  Clear Filter
                 </Button>
               )}
             </div>
@@ -933,49 +977,105 @@ export default function AdminPage() {
             {/* Offers count */}
             <div className="mb-4">
               <span className="text-sm text-gray-500">
-                Showing {filteredOffers.length} of {offers.length} offers
-                {offers.filter(o => o.status === 'pending').length > 0 && (
-                  <span className="ml-2 px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded-full text-xs">
-                    {offers.filter(o => o.status === 'pending').length} pending
+                Showing {filteredConversationOffers.length} of {conversationOffers.length} offers
+                {conversationOffers.filter(o => o.offerStatus === 'active').length > 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full text-xs">
+                    {conversationOffers.filter(o => o.offerStatus === 'active').length} active
                   </span>
                 )}
               </span>
             </div>
 
-            {loadingOffers && offers.length === 0 ? (
+            {loadingOffers && conversationOffers.length === 0 ? (
               <div className="flex justify-center py-8">
                 <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
               </div>
-            ) : offers.length === 0 ? (
+            ) : conversationOffers.length === 0 ? (
               <div className="text-center py-8">
                 <Tag className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500">No offers yet</p>
                 <p className="text-gray-400 text-sm">When buyers make offers, they&apos;ll appear here</p>
               </div>
-            ) : filteredOffers.length === 0 ? (
+            ) : filteredConversationOffers.length === 0 ? (
               <div className="text-center py-8">
                 <Filter className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500">No offers match your filters</p>
+                <p className="text-gray-500">No offers match your filter</p>
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    setOfferStatusFilter('all');
-                    setOfferListingFilter('all');
-                  }}
+                  onClick={() => setOfferStatusFilter('all')}
                   className="mt-2"
                 >
-                  Clear Filters
+                  Clear Filter
                 </Button>
               </div>
             ) : (
-              <div className="grid gap-4 md:grid-cols-2">
-                {filteredOffers.map(offer => (
-                  <OfferCard
-                    key={offer.id}
-                    offer={offer}
-                    onUpdate={handleOfferUpdate}
-                  />
+              <div className="space-y-3">
+                {filteredConversationOffers.map(offer => (
+                  <Link key={offer.id} href={`/messages/${offer.id}?from=admin`}>
+                    <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-[#df5e15] hover:shadow-sm transition-all cursor-pointer">
+                      {/* Listing Image */}
+                      <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                        {offer.listingImage ? (
+                          <Image
+                            src={offer.listingImage}
+                            alt={offer.listingTitle || 'Listing'}
+                            fill
+                            className="object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-2xl">
+                            🎸
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Offer Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-gray-900 truncate">
+                            {offer.buyerName}
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                            offer.offerStatus === 'active' ? 'bg-orange-100 text-orange-800' :
+                            offer.offerStatus === 'accepted' ? 'bg-green-100 text-green-800' :
+                            offer.offerStatus === 'declined' ? 'bg-red-100 text-red-800' :
+                            'bg-gray-100 text-gray-600'
+                          }`}>
+                            {offer.offerStatus}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-600 truncate mb-1">
+                          {offer.listingTitle || 'Unknown Listing'}
+                        </p>
+                        <div className="flex items-center gap-3 text-sm">
+                          <span className="font-semibold text-[#df5e15]">
+                            {offer.offerStatus === 'accepted'
+                              ? `Accepted: $${offer.acceptedAmount?.toLocaleString()}`
+                              : offer.activeOfferAmount
+                                ? `Offer: $${offer.activeOfferAmount.toLocaleString()}`
+                                : 'No active offer'
+                            }
+                          </span>
+                          {offer.listingPrice && (
+                            <span className="text-gray-400">
+                              Listed: ${offer.listingPrice.toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Time */}
+                      <div className="text-right flex-shrink-0">
+                        <span className="text-xs text-gray-400">
+                          {formatTimeAgo(offer.lastMessageAt)}
+                        </span>
+                        <div className="mt-1">
+                          <ExternalLink className="h-4 w-4 text-gray-400" />
+                        </div>
+                      </div>
+                    </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -1032,6 +1132,7 @@ export default function AdminPage() {
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Total</th>
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Payment</th>
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Status</th>
+                      <th className="text-left py-3 px-2 font-medium text-gray-700">Tracking</th>
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Address</th>
                     </tr>
                   </thead>
@@ -1040,9 +1141,13 @@ export default function AdminPage() {
                       <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-3 px-2">
                           <div className="flex items-center gap-1">
-                            <span className="font-mono text-xs text-gray-600" title={order.id}>
+                            <Link
+                              href={`/order/${order.id}`}
+                              className="font-mono text-xs text-[#df5e15] hover:underline"
+                              title={order.id}
+                            >
                               {order.id.substring(0, 8)}...
-                            </span>
+                            </Link>
                             <button
                               onClick={() => copyToClipboard(order.id)}
                               className="p-1 text-gray-400 hover:text-gray-600"
@@ -1123,14 +1228,72 @@ export default function AdminPage() {
                         </td>
                         <td className="py-3 px-2">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            order.status === 'completed' || order.status === 'paid'
-                              ? 'bg-green-100 text-green-700'
-                              : order.status === 'pending'
+                            order.status === 'pending'
                               ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-gray-100 text-gray-700'
+                              : 'bg-green-100 text-green-700'
                           }`}>
-                            {order.status}
+                            {getStatusDisplay(order.status)}
                           </span>
+                        </td>
+                        <td className="py-3 px-2">
+                          {editingTrackingId === order.id ? (
+                            <div className="space-y-2">
+                              <select
+                                value={trackingCarrier}
+                                onChange={(e) => setTrackingCarrier(e.target.value)}
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+                              >
+                                <option value="">Select carrier...</option>
+                                <option value="UPS">UPS</option>
+                                <option value="USPS">USPS</option>
+                                <option value="FedEx">FedEx</option>
+                              </select>
+                              <input
+                                type="text"
+                                value={trackingNumber}
+                                onChange={(e) => setTrackingNumber(e.target.value)}
+                                placeholder="Tracking number"
+                                className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+                              />
+                              <div className="flex gap-1">
+                                <Button
+                                  size="sm"
+                                  onClick={() => saveTracking(order.id)}
+                                  disabled={savingTracking}
+                                  className="text-xs h-6 px-2 bg-[#df5e15] hover:bg-[#c54d0a]"
+                                >
+                                  {savingTracking ? 'Saving...' : 'Save'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={cancelEditTracking}
+                                  disabled={savingTracking}
+                                  className="text-xs h-6 px-2"
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : order.trackingCarrier && order.trackingNumber ? (
+                            <div className="space-y-1">
+                              <p className="text-xs font-medium text-gray-900">{order.trackingCarrier}</p>
+                              <p className="text-xs text-gray-600 font-mono">{order.trackingNumber}</p>
+                              <button
+                                onClick={() => startEditTracking(order)}
+                                className="text-xs text-[#df5e15] hover:underline"
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => startEditTracking(order)}
+                              className="text-xs text-[#df5e15] hover:underline"
+                            >
+                              Add tracking
+                            </button>
+                          )}
                         </td>
                         <td className="py-3 px-2">
                           <button

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAuthHeaders } from '@/lib/auth';
 import api from '@/lib/api';
-import { User, Heart, MessageSquare, Tag, Package, Edit, ChevronRight } from 'lucide-react';
+import { User, Heart, MessageSquare, Tag, Package, Edit, ChevronRight, Truck, ExternalLink } from 'lucide-react';
 
 interface OrderItem {
   listingTitle: string;
@@ -24,6 +24,8 @@ interface Order {
   createdAt: string;
   itemCount: number;
   items: OrderItem[];
+  trackingCarrier?: string | null;
+  trackingNumber?: string | null;
 }
 
 function formatDate(dateString: string): string {
@@ -42,12 +44,38 @@ function formatCurrency(amount: number, currency: string = 'USD'): string {
   }).format(amount);
 }
 
+function getStatusDisplay(status: string): string {
+  switch (status.toLowerCase()) {
+    case 'completed':
+    case 'paid':
+      return 'Payment Received';
+    case 'shipped':
+      return 'Shipped';
+    case 'delivered':
+      return 'Delivered';
+    default:
+      return status;
+  }
+}
+
+function getTrackingUrl(carrier: string, trackingNumber: string): string | null {
+  switch (carrier.toUpperCase()) {
+    case 'UPS':
+      return `https://www.ups.com/track?tracknum=${trackingNumber}`;
+    case 'USPS':
+      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNumber}`;
+    case 'FEDEX':
+      return `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`;
+    default:
+      return null;
+  }
+}
+
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, setShowLoginModal } = useAuth();
+  const { user, isAuthenticated, isLoading, isAdmin, setShowLoginModal } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
-  const [expandedOrderItems, setExpandedOrderItems] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -99,16 +127,16 @@ export default function ProfilePage() {
       description: 'View your saved listings',
     },
     {
-      href: '/conversations',
+      href: '/messages?filter=offers',
       icon: Tag,
-      title: 'Negotiations',
-      description: 'Track your offer conversations',
+      title: 'Offers',
+      description: 'View your offer conversations',
     },
     {
       href: '/messages',
       icon: MessageSquare,
       title: 'Messages',
-      description: 'View your conversations',
+      description: 'View all conversations',
     },
   ];
 
@@ -152,111 +180,118 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* Quick Links */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          {quickLinks.map((link) => (
-            <Link key={link.href} href={link.href}>
-              <Card className="h-full hover:border-[#df5e15] transition-colors cursor-pointer">
-                <CardContent className="p-4 flex items-center gap-4">
-                  <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center">
-                    <link.icon className="h-6 w-6 text-[#df5e15]" />
-                  </div>
-                  <div className="flex-1">
-                    <h3 className="font-medium">{link.title}</h3>
-                    <p className="text-sm text-muted-foreground">{link.description}</p>
-                  </div>
-                  <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
-        </div>
+        {/* Quick Links - hidden for admin */}
+        {!isAdmin && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+            {quickLinks.map((link) => (
+              <Link key={link.href} href={link.href}>
+                <Card className="h-full hover:border-[#df5e15] transition-colors cursor-pointer">
+                  <CardContent className="p-4 flex items-center gap-4">
+                    <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center">
+                      <link.icon className="h-6 w-6 text-[#df5e15]" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-medium">{link.title}</h3>
+                      <p className="text-sm text-muted-foreground">{link.description}</p>
+                    </div>
+                    <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
 
-        {/* Order History */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Package className="h-5 w-5" />
-              Order History
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {ordersLoading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading orders...
-              </div>
-            ) : orders.length === 0 ? (
-              <div className="text-center py-8">
-                <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <p className="text-muted-foreground mb-4">No orders yet</p>
-                <Link href="/">
-                  <Button variant="outline">Browse Guitars</Button>
-                </Link>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
-                      <div>
-                        <p className="font-medium">
-                          Order #{order.id.slice(-8).toUpperCase()}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatDate(order.createdAt)}
-                        </p>
+        {/* Order History - hidden for admin */}
+        {!isAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Order History
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {ordersLoading ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  Loading orders...
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="text-center py-8">
+                  <Package className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <p className="text-muted-foreground mb-4">No orders yet</p>
+                  <Link href="/">
+                    <Button variant="outline">Browse Guitars</Button>
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {orders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                        <div>
+                          <p className="font-medium">
+                            Order #{order.id.slice(-8).toUpperCase()}
+                          </p>
+                          <p className="text-sm text-muted-foreground">
+                            {formatDate(order.createdAt)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-lg">
+                            {formatCurrency(order.totalAmount, order.currency)}
+                          </p>
+                          <span className="inline-block px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                            {getStatusDisplay(order.status)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-lg">
-                          {formatCurrency(order.totalAmount, order.currency)}
-                        </p>
-                        <span className="inline-block px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
-                          {order.status}
-                        </span>
-                      </div>
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      {expandedOrderItems === order.id ? (
-                        <>
-                          {order.items.map((item, idx) => (
-                            <p key={idx} className="break-words">
-                              {item.quantity}x {item.listingTitle}
-                            </p>
-                          ))}
-                          <button
-                            onClick={() => setExpandedOrderItems(null)}
-                            className="text-xs text-[#df5e15] hover:underline mt-1"
-                          >
-                            Show less
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          {order.items.slice(0, 2).map((item, idx) => (
-                            <p key={idx} className="truncate">
-                              {item.quantity}x {item.listingTitle}
-                            </p>
-                          ))}
-                          {order.items.length > 0 && (
-                            <button
-                              onClick={() => setExpandedOrderItems(order.id)}
-                              className="text-xs text-[#df5e15] hover:underline mt-1"
+                      {/* Tracking Information */}
+                      {order.trackingNumber && order.trackingCarrier && (
+                        <div className="flex items-center gap-2 mb-2 p-2 bg-orange-50 rounded-md">
+                          <Truck className="h-4 w-4 text-[#df5e15]" />
+                          <span className="text-sm font-medium text-orange-800">
+                            {order.trackingCarrier}:
+                          </span>
+                          {getTrackingUrl(order.trackingCarrier, order.trackingNumber) ? (
+                            <a
+                              href={getTrackingUrl(order.trackingCarrier, order.trackingNumber)!}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-[#df5e15] hover:underline font-mono inline-flex items-center gap-1"
                             >
-                              {order.items.length > 2 ? `Show all ${order.items.length} items` : 'Show full titles'}
-                            </button>
+                              {order.trackingNumber}
+                              <ExternalLink className="h-3 w-3" />
+                            </a>
+                          ) : (
+                            <span className="text-sm text-orange-800 font-mono">
+                              {order.trackingNumber}
+                            </span>
                           )}
-                        </>
+                        </div>
                       )}
+                      <div className="text-sm text-muted-foreground">
+                        {order.items.slice(0, 2).map((item, idx) => (
+                          <p key={idx} className="truncate">
+                            {item.quantity}x {item.listingTitle}
+                          </p>
+                        ))}
+                        {order.items.length > 2 && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            +{order.items.length - 2} more item{order.items.length - 2 > 1 ? 's' : ''}
+                          </p>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

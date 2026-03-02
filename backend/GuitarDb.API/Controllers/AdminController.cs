@@ -417,6 +417,53 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Get all conversations with offers (new unified system)
+    /// </summary>
+    [HttpGet("conversation-offers")]
+    public async Task<IActionResult> GetConversationOffers([FromQuery] string? status = null)
+    {
+        var conversations = await _mongoDbService.GetConversationsWithOffersAsync(status);
+
+        var result = new List<object>();
+        var adminUser = await _mongoDbService.GetAdminUserAsync();
+
+        foreach (var conv in conversations)
+        {
+            var buyerId = conv.ParticipantIds.FirstOrDefault(p => p != adminUser?.Id);
+            var buyer = buyerId != null ? await _mongoDbService.GetUserByIdAsync(buyerId) : null;
+
+            MyListing? listing = null;
+            if (conv.ListingId != null)
+            {
+                listing = await _mongoDbService.GetMyListingByIdAsync(conv.ListingId);
+            }
+
+            result.Add(new
+            {
+                Id = conv.Id,
+                BuyerId = buyerId,
+                BuyerName = buyer?.FullName ?? "Unknown",
+                BuyerEmail = buyer?.Email,
+                ListingId = conv.ListingId,
+                ListingTitle = listing?.ListingTitle,
+                ListingImage = listing?.Images?.FirstOrDefault(),
+                ListingPrice = listing?.Price,
+                ActiveOfferAmount = conv.ActiveOfferAmount,
+                ActiveOfferBy = conv.ActiveOfferBy,
+                PendingActionBy = conv.PendingActionBy,
+                OfferExpiresAt = conv.OfferExpiresAt,
+                OfferStatus = conv.OfferStatus,
+                AcceptedAmount = conv.AcceptedAmount,
+                LastMessage = conv.LastMessage,
+                LastMessageAt = conv.LastMessageAt,
+                CreatedAt = conv.CreatedAt
+            });
+        }
+
+        return Ok(result);
+    }
+
+    /// <summary>
     /// Admin counter-offer
     /// </summary>
     [HttpPut("offers/{offerId}/counter")]
@@ -675,12 +722,92 @@ public class AdminController : ControllerBase
                 Status = order.Status,
                 CreatedAt = order.CreatedAt,
                 BuyerName = buyerName,
-                BuyerEmail = buyerEmail
+                BuyerEmail = buyerEmail,
+                TrackingCarrier = order.TrackingCarrier,
+                TrackingNumber = order.TrackingNumber
             });
         }
 
         // Return newest orders first
         return Ok(result.OrderByDescending(o => o.CreatedAt));
+    }
+
+    /// <summary>
+    /// Update order tracking information
+    /// </summary>
+    [HttpPatch("orders/{id}/tracking")]
+    public async Task<IActionResult> UpdateOrderTracking(string id, [FromBody] UpdateOrderTrackingRequest request)
+    {
+        // Get the order first to retrieve buyer email
+        var order = await _mongoDbService.GetOrderByIdAsync(id);
+        if (order == null)
+        {
+            return NotFound(new { error = "Order not found" });
+        }
+
+        // Update tracking
+        var success = await _mongoDbService.UpdateOrderTrackingAsync(id, request.TrackingCarrier, request.TrackingNumber);
+        if (!success)
+        {
+            return NotFound(new { error = "Failed to update order" });
+        }
+
+        // Send shipping notification email if tracking is being added
+        if (!string.IsNullOrEmpty(request.TrackingCarrier) && !string.IsNullOrEmpty(request.TrackingNumber))
+        {
+            string? buyerEmail = null;
+
+            // Get buyer email from user account or guest email
+            if (!string.IsNullOrEmpty(order.UserId))
+            {
+                var user = await _mongoDbService.GetUserByIdAsync(order.UserId);
+                buyerEmail = user?.Email;
+            }
+            else if (!string.IsNullOrEmpty(order.GuestEmail))
+            {
+                buyerEmail = order.GuestEmail;
+            }
+
+            if (!string.IsNullOrEmpty(buyerEmail))
+            {
+                var itemTitles = order.Items.Select(i => i.ListingTitle).ToList();
+                _ = _emailService.SendOrderShippedNotificationAsync(
+                    buyerEmail,
+                    order.Id!,
+                    request.TrackingCarrier,
+                    request.TrackingNumber,
+                    itemTitles
+                );
+            }
+        }
+
+        return Ok(new { success = true });
+    }
+
+    /// <summary>
+    /// Update order status (e.g., mark as delivered)
+    /// </summary>
+    [HttpPatch("orders/{id}/status")]
+    public async Task<IActionResult> UpdateOrderStatus(string id, [FromBody] UpdateOrderStatusRequest request)
+    {
+        var validStatuses = new[] { "completed", "shipped", "delivered", "pending" };
+        if (string.IsNullOrEmpty(request.Status) || !validStatuses.Contains(request.Status.ToLower()))
+        {
+            return BadRequest(new { error = "Invalid status. Valid values: completed, shipped, delivered, pending" });
+        }
+
+        var success = await _mongoDbService.UpdateOrderStatusAsync(id, request.Status.ToLower());
+        if (!success)
+        {
+            return NotFound(new { error = "Order not found" });
+        }
+
+        return Ok(new { success = true });
+    }
+
+    public class UpdateOrderStatusRequest
+    {
+        public string Status { get; set; } = string.Empty;
     }
 
     public class AdminOrderDto
@@ -695,6 +822,14 @@ public class AdminController : ControllerBase
         public DateTime CreatedAt { get; set; }
         public string BuyerName { get; set; } = string.Empty;
         public string BuyerEmail { get; set; } = string.Empty;
+        public string? TrackingCarrier { get; set; }
+        public string? TrackingNumber { get; set; }
+    }
+
+    public class UpdateOrderTrackingRequest
+    {
+        public string? TrackingCarrier { get; set; }
+        public string? TrackingNumber { get; set; }
     }
 
     public class AdminOrderItemDto

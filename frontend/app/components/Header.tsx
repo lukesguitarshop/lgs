@@ -104,17 +104,27 @@ export default function Header() {
               >
                 Shop Info
               </Link>
-              <Link
-                href="/cart"
-                className="relative px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors flex items-center cursor-pointer"
-              >
-                <ShoppingCart className="h-5 w-5" />
-                {(cartCount + pendingCount) > 0 && (
-                  <span className={`absolute -top-2 -right-2 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center ${pendingCount > 0 ? 'bg-amber-500' : 'bg-red-500'}`}>
-                    {(cartCount + pendingCount) > 99 ? '99+' : cartCount + pendingCount}
-                  </span>
-                )}
-              </Link>
+              {isAdmin ? (
+                <Link
+                  href="/admin"
+                  className="px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors flex items-center gap-2 cursor-pointer"
+                >
+                  <Shield className="h-5 w-5" />
+                  Admin Portal
+                </Link>
+              ) : (
+                <Link
+                  href="/cart"
+                  className="relative px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors flex items-center cursor-pointer"
+                >
+                  <ShoppingCart className="h-5 w-5" />
+                  {(cartCount + pendingCount) > 0 && (
+                    <span className={`absolute -top-2 -right-2 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center ${pendingCount > 0 ? 'bg-amber-500' : 'bg-red-500'}`}>
+                      {(cartCount + pendingCount) > 99 ? '99+' : cartCount + pendingCount}
+                    </span>
+                  )}
+                </Link>
+              )}
               <ProfileButton />
             </nav>
 

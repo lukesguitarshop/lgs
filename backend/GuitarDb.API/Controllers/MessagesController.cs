@@ -68,7 +68,14 @@ public class MessagesController : ControllerBase
                 LastMessage = conv.LastMessage,
                 LastMessageAt = conv.LastMessageAt,
                 CreatedAt = conv.CreatedAt,
-                UnreadCount = unreadCount
+                UnreadCount = unreadCount,
+                // Offer fields
+                ActiveOfferAmount = conv.ActiveOfferAmount,
+                ActiveOfferBy = conv.ActiveOfferBy,
+                PendingActionBy = conv.PendingActionBy,
+                OfferExpiresAt = conv.OfferExpiresAt,
+                OfferStatus = conv.OfferStatus,
+                AcceptedAmount = conv.AcceptedAmount
             });
         }
 
@@ -115,7 +122,9 @@ public class MessagesController : ControllerBase
             ImageUrls = m.ImageUrls,
             CreatedAt = m.CreatedAt,
             IsRead = m.IsRead,
-            IsMine = m.SenderId == userId
+            IsMine = m.SenderId == userId,
+            Type = m.Type,
+            OfferAmount = m.OfferAmount
         }).ToList();
 
         return Ok(result);
@@ -620,11 +629,15 @@ public class MessagesController : ControllerBase
         }
 
         // Add to pending cart items (72 hour hold)
+        // The buyer always gets the item in their cart, regardless of who made the final offer
         if (conversation.ListingId != null && listing != null)
         {
+            // Determine who the buyer is (the non-admin participant)
+            var buyerId = isBuyer ? userId : otherUserId;
+
             await _mongoDbService.CreatePendingCartItemAsync(new PendingCartItem
             {
-                UserId = conversation.ActiveOfferBy ?? otherUserId,
+                UserId = buyerId,
                 ListingId = conversation.ListingId,
                 OfferId = conversationId,
                 Price = acceptedAmount,
@@ -632,6 +645,9 @@ public class MessagesController : ControllerBase
                 ListingImage = listing.Images?.FirstOrDefault() ?? "",
                 ExpiresAt = DateTime.UtcNow.AddHours(72)
             });
+
+            // Disable the listing (mark as sold/pending)
+            await _mongoDbService.SetListingDisabledAsync(conversation.ListingId, true);
         }
 
         return Ok(new { success = true, acceptedAmount });
@@ -712,6 +728,97 @@ public class MessagesController : ControllerBase
         return Ok(new { success = true });
     }
 
+    /// <summary>
+    /// Counter the active offer with a new amount
+    /// </summary>
+    [HttpPost("conversations/{conversationId}/counter")]
+    public async Task<IActionResult> CounterOffer(string conversationId, [FromBody] MakeOfferRequest request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized(new { error = "Invalid token" });
+
+        if (request.OfferAmount <= 0)
+            return BadRequest(new { error = "Offer amount must be positive" });
+
+        if (request.OfferAmount > 99999)
+            return BadRequest(new { error = "Offer amount cannot exceed $99,999" });
+
+        var conversation = await _mongoDbService.GetConversationByIdAsync(conversationId);
+        if (conversation == null)
+            return NotFound(new { error = "Conversation not found" });
+
+        if (!conversation.ParticipantIds.Contains(userId))
+            return Forbid();
+
+        if (conversation.OfferStatus != "active")
+            return BadRequest(new { error = "No active offer to counter" });
+
+        // Verify it's the recipient's turn
+        var admin = await _mongoDbService.GetAdminUserAsync();
+        var isBuyer = userId != admin?.Id;
+        var expectedPendingBy = isBuyer ? "buyer" : "seller";
+
+        if (conversation.PendingActionBy != expectedPendingBy)
+            return BadRequest(new { error = "It's not your turn to respond to this offer" });
+
+        var otherUserId = conversation.ParticipantIds.First(p => p != userId);
+        var previousAmount = conversation.ActiveOfferAmount ?? 0;
+        var newPendingActionBy = isBuyer ? "seller" : "buyer";
+
+        // Create counter message (marks the old offer as countered)
+        await _mongoDbService.CreateMessageAsync(new Message
+        {
+            ConversationId = conversationId,
+            SenderId = userId,
+            RecipientId = otherUserId,
+            ListingId = conversation.ListingId,
+            MessageText = $"Countered ${previousAmount:N0} with ${request.OfferAmount:N0}",
+            Type = "counter",
+            OfferAmount = previousAmount
+        });
+
+        // Create new offer message
+        await _mongoDbService.CreateMessageAsync(new Message
+        {
+            ConversationId = conversationId,
+            SenderId = userId,
+            RecipientId = otherUserId,
+            ListingId = conversation.ListingId,
+            MessageText = $"Counter offer: ${request.OfferAmount:N0}",
+            Type = "offer",
+            OfferAmount = request.OfferAmount
+        });
+
+        // Update conversation state with new offer
+        await _mongoDbService.UpdateConversationOfferStateAsync(
+            conversationId,
+            activeOfferAmount: request.OfferAmount,
+            activeOfferBy: userId,
+            pendingActionBy: newPendingActionBy,
+            offerExpiresAt: DateTime.UtcNow.AddHours(48),
+            offerStatus: "active"
+        );
+
+        await _mongoDbService.UpdateConversationLastMessageAsync(conversationId, $"Counter offer: ${request.OfferAmount:N0}");
+
+        // Send email notification
+        var recipient = await _mongoDbService.GetUserByIdAsync(otherUserId);
+        var listing = await _mongoDbService.GetMyListingByIdAsync(conversation.ListingId);
+
+        if (recipient?.Email != null)
+        {
+            await _emailService.SendOfferNotificationAsync(
+                recipient.Email,
+                listing?.ListingTitle ?? "a listing",
+                request.OfferAmount,
+                conversationId,
+                isCounter: true
+            );
+        }
+
+        return Ok(new { success = true, newOfferAmount = request.OfferAmount });
+    }
+
     private string? GetUserId()
     {
         return User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -743,6 +850,13 @@ public class ConversationDto
     public DateTime? LastMessageAt { get; set; }
     public DateTime CreatedAt { get; set; }
     public int UnreadCount { get; set; }
+    // Offer fields
+    public decimal? ActiveOfferAmount { get; set; }
+    public string? ActiveOfferBy { get; set; }
+    public string? PendingActionBy { get; set; }
+    public DateTime? OfferExpiresAt { get; set; }
+    public string? OfferStatus { get; set; }
+    public decimal? AcceptedAmount { get; set; }
 }
 
 public class MessageDto
@@ -757,6 +871,8 @@ public class MessageDto
     public DateTime CreatedAt { get; set; }
     public bool IsRead { get; set; }
     public bool IsMine { get; set; }
+    public string Type { get; set; } = "text";
+    public decimal? OfferAmount { get; set; }
 }
 
 public class ContactSellerRequest
@@ -779,4 +895,15 @@ public class SendMessageWithImagesRequest
     public string? MessageText { get; set; }
     public string? ListingId { get; set; }
     public List<IFormFile>? Images { get; set; }
+}
+
+public class MakeOfferRequest
+{
+    public decimal OfferAmount { get; set; }
+    public string? Message { get; set; }
+}
+
+public class DeclineOfferRequest
+{
+    public string? Reason { get; set; }
 }

@@ -23,7 +23,6 @@
       "Bash(git pull:*)",
       "Bash(git merge:*)",
       "Bash(git branch:*)",
-      "Bash(ls -la \"G:\\\\Projects\\\\lgs\\\\backend\\\\GuitarDb.API\"\" 2>/dev/null || dir \"G:ProjectslgsbackendGuitarDb.API \")",
       "Bash(dir:*)",
       "Bash(fly secrets list)",
       "Bash(powershell -Command \"cd ''G:\\\\Projects\\\\lgs\\\\backend\\\\GuitarDb.API''; fly secrets list\")",
@@ -49,7 +48,27 @@
       "Bash(vercel env:*)",
       "Bash(cmd.exe /c \"cd /d G:\\\\Projects\\\\lgs\\\\frontend && C:\\\\Users\\\\Luke\\\\AppData\\\\Roaming\\\\npm\\\\vercel.cmd link --yes 2>&1\")",
       "Bash(C:/Users/Luke/AppData/Roaming/npm/vercel.cmd --yes)",
-      "Bash(C:/Users/Luke/AppData/Roaming/npm/vercel.cmd alias frontend-3sk8x11ch-lukes-projects-8d07d676.vercel.app lgs-dev.vercel.app)"
+      "Bash(C:/Users/Luke/AppData/Roaming/npm/vercel.cmd alias frontend-3sk8x11ch-lukes-projects-8d07d676.vercel.app lgs-dev.vercel.app)",
+      "Skill(superpowers:using-superpowers)",
+      "Skill(superpowers:brainstorming)",
+      "Bash(find:*)",
+      "Skill(superpowers:writing-plans)",
+      "Skill(superpowers:subagent-driven-development)",
+      "Bash(git rev-parse:*)",
+      "Bash(npx tsc:*)",
+      "Bash(claude --dangerously-skip-permissions)",
+      "Bash(dotnet build:*)",
+      "Bash(vercel --yes)",
+      "Bash(vercel link:*)",
+      "Bash(vercel frontend:*)",
+      "Bash(git push:*)",
+      "Bash(fly deploy:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\ndocs: add offer system rework design document\n\nRedesign offer system to use chat-like conversation model with\nturn-based negotiation, 48-hour offer expiration, and proper\nauthorization.\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git -C \"G:\\\\Projects\\\\lgs\" status)",
+      "Bash(git -C \"G:\\\\Projects\\\\lgs\" diff backend/GuitarDb.API/Program.cs)",
+      "Bash(git -C \"G:\\\\Projects\\\\lgs\" add backend/GuitarDb.API/Services/OfferExpirationService.cs backend/GuitarDb.API/Program.cs)",
+      "Bash(git -C \"G:\\\\Projects\\\\lgs\" commit -m \"$\\(cat <<''EOF''\nfeat: add background job for 48-hour offer expiration\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(npm run build)"
     ]
   }
 }

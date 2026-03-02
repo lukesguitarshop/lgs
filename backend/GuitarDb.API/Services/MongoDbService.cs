@@ -12,7 +12,6 @@ public class MongoDbService
     private readonly IMongoCollection<User> _usersCollection;
     private readonly IMongoCollection<Favorite> _favoritesCollection;
     private readonly IMongoCollection<Offer> _offersCollection;
-    private readonly IMongoCollection<OfferConversation> _offerConversationsCollection;
     private readonly IMongoCollection<Message> _messagesCollection;
     private readonly IMongoCollection<Conversation> _conversationsCollection;
     private readonly IMongoCollection<PendingCartItem> _pendingCartItemsCollection;
@@ -39,7 +38,6 @@ public class MongoDbService
         _usersCollection = database.GetCollection<User>("users");
         _favoritesCollection = database.GetCollection<Favorite>("favorites");
         _offersCollection = database.GetCollection<Offer>("offers");
-        _offerConversationsCollection = database.GetCollection<OfferConversation>("offer_conversations");
         _messagesCollection = database.GetCollection<Message>("messages");
         _conversationsCollection = database.GetCollection<Conversation>("conversations");
         _pendingCartItemsCollection = database.GetCollection<PendingCartItem>("pending_cart_items");
@@ -346,6 +344,12 @@ public class MongoDbService
         return await _ordersCollection.Find(filter).FirstOrDefaultAsync();
     }
 
+    public async Task<Order?> GetOrderByIdAsync(string orderId)
+    {
+        var filter = Builders<Order>.Filter.Eq(o => o.Id, orderId);
+        return await _ordersCollection.Find(filter).FirstOrDefaultAsync();
+    }
+
     public async Task<Order?> GetOrderByPayPalOrderIdAsync(string paypalOrderId)
     {
         var filter = Builders<Order>.Filter.Eq(o => o.PayPalOrderId, paypalOrderId);
@@ -365,6 +369,40 @@ public class MongoDbService
         return await _ordersCollection.Find(filter)
             .SortByDescending(o => o.CreatedAt)
             .ToListAsync();
+    }
+
+    public async Task<bool> UpdateOrderTrackingAsync(string orderId, string? carrier, string? trackingNumber)
+    {
+        var filter = Builders<Order>.Filter.Eq(o => o.Id, orderId);
+        var updateBuilder = Builders<Order>.Update
+            .Set(o => o.TrackingCarrier, carrier)
+            .Set(o => o.TrackingNumber, trackingNumber);
+
+        // If tracking is being added, update status to "shipped"
+        if (!string.IsNullOrEmpty(carrier) && !string.IsNullOrEmpty(trackingNumber))
+        {
+            updateBuilder = updateBuilder.Set(o => o.Status, "shipped");
+        }
+
+        var result = await _ordersCollection.UpdateOneAsync(filter, updateBuilder);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> UpdateOrderStatusAsync(string orderId, string status)
+    {
+        var filter = Builders<Order>.Filter.Eq(o => o.Id, orderId);
+        var update = Builders<Order>.Update.Set(o => o.Status, status);
+        var result = await _ordersCollection.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<List<Order>> GetShippedOrdersAsync()
+    {
+        var filter = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(o => o.Status, "shipped"),
+            Builders<Order>.Filter.Ne(o => o.TrackingNumber, null)
+        );
+        return await _ordersCollection.Find(filter).ToListAsync();
     }
 
     public async Task<int> LinkGuestOrdersToUserAsync(string guestSessionId, string userId)
@@ -1462,142 +1500,4 @@ public class MongoDbService
             messagesResult.DeletedCount, conversationsResult.DeletedCount);
     }
 
-    // ============ OFFER CONVERSATIONS ============
-
-    public async Task<OfferConversation> CreateOfferConversationAsync(OfferConversation conversation)
-    {
-        await _offerConversationsCollection.InsertOneAsync(conversation);
-        return conversation;
-    }
-
-    public async Task<OfferConversation?> GetOfferConversationByIdAsync(string conversationId)
-    {
-        return await _offerConversationsCollection.Find(c => c.Id == conversationId).FirstOrDefaultAsync();
-    }
-
-    public async Task<OfferConversation?> GetOfferConversationByBuyerAndListingAsync(string buyerId, string listingId)
-    {
-        return await _offerConversationsCollection
-            .Find(c => c.BuyerId == buyerId && c.ListingId == listingId)
-            .FirstOrDefaultAsync();
-    }
-
-    public async Task<List<OfferConversation>> GetOfferConversationsByUserAsync(string userId)
-    {
-        var filter = Builders<OfferConversation>.Filter.Or(
-            Builders<OfferConversation>.Filter.Eq(c => c.BuyerId, userId),
-            Builders<OfferConversation>.Filter.Eq(c => c.SellerId, userId)
-        );
-        return await _offerConversationsCollection.Find(filter)
-            .SortByDescending(c => c.UpdatedAt)
-            .ToListAsync();
-    }
-
-    public async Task<List<OfferConversation>> GetOfferConversationsByListingAsync(string listingId)
-    {
-        return await _offerConversationsCollection
-            .Find(c => c.ListingId == listingId)
-            .SortByDescending(c => c.UpdatedAt)
-            .ToListAsync();
-    }
-
-    public async Task<List<OfferConversation>> GetAllOfferConversationsAsync(string? status = null)
-    {
-        var filter = string.IsNullOrEmpty(status)
-            ? Builders<OfferConversation>.Filter.Empty
-            : Builders<OfferConversation>.Filter.Eq(c => c.Status, status);
-        return await _offerConversationsCollection.Find(filter)
-            .SortByDescending(c => c.UpdatedAt)
-            .ToListAsync();
-    }
-
-    public async Task AddOfferConversationEventAsync(string conversationId, ConversationEvent evt)
-    {
-        var update = Builders<OfferConversation>.Update
-            .Push(c => c.Events, evt)
-            .Set(c => c.UpdatedAt, DateTime.UtcNow);
-        await _offerConversationsCollection.UpdateOneAsync(c => c.Id == conversationId, update);
-    }
-
-    public async Task UpdateOfferConversationOfferAsync(
-        string conversationId,
-        string pendingActionBy,
-        decimal offerAmount,
-        DateTime expiresAt)
-    {
-        var update = Builders<OfferConversation>.Update
-            .Set(c => c.PendingActionBy, pendingActionBy)
-            .Set(c => c.PendingOfferAmount, offerAmount)
-            .Set(c => c.PendingExpiresAt, expiresAt)
-            .Set(c => c.UpdatedAt, DateTime.UtcNow);
-        await _offerConversationsCollection.UpdateOneAsync(c => c.Id == conversationId, update);
-    }
-
-    public async Task AcceptOfferConversationOfferAsync(string conversationId, decimal acceptedAmount)
-    {
-        var update = Builders<OfferConversation>.Update
-            .Set(c => c.Status, ConversationStatus.Accepted)
-            .Set(c => c.AcceptedAmount, acceptedAmount)
-            .Set(c => c.PendingActionBy, null)
-            .Set(c => c.PendingOfferAmount, null)
-            .Set(c => c.PendingExpiresAt, null)
-            .Set(c => c.UpdatedAt, DateTime.UtcNow);
-        await _offerConversationsCollection.UpdateOneAsync(c => c.Id == conversationId, update);
-    }
-
-    public async Task DeclineOfferConversationAsync(string conversationId)
-    {
-        var update = Builders<OfferConversation>.Update
-            .Set(c => c.Status, ConversationStatus.Declined)
-            .Set(c => c.PendingActionBy, null)
-            .Set(c => c.PendingOfferAmount, null)
-            .Set(c => c.PendingExpiresAt, null)
-            .Set(c => c.UpdatedAt, DateTime.UtcNow);
-        await _offerConversationsCollection.UpdateOneAsync(c => c.Id == conversationId, update);
-    }
-
-    public async Task<List<OfferConversation>> GetExpiredOfferConversationsAsync()
-    {
-        var filter = Builders<OfferConversation>.Filter.And(
-            Builders<OfferConversation>.Filter.Eq(c => c.Status, ConversationStatus.Active),
-            Builders<OfferConversation>.Filter.Lt(c => c.PendingExpiresAt, DateTime.UtcNow),
-            Builders<OfferConversation>.Filter.Ne(c => c.PendingExpiresAt, null)
-        );
-        return await _offerConversationsCollection.Find(filter).ToListAsync();
-    }
-
-    public async Task ExpireOfferConversationAsync(string conversationId)
-    {
-        var update = Builders<OfferConversation>.Update
-            .Set(c => c.Status, ConversationStatus.Expired)
-            .Set(c => c.PendingActionBy, null)
-            .Set(c => c.PendingOfferAmount, null)
-            .Set(c => c.PendingExpiresAt, null)
-            .Set(c => c.UpdatedAt, DateTime.UtcNow);
-        await _offerConversationsCollection.UpdateOneAsync(c => c.Id == conversationId, update);
-    }
-
-    public async Task<List<OfferConversation>> DeclineOtherOfferConversationsOnListingAsync(string listingId, string exceptConversationId)
-    {
-        var filter = Builders<OfferConversation>.Filter.And(
-            Builders<OfferConversation>.Filter.Eq(c => c.ListingId, listingId),
-            Builders<OfferConversation>.Filter.Eq(c => c.Status, ConversationStatus.Active),
-            Builders<OfferConversation>.Filter.Ne(c => c.Id, exceptConversationId)
-        );
-
-        var conversations = await _offerConversationsCollection.Find(filter).ToListAsync();
-
-        foreach (var conv in conversations)
-        {
-            await DeclineOfferConversationAsync(conv.Id!);
-            await AddOfferConversationEventAsync(conv.Id!, new ConversationEvent
-            {
-                Type = ConversationEventType.Decline,
-                MessageText = "Another offer was accepted for this item.",
-                CreatedAt = DateTime.UtcNow
-            });
-        }
-
-        return conversations;
-    }
 }

@@ -98,7 +98,7 @@ export function ProfileButton() {
             </DropdownMenuLabel>
             {counts.offers > 0 && (
               <DropdownMenuItem asChild>
-                <Link href="/conversations" className="cursor-pointer">
+                <Link href="/messages?filter=offers" className="cursor-pointer">
                   <Tag className="mr-2 h-4 w-4 text-orange-500" />
                   <span className="flex-1">Offers</span>
                   <span className="ml-auto bg-orange-100 text-orange-700 text-xs font-medium px-2 py-0.5 rounded-full">
@@ -136,7 +136,7 @@ export function ProfileButton() {
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link href="/conversations" className="cursor-pointer">
+              <Link href="/messages?filter=offers" className="cursor-pointer">
                 <Tag className="mr-2 h-4 w-4" />
                 My Offers
               </Link>
@@ -239,7 +239,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           <div className="flex gap-2">
             {counts.offers > 0 && (
               <Link
-                href="/conversations"
+                href="/messages?filter=offers"
                 onClick={onNavigate}
                 className="flex-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg text-sm font-medium text-center cursor-pointer"
               >
@@ -279,7 +279,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
             Favorites
           </Link>
           <Link
-            href="/conversations"
+            href="/messages?filter=offers"
             onClick={onNavigate}
             className="w-full px-4 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
           >
