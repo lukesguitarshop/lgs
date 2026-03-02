@@ -12,7 +12,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import api from '@/lib/api';
-import { getAuthHeaders } from '@/lib/auth';
 
 interface MakeOfferModalProps {
   open: boolean;
@@ -59,24 +58,11 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess }: MakeO
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/conversations`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders(),
-        },
-        body: JSON.stringify({
-          listingId: listing.id,
-          initialOfferAmount: amount,
-        }),
+      const conversation = await api.authPost<{ id: string }>('/conversations', {
+        listingId: listing.id,
+        initialOfferAmount: amount,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || 'Failed to submit offer');
-      }
-
-      const conversation = await response.json();
       setIsSuccess(true);
 
       // Redirect to conversation after short delay to show success
