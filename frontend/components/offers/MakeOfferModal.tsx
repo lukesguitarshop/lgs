@@ -59,21 +59,29 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess }: MakeO
     setIsLoading(true);
 
     try {
-      await api.post('/offers', {
-        listingId: listing.id,
-        offerAmount: amount,
-      }, {
-        headers: getAuthHeaders(),
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/conversations`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          listingId: listing.id,
+          initialOfferAmount: amount,
+        }),
       });
 
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || 'Failed to submit offer');
+      }
+
+      const conversation = await response.json();
       setIsSuccess(true);
 
-      // Close modal after short delay to show success
+      // Redirect to conversation after short delay to show success
       setTimeout(() => {
-        setOfferAmount('');
-        setIsSuccess(false);
-        onOpenChange(false);
-        onSuccess?.();
+        window.location.href = `/conversations/${conversation.id}`;
       }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to submit offer. Please try again.');
