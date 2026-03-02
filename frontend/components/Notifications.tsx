@@ -135,10 +135,10 @@ export default function Notifications() {
 
         {/* Footer links */}
         <div className="p-2 flex gap-2">
-          <Link href="/offers" className="flex-1">
+          <Link href="/conversations" className="flex-1">
             <Button variant="outline" size="sm" className="w-full text-xs">
               <Tag className="h-3 w-3 mr-1" />
-              All Offers
+              All Negotiations
             </Button>
           </Link>
           <Link href="/messages" className="flex-1">
@@ -190,7 +190,7 @@ function OfferNotificationItem({ notification }: { notification: Notification & 
   };
 
   return (
-    <Link href={`/offers/${notification.offerId}`}>
+    <Link href={`/conversations/${notification.offerId}`}>
       <DropdownMenuItem className={`p-3 cursor-pointer ${notification.isNew ? 'bg-orange-50' : ''}`}>
         <div className="flex gap-3 w-full">
           {/* Image */}
@@ -317,7 +317,7 @@ export function MobileNotificationButton() {
 
   return (
     <Link
-      href="/offers"
+      href="/conversations"
       className="relative p-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors"
     >
       <Bell className="h-5 w-5" />

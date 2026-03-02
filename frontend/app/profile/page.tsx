@@ -99,10 +99,10 @@ export default function ProfilePage() {
       description: 'View your saved listings',
     },
     {
-      href: '/offers',
+      href: '/conversations',
       icon: Tag,
-      title: 'My Offers',
-      description: 'Track your offers',
+      title: 'Negotiations',
+      description: 'Track your offer conversations',
     },
     {
       href: '/messages',
