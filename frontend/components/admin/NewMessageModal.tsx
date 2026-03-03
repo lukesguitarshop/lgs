@@ -222,7 +222,7 @@ export function NewMessageModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-md w-full max-w-[calc(100vw-2rem)]">
+      <DialogContent className="sm:max-w-md lg:max-w-2xl w-full max-w-[calc(100vw-2rem)]">
         <DialogHeader>
           <DialogTitle>
             {step === 'select'
