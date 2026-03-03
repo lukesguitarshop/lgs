@@ -390,6 +390,20 @@ public class CheckoutController : ControllerBase
             return BadRequest(new { error = "No valid items to checkout" });
         }
 
+        // Calculate 3.5% PayPal fee
+        var transactionFee = Math.Round(totalAmount * 0.035m, 2);
+        items.Add(new
+        {
+            name = "PayPal Fee (3.5%)",
+            quantity = "1",
+            unit_amount = new
+            {
+                currency_code = currency,
+                value = transactionFee.ToString("F2")
+            }
+        });
+        var grandTotal = totalAmount + transactionFee;
+
         try
         {
             var accessToken = await GetPayPalAccessToken();
@@ -404,13 +418,13 @@ public class CheckoutController : ControllerBase
                         amount = new
                         {
                             currency_code = currency,
-                            value = totalAmount.ToString("F2"),
+                            value = grandTotal.ToString("F2"),
                             breakdown = new
                             {
                                 item_total = new
                                 {
                                     currency_code = currency,
-                                    value = totalAmount.ToString("F2")
+                                    value = grandTotal.ToString("F2")
                                 }
                             }
                         },
@@ -589,6 +603,10 @@ public class CheckoutController : ControllerBase
                 }
             }
 
+            // Add 3.5% PayPal fee
+            var transactionFee = Math.Round(totalAmount * 0.035m, 2);
+            var grandTotal = totalAmount + transactionFee;
+
             var order = new Order
             {
                 PaymentMethod = "paypal",
@@ -596,7 +614,7 @@ public class CheckoutController : ControllerBase
                 PayPalCaptureId = captureId,
                 Items = orderItems,
                 ShippingAddress = shippingAddress,
-                TotalAmount = totalAmount,
+                TotalAmount = grandTotal,
                 Currency = currency,
                 Status = "completed",
                 UserId = userId

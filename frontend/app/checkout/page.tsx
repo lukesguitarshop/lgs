@@ -119,7 +119,9 @@ export default function CheckoutPage() {
     }
   }, [isAuthenticated, user]);
 
-  const total = cartItems.reduce((sum, item) => sum + item.price, 0);
+  const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
+  const paypalFee = Math.round(subtotal * 0.035 * 100) / 100; // 3.5% fee for PayPal, rounded to 2 decimals
+  const total = paymentMethod === 'paypal' ? subtotal + paypalFee : subtotal;
   const currency = cartItems[0]?.currency || 'USD';
 
   const hasValidAddress = savedAddress &&
@@ -327,12 +329,18 @@ export default function CheckoutPage() {
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal ({cartItems.length} item{cartItems.length !== 1 ? 's' : ''})</span>
-                <span>{formatPrice(total, currency)}</span>
+                <span>{formatPrice(subtotal, currency)}</span>
               </div>
               <div className="flex justify-between text-gray-600">
                 <span>Shipping</span>
                 <span className="text-green-600">Free</span>
               </div>
+              {paymentMethod === 'paypal' && (
+                <div className="flex justify-between text-gray-600">
+                  <span>PayPal Fee (3.5%)</span>
+                  <span>{formatPrice(paypalFee, currency)}</span>
+                </div>
+              )}
               <div className="border-t pt-3 flex justify-between font-semibold text-lg text-gray-900">
                 <span>Total</span>
                 <span>{formatPrice(total, currency)}</span>

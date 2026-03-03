@@ -8,7 +8,6 @@ import {
   Loader2,
   Users,
   Search,
-  Pencil,
   Trash2,
   RefreshCw,
   ChevronLeft,
@@ -19,7 +18,6 @@ import {
 } from 'lucide-react';
 import { getAdminUsers, deleteAdminUser } from '@/lib/api';
 import type { AdminUser } from '@/lib/types/admin-user';
-import { UserEditModal } from './UserEditModal';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 
 export function UsersTab() {
@@ -37,7 +35,6 @@ export function UsersTab() {
   const perPage = 20;
 
   // Modal state
-  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -97,16 +94,6 @@ export function UsersTab() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearchQuery(searchInput);
-  };
-
-  const handleEditUser = (user: AdminUser) => {
-    setEditingUser(user);
-  };
-
-  const handleUserUpdated = (updatedUser: AdminUser) => {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === updatedUser.id ? updatedUser : u))
-    );
   };
 
   const handleDeleteUser = async () => {
@@ -335,33 +322,22 @@ export function UsersTab() {
 
                     {/* Actions */}
                     <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs h-8"
-                          onClick={() => handleEditUser(user)}
-                        >
-                          <Pencil className="h-3 w-3 mr-1" />
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => setDeletingUser(user)}
-                          disabled={actionLoading === user.id}
-                        >
-                          {actionLoading === user.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <>
-                              <Trash2 className="h-3 w-3 mr-1" />
-                              Delete
-                            </>
-                          )}
-                        </Button>
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-xs h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        onClick={() => setDeletingUser(user)}
+                        disabled={actionLoading === user.id}
+                      >
+                        {actionLoading === user.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <>
+                            <Trash2 className="h-3 w-3 mr-1" />
+                            Delete
+                          </>
+                        )}
+                      </Button>
                     </td>
                   </tr>
                 ))}
@@ -426,14 +402,6 @@ export function UsersTab() {
           )}
         </>
       )}
-
-      {/* Edit Modal */}
-      <UserEditModal
-        isOpen={editingUser !== null}
-        onClose={() => setEditingUser(null)}
-        user={editingUser}
-        onSave={handleUserUpdated}
-      />
 
       {/* Delete Confirmation Dialog */}
       <DeleteConfirmDialog

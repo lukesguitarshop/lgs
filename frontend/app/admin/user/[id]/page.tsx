@@ -96,8 +96,20 @@ export default function AdminUserDetailPage() {
   const [editEmailVerified, setEditEmailVerified] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // Shipping address edit state
+  const [editShippingFullName, setEditShippingFullName] = useState('');
+  const [editShippingLine1, setEditShippingLine1] = useState('');
+  const [editShippingLine2, setEditShippingLine2] = useState('');
+  const [editShippingCity, setEditShippingCity] = useState('');
+  const [editShippingState, setEditShippingState] = useState('');
+  const [editShippingPostalCode, setEditShippingPostalCode] = useState('');
+  const [editShippingCountry, setEditShippingCountry] = useState('');
+
   // Order expansion
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+
+  // Copy state
+  const [copiedAddress, setCopiedAddress] = useState(false);
 
   const fetchUser = useCallback(async () => {
     setLoading(true);
@@ -109,6 +121,16 @@ export default function AdminUserDetailPage() {
       setEditEmail(data.email || '');
       setEditIsAdmin(data.isAdmin);
       setEditEmailVerified(data.emailVerified);
+      // Set shipping address edit state
+      if (data.shippingAddress) {
+        setEditShippingFullName(data.shippingAddress.fullName || '');
+        setEditShippingLine1(data.shippingAddress.line1 || '');
+        setEditShippingLine2(data.shippingAddress.line2 || '');
+        setEditShippingCity(data.shippingAddress.city || '');
+        setEditShippingState(data.shippingAddress.state || '');
+        setEditShippingPostalCode(data.shippingAddress.postalCode || '');
+        setEditShippingCountry(data.shippingAddress.country || '');
+      }
     } catch (err) {
       console.error('Failed to fetch user:', err);
       setError(err instanceof Error ? err.message : 'Failed to load user');
@@ -141,11 +163,24 @@ export default function AdminUserDetailPage() {
 
     setSaving(true);
     try {
+      // Build shipping address object if any field is filled
+      const hasShippingAddress = editShippingLine1 || editShippingCity;
+      const shippingAddress = hasShippingAddress ? {
+        fullName: editShippingFullName || editFullName,
+        line1: editShippingLine1,
+        line2: editShippingLine2 || null,
+        city: editShippingCity,
+        state: editShippingState,
+        postalCode: editShippingPostalCode,
+        country: editShippingCountry || 'US',
+      } : null;
+
       const updated = await api.authPut<UserDetail>(`/admin/users/${userId}`, {
         fullName: editFullName,
         email: editEmail || null,
         isAdmin: editIsAdmin,
         emailVerified: editEmailVerified,
+        shippingAddress,
       });
       setUser(updated);
       setEditing(false);
@@ -163,12 +198,47 @@ export default function AdminUserDetailPage() {
       setEditEmail(user.email || '');
       setEditIsAdmin(user.isAdmin);
       setEditEmailVerified(user.emailVerified);
+      // Reset shipping address
+      if (user.shippingAddress) {
+        setEditShippingFullName(user.shippingAddress.fullName || '');
+        setEditShippingLine1(user.shippingAddress.line1 || '');
+        setEditShippingLine2(user.shippingAddress.line2 || '');
+        setEditShippingCity(user.shippingAddress.city || '');
+        setEditShippingState(user.shippingAddress.state || '');
+        setEditShippingPostalCode(user.shippingAddress.postalCode || '');
+        setEditShippingCountry(user.shippingAddress.country || '');
+      } else {
+        setEditShippingFullName('');
+        setEditShippingLine1('');
+        setEditShippingLine2('');
+        setEditShippingCity('');
+        setEditShippingState('');
+        setEditShippingPostalCode('');
+        setEditShippingCountry('');
+      }
     }
     setEditing(false);
   };
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
+  };
+
+  const copyFullAddress = () => {
+    if (!user?.shippingAddress) return;
+    const addr = user.shippingAddress;
+    const fullAddress = [
+      addr.fullName,
+      addr.line1,
+      addr.line2,
+      `${addr.city}, ${addr.state} ${addr.postalCode}`,
+      addr.country,
+    ]
+      .filter(Boolean)
+      .join('\n');
+    navigator.clipboard.writeText(fullAddress);
+    setCopiedAddress(true);
+    setTimeout(() => setCopiedAddress(false), 2000);
   };
 
   const formatDate = (dateString: string) => {
@@ -446,15 +516,98 @@ export default function AdminUserDetailPage() {
             Shipping Address
           </h2>
 
-          {user.shippingAddress ? (
-            <div className="text-gray-900">
-              <p className="font-medium">{user.shippingAddress.fullName}</p>
-              <p>{user.shippingAddress.line1}</p>
-              {user.shippingAddress.line2 && <p>{user.shippingAddress.line2}</p>}
-              <p>
-                {user.shippingAddress.city}, {user.shippingAddress.state} {user.shippingAddress.postalCode}
-              </p>
-              <p>{user.shippingAddress.country}</p>
+          {editing ? (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Full Name</label>
+                <Input
+                  value={editShippingFullName}
+                  onChange={(e) => setEditShippingFullName(e.target.value)}
+                  placeholder="Full name for shipping"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Address Line 1</label>
+                <Input
+                  value={editShippingLine1}
+                  onChange={(e) => setEditShippingLine1(e.target.value)}
+                  placeholder="Street address"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-600 mb-1">Address Line 2</label>
+                <Input
+                  value={editShippingLine2}
+                  onChange={(e) => setEditShippingLine2(e.target.value)}
+                  placeholder="Apt, suite, unit (optional)"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">City</label>
+                  <Input
+                    value={editShippingCity}
+                    onChange={(e) => setEditShippingCity(e.target.value)}
+                    placeholder="City"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">State</label>
+                  <Input
+                    value={editShippingState}
+                    onChange={(e) => setEditShippingState(e.target.value)}
+                    placeholder="State"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Postal Code</label>
+                  <Input
+                    value={editShippingPostalCode}
+                    onChange={(e) => setEditShippingPostalCode(e.target.value)}
+                    placeholder="ZIP / Postal code"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-600 mb-1">Country</label>
+                  <Input
+                    value={editShippingCountry}
+                    onChange={(e) => setEditShippingCountry(e.target.value)}
+                    placeholder="Country"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : user.shippingAddress ? (
+            <div>
+              <div className="text-gray-900 mb-4">
+                <p className="font-medium">{user.shippingAddress.fullName}</p>
+                <p>{user.shippingAddress.line1}</p>
+                {user.shippingAddress.line2 && <p>{user.shippingAddress.line2}</p>}
+                <p>
+                  {user.shippingAddress.city}, {user.shippingAddress.state} {user.shippingAddress.postalCode}
+                </p>
+                <p>{user.shippingAddress.country}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={copyFullAddress}
+                className="w-full"
+              >
+                {copiedAddress ? (
+                  <>
+                    <Check className="h-4 w-4 mr-2 text-green-500" />
+                    Copied!
+                  </>
+                ) : (
+                  <>
+                    <Copy className="h-4 w-4 mr-2" />
+                    Copy Full Address
+                  </>
+                )}
+              </Button>
             </div>
           ) : (
             <p className="text-gray-500 italic">No shipping address saved</p>
@@ -499,7 +652,7 @@ export default function AdminUserDetailPage() {
                     <td className="py-3 px-2">
                       <div className="flex items-center gap-1">
                         <Link
-                          href={`/order/${order.id}`}
+                          href={`/order/${order.id}?fromUser=${userId}`}
                           className="font-mono text-xs text-[#df5e15] hover:underline"
                         >
                           {order.id.substring(0, 8)}...

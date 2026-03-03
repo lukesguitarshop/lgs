@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -104,8 +104,14 @@ function getStatusDisplay(status: string): string {
 export default function OrderDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { isAdmin, isLoading: authLoading } = useAuth();
   const orderId = params.id as string;
+
+  // Determine back URL based on where user came from
+  const fromUserId = searchParams.get('fromUser');
+  const backUrl = fromUserId ? `/admin/user/${fromUserId}` : '/admin?tab=orders';
+  const backLabel = fromUserId ? 'Back to User' : 'Back to Orders';
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -247,10 +253,10 @@ export default function OrderDetailPage() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="max-w-4xl mx-auto">
-          <Link href="/admin?tab=orders">
+          <Link href={backUrl}>
             <Button variant="ghost" className="mb-6">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Orders
+              {backLabel}
             </Button>
           </Link>
           <Card>
@@ -269,10 +275,10 @@ export default function OrderDetailPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <Link href="/admin?tab=orders">
+          <Link href={backUrl}>
             <Button variant="ghost">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Orders
+              {backLabel}
             </Button>
           </Link>
         </div>
