@@ -445,7 +445,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto">
+    <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
       <div className="mb-6">
         <Link
           href="/"
