@@ -222,7 +222,7 @@ export function NewMessageModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-md w-full max-w-[calc(100vw-2rem)]">
         <DialogHeader>
           <DialogTitle>
             {step === 'select'
@@ -308,7 +308,7 @@ export function NewMessageModal({
             </div>
           </div>
         ) : step === 'listing' ? (
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-hidden">
             {/* Selected User Preview */}
             <div className="flex items-center gap-3 p-2 bg-gray-50 rounded-lg">
               <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
@@ -340,7 +340,7 @@ export function NewMessageModal({
             </form>
 
             {/* Listing List */}
-            <div className="max-h-64 overflow-y-auto border rounded-lg">
+            <div className="max-h-64 overflow-y-auto overflow-x-hidden border rounded-lg">
               {loadingListings ? (
                 <div className="flex justify-center py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
