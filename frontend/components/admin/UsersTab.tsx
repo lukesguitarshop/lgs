@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -22,6 +23,7 @@ import { UserEditModal } from './UserEditModal';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 
 export function UsersTab() {
+  const router = useRouter();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -277,7 +279,8 @@ export function UsersTab() {
                 {users.map((user) => (
                   <tr
                     key={user.id}
-                    className="border-b border-gray-100 hover:bg-gray-50"
+                    className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                    onClick={() => router.push(`/admin/user/${user.id}`)}
                   >
                     {/* User Info */}
                     <td className="py-3 px-4">
@@ -331,7 +334,7 @@ export function UsersTab() {
                     </td>
 
                     {/* Actions */}
-                    <td className="py-3 px-4 text-right">
+                    <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex justify-end gap-2">
                         <Button
                           size="sm"

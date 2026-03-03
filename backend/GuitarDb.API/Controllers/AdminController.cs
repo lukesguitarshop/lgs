@@ -1244,6 +1244,86 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Get a single user by ID (admin only)
+    /// </summary>
+    [HttpGet("users/{id}")]
+    public async Task<IActionResult> GetUserById(string id)
+    {
+        var user = await _mongoDbService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { error = "User not found" });
+        }
+
+        return Ok(new
+        {
+            id = user.Id,
+            email = user.Email,
+            fullName = user.FullName,
+            isAdmin = user.IsAdmin,
+            isGuest = user.IsGuest,
+            emailVerified = user.EmailVerified,
+            createdAt = user.CreatedAt,
+            guestSessionId = user.GuestSessionId,
+            shippingAddress = user.ShippingAddress != null ? new
+            {
+                fullName = user.ShippingAddress.FullName,
+                line1 = user.ShippingAddress.Line1,
+                line2 = user.ShippingAddress.Line2,
+                city = user.ShippingAddress.City,
+                state = user.ShippingAddress.State,
+                postalCode = user.ShippingAddress.PostalCode,
+                country = user.ShippingAddress.Country
+            } : null
+        });
+    }
+
+    /// <summary>
+    /// Get orders for a specific user (admin only)
+    /// </summary>
+    [HttpGet("users/{id}/orders")]
+    public async Task<IActionResult> GetUserOrders(string id)
+    {
+        var user = await _mongoDbService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { error = "User not found" });
+        }
+
+        var orders = await _mongoDbService.GetOrdersByUserIdAsync(id);
+
+        return Ok(orders.Select(o => new
+        {
+            id = o.Id,
+            paymentMethod = o.PaymentMethod,
+            items = o.Items.Select(i => new
+            {
+                listingId = i.ListingId,
+                listingTitle = i.ListingTitle,
+                price = i.Price,
+                currency = i.Currency,
+                quantity = i.Quantity
+            }),
+            shippingAddress = new
+            {
+                fullName = o.ShippingAddress.FullName,
+                line1 = o.ShippingAddress.Line1,
+                line2 = o.ShippingAddress.Line2,
+                city = o.ShippingAddress.City,
+                state = o.ShippingAddress.State,
+                postalCode = o.ShippingAddress.PostalCode,
+                country = o.ShippingAddress.Country
+            },
+            totalAmount = o.TotalAmount,
+            currency = o.Currency,
+            status = o.Status,
+            createdAt = o.CreatedAt,
+            trackingCarrier = o.TrackingCarrier,
+            trackingNumber = o.TrackingNumber
+        }));
+    }
+
+    /// <summary>
     /// Update a user's details (admin only)
     /// </summary>
     [HttpPut("users/{id}")]
