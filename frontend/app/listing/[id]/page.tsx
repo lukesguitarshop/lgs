@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import ListingDetail from './ListingDetail';
 import { ProductJsonLd } from './ProductJsonLd';
+import { BreadcrumbJsonLd } from './BreadcrumbJsonLd';
 
 interface Listing {
   id: string;
@@ -53,6 +54,7 @@ export default async function ListingPage({ params }: PageProps) {
   return (
     <>
       <ProductJsonLd listing={listing} />
+      <BreadcrumbJsonLd listing={listing} />
       <ListingDetail listing={listing} />
     </>
   );
