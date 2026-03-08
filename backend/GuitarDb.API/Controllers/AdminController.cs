@@ -113,6 +113,37 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Delete manually entered reviews (those without a Reverb order ID)
+    /// </summary>
+    [HttpDelete("reviews/manual")]
+    public async Task<IActionResult> DeleteManualReviews()
+    {
+        _logger.LogInformation("Delete manual reviews requested");
+
+        try
+        {
+            var deletedCount = await _mongoDbService.DeleteManualReviewsAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = $"Deleted {deletedCount} manually entered reviews",
+                deletedCount
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete manual reviews");
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Failed to delete manual reviews",
+                error = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
     /// Get all listings including disabled ones for admin view
     /// </summary>
     [HttpGet("listings")]

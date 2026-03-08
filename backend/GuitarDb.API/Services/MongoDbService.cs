@@ -603,6 +603,17 @@ public class MongoDbService
             .ToHashSet();
     }
 
+    public async Task<long> DeleteManualReviewsAsync()
+    {
+        // Delete reviews that don't have a reverb_order_id (manually entered)
+        var filter = Builders<Review>.Filter.Or(
+            Builders<Review>.Filter.Eq(r => r.ReverbOrderId, null),
+            Builders<Review>.Filter.Eq(r => r.ReverbOrderId, "")
+        );
+        var result = await _reviewsCollection.DeleteManyAsync(filter);
+        return result.DeletedCount;
+    }
+
     // User operations
     public async Task<User> CreateUserAsync(User user)
     {
