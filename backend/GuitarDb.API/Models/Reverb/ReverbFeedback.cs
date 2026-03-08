@@ -22,6 +22,9 @@ public class ReverbFeedbackResponse
 
 public class ReverbFeedback
 {
+    [JsonPropertyName("id")]
+    public string? Id { get; set; }
+
     [JsonPropertyName("order_id")]
     public string? OrderId { get; set; }
 
@@ -34,11 +37,33 @@ public class ReverbFeedback
     [JsonPropertyName("created_at")]
     public DateTime CreatedAt { get; set; }
 
+    // Shop feedback endpoint uses "listing" directly
+    [JsonPropertyName("listing")]
+    public ReverbFeedbackListing? Listing { get; set; }
+
+    // My feedback endpoint uses "order.listing"
     [JsonPropertyName("order")]
     public ReverbFeedbackOrder? Order { get; set; }
 
+    // Shop feedback endpoint uses "author"
+    [JsonPropertyName("author")]
+    public ReverbFeedbackAuthor? Author { get; set; }
+
+    // My feedback endpoint uses "buyer"
     [JsonPropertyName("buyer")]
     public ReverbFeedbackBuyer? Buyer { get; set; }
+
+    // Helper to get the listing title from either structure
+    public string? GetListingTitle() =>
+        Listing?.Title ?? Order?.Listing?.Title;
+
+    // Helper to get the reviewer name from either structure
+    public string? GetReviewerName() =>
+        Author?.Name ?? Buyer?.FullName ?? Buyer?.FirstName;
+
+    // Helper to get a unique identifier
+    public string? GetUniqueId() =>
+        Id ?? OrderId;
 }
 
 public class ReverbRating
@@ -63,6 +88,12 @@ public class ReverbFeedbackListing
 
     [JsonPropertyName("id")]
     public long? Id { get; set; }
+}
+
+public class ReverbFeedbackAuthor
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
 }
 
 public class ReverbFeedbackBuyer
