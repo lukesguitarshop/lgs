@@ -18,15 +18,18 @@ public class CheckoutController : ControllerBase
     private readonly MongoDbService _mongoDbService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<CheckoutController> _logger;
+    private readonly EmailService _emailService;
 
     public CheckoutController(
         MongoDbService mongoDbService,
         IConfiguration configuration,
-        ILogger<CheckoutController> logger)
+        ILogger<CheckoutController> logger,
+        EmailService emailService)
     {
         _mongoDbService = mongoDbService;
         _configuration = configuration;
         _logger = logger;
+        _emailService = emailService;
     }
 
     [HttpPost]
@@ -293,6 +296,28 @@ public class CheckoutController : ControllerBase
                 await _mongoDbService.DeletePendingCartItemByListingAsync(item.ListingId);
             }
             _logger.LogInformation("Cleaned up pending cart items for {Count} listings", order.Items.Count);
+
+            // Auto-reject all active offers on the purchased listings
+            var rejectedOffers = await _mongoDbService.RejectAllOffersOnListingsAsync(listingIds);
+            if (rejectedOffers.Count > 0)
+            {
+                _logger.LogInformation("Auto-rejected {Count} offers due to checkout purchase", rejectedOffers.Count);
+
+                // Send rejection emails to all affected buyers
+                foreach (var rejectedOffer in rejectedOffers)
+                {
+                    var buyer = await _mongoDbService.GetUserByIdAsync(rejectedOffer.BuyerId);
+                    var listing = listingMap.GetValueOrDefault(rejectedOffer.ListingId);
+                    if (buyer?.Email != null && listing != null)
+                    {
+                        _ = _emailService.SendOfferRejectedNotificationAsync(
+                            buyer.Email,
+                            listing.ListingTitle,
+                            rejectedOffer.CurrentOfferAmount,
+                            "This item was purchased by another buyer.");
+                    }
+                }
+            }
 
             return Ok(new { success = true, message = "Checkout completed successfully", orderId = order.Id });
         }
@@ -633,6 +658,28 @@ public class CheckoutController : ControllerBase
             }
             _logger.LogInformation("Cleaned up pending cart items for {Count} listings", order.Items.Count);
 
+            // Auto-reject all active offers on the purchased listings
+            var rejectedOffers = await _mongoDbService.RejectAllOffersOnListingsAsync(listingIds);
+            if (rejectedOffers.Count > 0)
+            {
+                _logger.LogInformation("Auto-rejected {Count} offers due to PayPal checkout purchase", rejectedOffers.Count);
+
+                // Send rejection emails to all affected buyers
+                foreach (var rejectedOffer in rejectedOffers)
+                {
+                    var buyer = await _mongoDbService.GetUserByIdAsync(rejectedOffer.BuyerId);
+                    var listing = listingMap.GetValueOrDefault(rejectedOffer.ListingId);
+                    if (buyer?.Email != null && listing != null)
+                    {
+                        _ = _emailService.SendOfferRejectedNotificationAsync(
+                            buyer.Email,
+                            listing.ListingTitle,
+                            rejectedOffer.CurrentOfferAmount,
+                            "This item was purchased by another buyer.");
+                    }
+                }
+            }
+
             return Ok(new { success = true, message = "Payment captured successfully", orderId = order.Id });
         }
         catch (Exception ex)
@@ -701,5 +748,186 @@ public class CheckoutController : ControllerBase
             return code;
 
         return country.Length == 2 ? country.ToUpper() : "US";
+    }
+
+    /// <summary>
+    /// Stripe webhook endpoint - creates order if frontend call failed
+    /// </summary>
+    [HttpPost("webhook")]
+    public async Task<IActionResult> StripeWebhook()
+    {
+        var json = await new StreamReader(HttpContext.Request.Body).ReadToEndAsync();
+        var webhookSecret = _configuration["Stripe:WebhookSecret"];
+
+        // If no webhook secret configured, skip signature verification (for testing)
+        Event stripeEvent;
+        if (!string.IsNullOrEmpty(webhookSecret))
+        {
+            try
+            {
+                stripeEvent = EventUtility.ConstructEvent(
+                    json,
+                    Request.Headers["Stripe-Signature"],
+                    webhookSecret
+                );
+            }
+            catch (StripeException ex)
+            {
+                _logger.LogError(ex, "Stripe webhook signature verification failed");
+                return BadRequest(new { error = "Webhook signature verification failed" });
+            }
+        }
+        else
+        {
+            stripeEvent = EventUtility.ParseEvent(json);
+            _logger.LogWarning("Stripe webhook secret not configured - skipping signature verification");
+        }
+
+        if (stripeEvent.Type == "checkout.session.completed")
+        {
+            var session = stripeEvent.Data.Object as Session;
+            if (session == null)
+            {
+                _logger.LogWarning("Webhook: Could not parse session from event");
+                return Ok();
+            }
+
+            _logger.LogInformation("Webhook: Processing checkout.session.completed for session {SessionId}", session.Id);
+
+            // Check if order already exists (created by frontend)
+            var existingOrder = await _mongoDbService.GetOrderBySessionIdAsync(session.Id);
+            if (existingOrder != null)
+            {
+                _logger.LogInformation("Webhook: Order already exists for session {SessionId}, skipping", session.Id);
+                return Ok();
+            }
+
+            // Need to expand session to get payment intent metadata
+            StripeConfiguration.ApiKey = _configuration["Stripe:SecretKey"];
+            var sessionService = new SessionService();
+            var expandedSession = await sessionService.GetAsync(session.Id, new SessionGetOptions
+            {
+                Expand = new List<string> { "payment_intent" }
+            });
+
+            if (expandedSession.PaymentStatus != "paid")
+            {
+                _logger.LogWarning("Webhook: Payment not completed for session {SessionId}", session.Id);
+                return Ok();
+            }
+
+            if (!expandedSession.Metadata.TryGetValue("listing_ids", out var listingIdsString))
+            {
+                _logger.LogWarning("Webhook: No listing_ids in session metadata for {SessionId}", session.Id);
+                return Ok();
+            }
+
+            var listingIds = listingIdsString.Split(',', StringSplitOptions.RemoveEmptyEntries).Distinct().ToList();
+            if (listingIds.Count == 0)
+            {
+                _logger.LogWarning("Webhook: Empty listing_ids for session {SessionId}", session.Id);
+                return Ok();
+            }
+
+            var listings = await _mongoDbService.GetListingsByIdsAsync(listingIds);
+            var listingMap = listings.ToDictionary(l => l.Id!, l => l);
+
+            expandedSession.Metadata.TryGetValue("user_id", out var userId);
+            if (string.IsNullOrEmpty(userId)) userId = null;
+
+            // Fetch pending cart items to get accepted offer prices
+            var pendingCartItems = userId != null
+                ? await _mongoDbService.GetPendingCartItemsByUserAndListingIdsAsync(userId, listingIds)
+                : new List<PendingCartItem>();
+            var pendingCartMap = pendingCartItems
+                .GroupBy(p => p.ListingId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var paymentIntent = expandedSession.PaymentIntent;
+            var shippingAddress = new OrderShippingAddress();
+
+            if (paymentIntent?.Metadata != null)
+            {
+                shippingAddress.FullName = paymentIntent.Metadata.GetValueOrDefault("shipping_name", "");
+                shippingAddress.Line1 = paymentIntent.Metadata.GetValueOrDefault("shipping_line1", "");
+                shippingAddress.Line2 = paymentIntent.Metadata.GetValueOrDefault("shipping_line2", "");
+                shippingAddress.City = paymentIntent.Metadata.GetValueOrDefault("shipping_city", "");
+                shippingAddress.State = paymentIntent.Metadata.GetValueOrDefault("shipping_state", "");
+                shippingAddress.PostalCode = paymentIntent.Metadata.GetValueOrDefault("shipping_postal_code", "");
+                shippingAddress.Country = paymentIntent.Metadata.GetValueOrDefault("shipping_country", "");
+            }
+
+            var orderItems = new List<OrderItem>();
+            decimal totalAmount = 0;
+            string currency = "USD";
+
+            foreach (var listingId in listingIds)
+            {
+                if (listingMap.TryGetValue(listingId, out var listing))
+                {
+                    var itemPrice = pendingCartMap.TryGetValue(listingId, out var pendingItem)
+                        ? pendingItem.Price
+                        : listing.Price;
+
+                    orderItems.Add(new OrderItem
+                    {
+                        ListingId = listing.Id!,
+                        ListingTitle = listing.ListingTitle,
+                        Price = itemPrice,
+                        Currency = listing.Currency,
+                        Quantity = 1
+                    });
+                    totalAmount += itemPrice;
+                    currency = listing.Currency;
+                }
+            }
+
+            var order = new Order
+            {
+                StripeSessionId = expandedSession.Id,
+                StripePaymentIntentId = paymentIntent?.Id,
+                Items = orderItems,
+                ShippingAddress = shippingAddress,
+                TotalAmount = totalAmount,
+                Currency = currency,
+                Status = "completed",
+                UserId = userId
+            };
+
+            await _mongoDbService.CreateOrderAsync(order);
+            _logger.LogInformation("Webhook: Created order {OrderId} for session {SessionId}", order.Id, session.Id);
+
+            await _mongoDbService.DisableListingsByIdsAsync(listingIds);
+            _logger.LogInformation("Webhook: Disabled {Count} listings", listingIds.Count);
+
+            // Remove pending cart items
+            foreach (var item in order.Items)
+            {
+                await _mongoDbService.DeletePendingCartItemByListingAsync(item.ListingId);
+            }
+
+            // Auto-reject all active offers on the purchased listings
+            var rejectedOffers = await _mongoDbService.RejectAllOffersOnListingsAsync(listingIds);
+            if (rejectedOffers.Count > 0)
+            {
+                _logger.LogInformation("Webhook: Auto-rejected {Count} offers", rejectedOffers.Count);
+
+                foreach (var rejectedOffer in rejectedOffers)
+                {
+                    var buyer = await _mongoDbService.GetUserByIdAsync(rejectedOffer.BuyerId);
+                    var listing = listingMap.GetValueOrDefault(rejectedOffer.ListingId);
+                    if (buyer?.Email != null && listing != null)
+                    {
+                        _ = _emailService.SendOfferRejectedNotificationAsync(
+                            buyer.Email,
+                            listing.ListingTitle,
+                            rejectedOffer.CurrentOfferAmount,
+                            "This item was purchased by another buyer.");
+                    }
+                }
+            }
+        }
+
+        return Ok();
     }
 }

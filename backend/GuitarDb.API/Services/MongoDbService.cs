@@ -823,6 +823,42 @@ public class MongoDbService
         return offersToReject;
     }
 
+    /// <summary>
+    /// Reject all active offers on multiple listings when items are purchased via checkout
+    /// </summary>
+    public async Task<List<Offer>> RejectAllOffersOnListingsAsync(IEnumerable<string> listingIds)
+    {
+        var listingIdList = listingIds.ToList();
+        if (listingIdList.Count == 0) return new List<Offer>();
+
+        // Find all pending or countered offers on these listings
+        var filter = Builders<Offer>.Filter.And(
+            Builders<Offer>.Filter.In(o => o.ListingId, listingIdList),
+            Builders<Offer>.Filter.In(o => o.Status, new[] { OfferStatus.Pending, OfferStatus.Countered })
+        );
+
+        var offersToReject = await _offersCollection.Find(filter).ToListAsync();
+
+        foreach (var offer in offersToReject)
+        {
+            var updateFilter = Builders<Offer>.Filter.Eq(o => o.Id, offer.Id);
+            var update = Builders<Offer>.Update
+                .Set(o => o.Status, OfferStatus.Rejected)
+                .Set(o => o.UpdatedAt, DateTime.UtcNow)
+                .Push(o => o.Messages, new OfferMessage
+                {
+                    SenderId = null,
+                    MessageText = "This offer was automatically declined because the item was purchased",
+                    CreatedAt = DateTime.UtcNow,
+                    IsSystemMessage = true
+                });
+            await _offersCollection.UpdateOneAsync(updateFilter, update);
+            _logger.LogInformation("Auto-rejected offer {OfferId} on listing {ListingId} due to checkout purchase", offer.Id, offer.ListingId);
+        }
+
+        return offersToReject;
+    }
+
     public async Task<Offer?> GetActiveOfferByBuyerAndListingAsync(string buyerId, string listingId)
     {
         var filter = Builders<Offer>.Filter.And(

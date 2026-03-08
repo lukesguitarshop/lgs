@@ -112,9 +112,10 @@ DELETE /api/mylistings/{id}         - Delete listing
 PATCH  /api/mylistings/{id}/disable - Toggle listing disabled
 
 POST   /api/checkout                - Create Stripe checkout session (requires auth)
-POST   /api/checkout/complete       - Complete Stripe order after payment (requires auth, removes pending cart items)
+POST   /api/checkout/complete       - Complete Stripe order after payment (requires auth, removes pending cart items, rejects offers)
+POST   /api/checkout/webhook        - Stripe webhook for checkout.session.completed (backup order creation)
 POST   /api/checkout/paypal/create  - Create PayPal order (requires auth)
-POST   /api/checkout/paypal/capture - Capture PayPal payment (requires auth, removes pending cart items)
+POST   /api/checkout/paypal/capture - Capture PayPal payment (requires auth, removes pending cart items, rejects offers)
 
 POST   /api/admin/run-scraper       - Trigger Reverb scraper (requires admin auth)
 POST   /api/admin/cleanup-duplicates - Remove duplicate listings by ReverbLink (requires admin auth)
@@ -406,6 +407,99 @@ GET    /api/cart/pending             - Get pending cart items for current user (
 }
 ```
 
+---
+
+## Offer System
+
+### Overview
+
+The offer system allows buyers to make offers on listings. When an offer is accepted, the listing is disabled and a `PendingCartItem` is created with a 72-hour expiration, giving the buyer time to complete checkout at the negotiated price.
+
+### Offer Flow
+
+```
+1. Buyer makes offer (POST /api/offers)
+   - Validates listing exists and is not disabled
+   - Checks buyer doesn't already have active offer on listing
+   - Creates Offer with status="pending"
+   - Sends email notification to seller
+
+2. Seller responds:
+   - Counter (PUT /api/offers/{id}/counter): status="countered", buyer notified
+   - Accept (PUT /api/offers/{id}/accept): see below
+   - Reject (PUT /api/offers/{id}/reject): status="rejected", buyer notified
+
+3. If countered, buyer responds:
+   - Accept counter (PUT /api/offers/{id}/accept): see below
+   - Reject (PUT /api/offers/{id}/reject): offer ends
+
+4. On acceptance:
+   - Offer status set to "accepted"
+   - Listing is DISABLED (prevents other purchases)
+   - PendingCartItem created (72-hour TTL)
+   - All OTHER offers on same listing auto-rejected
+   - Email notifications sent to both parties
+
+5. Buyer completes checkout:
+   - Pending cart items merged with regular cart on cart page
+   - Checkout uses PendingCartItem.Price instead of listing price
+   - After successful payment, PendingCartItem is deleted
+```
+
+### Key Backend Components
+
+| File | Purpose |
+|------|---------|
+| `Controllers/OffersController.cs` | CRUD for offers, counter/accept/reject logic |
+| `Controllers/AdminController.cs` | Admin offer management endpoints |
+| `Models/Offer.cs` | Offer document with embedded messages |
+| `Models/PendingCartItem.cs` | Locked cart item from accepted offer |
+| `Services/MongoDbService.cs` | Database operations for offers and pending cart items |
+
+### Key Frontend Components
+
+| File | Purpose |
+|------|---------|
+| `components/offers/MakeOfferModal.tsx` | Modal for submitting new offers |
+| `app/offers/page.tsx` | Buyer's offers list with status filtering |
+| `app/offers/[offerId]/page.tsx` | Offer detail with history and actions |
+| `app/cart/page.tsx` | Merges pending cart items (locked) with localStorage cart |
+
+### Offer + Checkout Integration
+
+When checking out, the system:
+1. Fetches `PendingCartItem` documents for the current user and listing IDs
+2. Uses `PendingCartItem.Price` if exists, otherwise `Listing.Price`
+3. After successful payment, deletes the `PendingCartItem`
+
+**Important:** Pending cart items are "locked" in the cart - they cannot be removed by the buyer (must expire or complete checkout).
+
+### Offer Auto-Rejection on Purchase
+
+When any buyer completes checkout (Stripe or PayPal), **all active offers on the purchased listings are automatically rejected**. This handles scenarios where:
+- Multiple buyers have offers on the same item
+- A buyer purchases while their own offer is pending
+- Someone purchases at full price while others have pending offers
+
+Affected buyers receive email notifications explaining the item was purchased by another buyer.
+
+### Stripe Webhook Fallback
+
+A Stripe webhook endpoint (`POST /api/checkout/webhook`) handles `checkout.session.completed` events as a backup:
+- If the frontend `/checkout/complete` call fails (token expired, network issue), the webhook will create the order
+- The webhook is idempotent - it skips processing if order already exists
+- Requires `Stripe:WebhookSecret` configuration for signature verification
+
+To set up in Stripe Dashboard:
+1. Go to Developers > Webhooks
+2. Add endpoint: `https://your-api-url/api/checkout/webhook`
+3. Select event: `checkout.session.completed`
+4. Copy signing secret to `appsettings.json` as `Stripe:WebhookSecret`
+
+### Known Limitations
+
+1. **No checkout prevention while offer pending**: A buyer with an outstanding offer can still add the item to cart and checkout at the original price. However, all offers are auto-rejected when purchase completes.
+
 ### PasswordResetToken Schema
 
 ```javascript
@@ -610,6 +704,7 @@ On mobile, the filter sidebar is replaced with a dedicated `/filter` page:
 MongoDb:ConnectionString
 MongoDb:DatabaseName
 Stripe:SecretKey
+Stripe:WebhookSecret           - Webhook signing secret for verifying Stripe webhook events
 Stripe:SuccessUrl
 Stripe:CancelUrl
 PayPal:ClientId

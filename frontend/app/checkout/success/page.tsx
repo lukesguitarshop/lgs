@@ -17,6 +17,7 @@ function CheckoutSuccessContent() {
   const [isCompleting, setIsCompleting] = useState(true);
   const [showCreateAccount, setShowCreateAccount] = useState(false);
   const [hasCompleted, setHasCompleted] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
 
   useEffect(() => {
     // Wait for auth to load before running
@@ -35,9 +36,20 @@ function CheckoutSuccessContent() {
         // Stripe checkout - complete the order (requires authentication)
         try {
           await api.authPost('/checkout/complete', { sessionId });
-        } catch (err) {
-          // Log but don't fail - order may already be completed
-          console.warn('Checkout complete call:', err);
+        } catch (err: unknown) {
+          // Check if this is an "already processed" scenario (not an error)
+          const errorMessage = err && typeof err === 'object' && 'message' in err
+            ? (err as { message: string }).message
+            : 'Unknown error';
+
+          // If order already exists, that's fine - otherwise it's an error
+          if (!errorMessage.includes('already processed')) {
+            console.error('Checkout complete failed:', err);
+            setOrderError(
+              'Your payment was successful, but we had trouble processing your order. ' +
+              'Please contact us at lukesguitarshop@gmail.com with your payment confirmation.'
+            );
+          }
         }
       }
       // PayPal checkout - order already completed during capture, nothing to do
@@ -73,27 +85,42 @@ function CheckoutSuccessContent() {
     <div className="max-w-2xl mx-auto text-center py-16 px-4">
       <div className="mb-8">
         <svg
-          className="w-24 h-24 mx-auto text-green-500"
+          className={`w-24 h-24 mx-auto ${orderError ? 'text-yellow-500' : 'text-green-500'}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
+          {orderError ? (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+            />
+          ) : (
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          )}
         </svg>
       </div>
 
       <h1 className="text-4xl font-bold text-gray-900 mb-4">
-        Thank You for Your Order!
+        {orderError ? 'Payment Received' : 'Thank You for Your Order!'}
       </h1>
 
-      <p className="text-xl text-gray-600 mb-8">
-        Your payment was successful. You will receive an email confirmation shortly.
-      </p>
+      {orderError ? (
+        <div className="mb-8 p-6 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
+          <p className="text-yellow-800">{orderError}</p>
+        </div>
+      ) : (
+        <p className="text-xl text-gray-600 mb-8">
+          Your payment was successful. You will receive an email confirmation shortly.
+        </p>
+      )}
 
       {/* Create Account Prompt for Guests */}
       {showCreateAccount && (
