@@ -34,7 +34,7 @@ G:\Projects\lgs\
 | `Controllers/MyListingsController.cs` | CRUD for guitar listings |
 | `Controllers/ReviewsController.cs` | Customer reviews with filtering and statistics |
 | `Controllers/FavoritesController.cs` | User favorites CRUD (requires auth) |
-| `Controllers/OffersController.cs` | Buyer/seller offer management (requires auth) |
+| `Controllers/MessagesController.cs` | Messaging and offer management (requires auth) |
 | `Controllers/MessagesController.cs` | Direct messaging to admin (requires auth); regular users can only message admin |
 | `Controllers/CartController.cs` | Pending cart items from accepted offers (requires auth) |
 
@@ -47,7 +47,7 @@ G:\Projects\lgs\
 | `Models/Review.cs` | Customer review (guitar_name, reviewer_name, review_date, rating, review_text) |
 | `Models/User.cs` | User profile (email, password_hash, full_name, is_guest, is_admin, email_verified) |
 | `Models/Favorite.cs` | User favorite (user_id, listing_id, created_at) |
-| `Models/Offer.cs` | Buyer offer (listing_id, buyer_id, amounts, status, messages) |
+| `Models/Conversation.cs` | Conversation with offer state (listing_id, participant_ids, offer_status, amounts) |
 | `Models/Message.cs` | Direct message (conversation_id, sender_id, recipient_id, message_text) |
 | `Models/Conversation.cs` | Conversation (participant_ids, listing_id, last_message) |
 | `Models/PendingCartItem.cs` | Locked cart item from accepted offer (user_id, listing_id, offer_id, price, expires_at) |
@@ -131,14 +131,6 @@ POST   /api/favorites/{listingId}    - Add listing to favorites (requires auth)
 DELETE /api/favorites/{listingId}    - Remove listing from favorites (requires auth)
 GET    /api/favorites/check/{listingId} - Check if listing is favorited (requires auth)
 
-POST   /api/offers                   - Create new offer (requires auth)
-GET    /api/offers                   - Get all offers for current user/buyer (requires auth)
-GET    /api/offers/{offerId}         - Get offer details (requires auth)
-GET    /api/offers/listing/{listingId} - Get offers for listing/seller view (requires auth)
-PUT    /api/offers/{offerId}/counter - Seller makes counter-offer (requires auth)
-PUT    /api/offers/{offerId}/accept  - Accept offer (requires auth, disables listing, creates pending cart item)
-PUT    /api/offers/{offerId}/reject  - Reject offer (requires auth)
-
 GET    /api/messages/conversations   - Get all conversations for current user (requires auth)
 GET    /api/messages/conversation/{id} - Get messages in conversation (requires auth)
 POST   /api/messages                 - Send new message (requires auth, regular users can only message admin)
@@ -146,10 +138,7 @@ PUT    /api/messages/{messageId}/read - Mark message as read (requires auth)
 GET    /api/messages/unread-count    - Get unread message count (requires auth)
 POST   /api/messages/contact-seller  - Start conversation with admin about a listing (requires auth)
 
-GET    /api/admin/offers             - Get all offers for admin (requires admin auth, optional status/listingId filters)
-PUT    /api/admin/offers/{id}/counter - Admin counter-offer (requires admin auth)
-PUT    /api/admin/offers/{id}/accept  - Admin accept offer (requires admin auth, disables listing, creates pending cart item)
-PUT    /api/admin/offers/{id}/reject  - Admin reject offer (requires admin auth)
+GET    /api/admin/conversation-offers - Get all conversations with offers (requires admin auth, optional status filter)
 
 GET    /api/admin/orders             - Get all orders for admin with buyer info (requires admin auth)
 GET    /api/admin/pending-cart-items - Get all pending cart items for admin with buyer info (requires admin auth)
@@ -181,8 +170,8 @@ GET    /api/cart/pending             - Get pending cart items for current user (
 | `/profile` | `app/profile/page.tsx` | User profile with info, quick links, order history |
 | `/profile/edit` | `app/profile/edit/page.tsx` | Edit profile form (name, password) |
 | `/favorites` | `app/favorites/page.tsx` | User favorites list with remove functionality |
-| `/offers` | `app/offers/page.tsx` | Buyer's offers list with status filters (requires auth) |
-| `/offers/[offerId]` | `app/offers/[offerId]/page.tsx` | Offer detail page with history and actions; shows "Go to Cart" link when offer accepted (requires auth) |
+| `/messages` | `app/messages/page.tsx` | Conversations list with offer status indicators (requires auth) |
+| `/messages/[conversationId]` | `app/messages/[conversationId]/page.tsx` | Conversation with offer actions (make offer, counter, accept, decline) |
 | `/messages` | `app/messages/page.tsx` | Conversations list with unread indicators (requires auth) |
 | `/messages/[conversationId]` | `app/messages/[conversationId]/page.tsx` | Chat conversation with message history (requires auth) |
 | `/reset-password` | `app/reset-password/page.tsx` | Forgot password and reset password page |
@@ -246,7 +235,7 @@ GET    /api/cart/pending             - Get pending cart items for current user (
 | `reviews` | Customer reviews (113 imported) | `review_date_idx` |
 | `users` | User profiles (registered and guest) | `email_idx` (unique, sparse), `guest_session_id_idx` (unique, sparse) |
 | `favorites` | User favorites | `user_listing_idx` (compound, unique), `user_id_idx` |
-| `offers` | Buyer offers | `listing_id_idx`, `buyer_id_idx`, `status_idx` |
+| `conversations` | Buyer-seller conversations (with offer state) | `participant_ids_idx`, `listing_id_idx` |
 | `messages` | Direct messages | `conversation_id_idx`, `sender_id_idx`, `recipient_id_idx`, `created_at_idx` |
 | `conversations` | User conversations | `participant_ids_idx`, `last_message_at_idx` |
 | `pending_cart_items` | Locked cart items from accepted offers | `user_id_idx`, `expires_at_idx` (TTL) |
@@ -338,27 +327,23 @@ GET    /api/cart/pending             - Get pending cart items for current user (
 }
 ```
 
-### Offer Schema
+### Conversation Schema
 
 ```javascript
 {
   _id: ObjectId,
-  listing_id: ObjectId,           // Reference to MyListing
-  buyer_id: ObjectId,             // Reference to User
-  initial_offer_amount: decimal,  // Original offer amount
-  current_offer_amount: decimal,  // Current accepted amount
-  counter_offer_amount: decimal | null, // Seller's counter offer
-  status: string,                 // pending, accepted, rejected, countered
+  participant_ids: [ObjectId],    // References to Users (array of 2)
+  listing_id: ObjectId | null,    // Optional listing context
+  last_message: string | null,    // Preview of last message
+  last_message_at: datetime | null,
   created_at: datetime,
-  updated_at: datetime,
-  messages: [                     // Offer-related messages
-    {
-      sender_id: ObjectId,
-      message_text: string,
-      created_at: datetime,
-      is_system_message: boolean
-    }
-  ]
+  // Offer-specific fields:
+  active_offer_amount: decimal | null,  // Current offer amount
+  active_offer_by: ObjectId | null,     // Who made the current offer
+  pending_action_by: string | null,     // "buyer" or "seller"
+  offer_expires_at: datetime | null,    // When offer expires (48 hours)
+  offer_status: string | null,          // "active", "accepted", "declined", "expired"
+  accepted_amount: decimal | null       // Final accepted amount
 }
 ```
 
@@ -370,23 +355,12 @@ GET    /api/cart/pending             - Get pending cart items for current user (
   conversation_id: ObjectId,      // Reference to Conversation
   sender_id: ObjectId,            // Reference to User
   recipient_id: ObjectId,         // Reference to User
-  listing_id: ObjectId | null,    // Optional context for listing discussion
+  listing_id: ObjectId | null,    // Optional context for listing/offer
   message_text: string,
+  type: string,                   // "text", "offer", "accept", "decline", "expire"
+  offer_amount: decimal | null,   // For offer messages
   created_at: datetime,
   is_read: boolean
-}
-```
-
-### Conversation Schema
-
-```javascript
-{
-  _id: ObjectId,
-  participant_ids: [ObjectId],    // References to Users (array of 2)
-  listing_id: ObjectId | null,    // Optional listing context
-  last_message: string | null,    // Preview of last message
-  last_message_at: datetime | null,
-  created_at: datetime
 }
 ```
 
@@ -409,39 +383,60 @@ GET    /api/cart/pending             - Get pending cart items for current user (
 
 ---
 
-## Offer System
+## Offer System (Conversation-Based)
 
 ### Overview
 
-The offer system allows buyers to make offers on listings. When an offer is accepted, the listing is disabled and a `PendingCartItem` is created with a 72-hour expiration, giving the buyer time to complete checkout at the negotiated price.
+The offer system is integrated into the messaging system. Offers are made within conversations between buyers and the seller (admin). When an offer is accepted, the listing is disabled and a `PendingCartItem` is created with a 72-hour expiration, giving the buyer time to complete checkout at the negotiated price.
+
+### Conversation Schema (with Offer Fields)
+
+```javascript
+{
+  _id: ObjectId,
+  participant_ids: [ObjectId],     // [buyer_id, admin_id]
+  listing_id: ObjectId,            // The listing being discussed
+  last_message: string,
+  last_message_at: datetime,
+  created_at: datetime,
+  // Offer-specific fields:
+  active_offer_amount: decimal,    // Current offer amount (null if no active offer)
+  active_offer_by: ObjectId,       // Who made the current offer
+  pending_action_by: string,       // "buyer" or "seller" - whose turn it is
+  offer_expires_at: datetime,      // When the offer expires (48 hours)
+  offer_status: string,            // "active", "accepted", "declined", "expired"
+  accepted_amount: decimal         // Final accepted amount (if accepted)
+}
+```
 
 ### Offer Flow
 
 ```
-1. Buyer makes offer (POST /api/offers)
-   - Validates listing exists and is not disabled
-   - Checks buyer doesn't already have active offer on listing
-   - Creates Offer with status="pending"
+1. Buyer initiates conversation and makes offer
+   POST /api/messages/contact-seller (with listingId)
+   POST /api/messages/conversations/{id}/offer (with amount)
+   - Creates Message with type="offer"
+   - Sets conversation.active_offer_amount, offer_status="active"
+   - Sets pending_action_by="seller"
+   - Sets offer_expires_at = now + 48 hours
    - Sends email notification to seller
 
-2. Seller responds:
-   - Counter (PUT /api/offers/{id}/counter): status="countered", buyer notified
-   - Accept (PUT /api/offers/{id}/accept): see below
-   - Reject (PUT /api/offers/{id}/reject): status="rejected", buyer notified
+2. Seller responds in conversation:
+   - Counter (POST /api/messages/conversations/{id}/offer): new offer amount, buyer notified
+   - Accept (POST /api/messages/conversations/{id}/accept): see below
+   - Decline (POST /api/messages/conversations/{id}/decline): offer_status="declined"
 
-3. If countered, buyer responds:
-   - Accept counter (PUT /api/offers/{id}/accept): see below
-   - Reject (PUT /api/offers/{id}/reject): offer ends
+3. If countered, roles swap - pending_action_by switches between buyer/seller
 
 4. On acceptance:
-   - Offer status set to "accepted"
+   - offer_status set to "accepted"
    - Listing is DISABLED (prevents other purchases)
    - PendingCartItem created (72-hour TTL)
-   - All OTHER offers on same listing auto-rejected
+   - ALL OTHER active offers on same listing auto-declined
    - Email notifications sent to both parties
 
 5. Buyer completes checkout:
-   - Pending cart items merged with regular cart on cart page
+   - Pending cart items shown on cart page (locked)
    - Checkout uses PendingCartItem.Price instead of listing price
    - After successful payment, PendingCartItem is deleted
 ```
@@ -450,20 +445,21 @@ The offer system allows buyers to make offers on listings. When an offer is acce
 
 | File | Purpose |
 |------|---------|
-| `Controllers/OffersController.cs` | CRUD for offers, counter/accept/reject logic |
-| `Controllers/AdminController.cs` | Admin offer management endpoints |
-| `Models/Offer.cs` | Offer document with embedded messages |
+| `Controllers/MessagesController.cs` | Offer endpoints within conversations |
+| `Controllers/AdminController.cs` | GET /admin/conversation-offers for admin view |
+| `Models/Conversation.cs` | Conversation document with offer state fields |
+| `Models/Message.cs` | Message with type field ("text", "offer", "accept", "decline") |
 | `Models/PendingCartItem.cs` | Locked cart item from accepted offer |
-| `Services/MongoDbService.cs` | Database operations for offers and pending cart items |
+| `Services/OfferExpirationService.cs` | Background service that expires offers after 48 hours |
 
 ### Key Frontend Components
 
 | File | Purpose |
 |------|---------|
-| `components/offers/MakeOfferModal.tsx` | Modal for submitting new offers |
-| `app/offers/page.tsx` | Buyer's offers list with status filtering |
-| `app/offers/[offerId]/page.tsx` | Offer detail with history and actions |
-| `app/cart/page.tsx` | Merges pending cart items (locked) with localStorage cart |
+| `components/offers/MakeOfferModal.tsx` | Modal for starting conversation with offer |
+| `app/messages/page.tsx` | Conversations list showing offer status |
+| `app/messages/[conversationId]/page.tsx` | Conversation detail with offer actions |
+| `app/cart/page.tsx` | Shows pending cart items (locked) from accepted offers |
 
 ### Offer + Checkout Integration
 
@@ -474,9 +470,16 @@ When checking out, the system:
 
 **Important:** Pending cart items are "locked" in the cart - they cannot be removed by the buyer (must expire or complete checkout).
 
-### Offer Auto-Rejection on Purchase
+### Auto-Decline on Acceptance
 
-When any buyer completes checkout (Stripe or PayPal), **all active offers on the purchased listings are automatically rejected**. This handles scenarios where:
+When an offer is accepted, **all other active offers on the same listing are automatically declined**. This ensures:
+- Only one buyer gets the accepted offer price
+- Other buyers are notified their offers were declined
+- The listing is disabled to prevent double-selling
+
+### Auto-Decline on Purchase
+
+When any buyer completes checkout (Stripe or PayPal), **all active offers on the purchased listings are automatically declined**. This handles scenarios where:
 - Multiple buyers have offers on the same item
 - A buyer purchases while their own offer is pending
 - Someone purchases at full price while others have pending offers
@@ -498,7 +501,7 @@ To set up in Stripe Dashboard:
 
 ### Known Limitations
 
-1. **No checkout prevention while offer pending**: A buyer with an outstanding offer can still add the item to cart and checkout at the original price. However, all offers are auto-rejected when purchase completes.
+1. **No checkout prevention while offer pending**: A buyer with an outstanding offer can still add the item to cart and checkout at the original price. However, all offers are auto-declined when purchase completes.
 
 ### PasswordResetToken Schema
 

@@ -865,18 +865,25 @@ public class MongoDbService
     /// <summary>
     /// Reject all active conversation-based offers on multiple listings when items are purchased via checkout
     /// </summary>
-    public async Task<List<Conversation>> RejectAllConversationOffersOnListingsAsync(IEnumerable<string> listingIds)
+    public async Task<List<Conversation>> RejectAllConversationOffersOnListingsAsync(IEnumerable<string> listingIds, string? excludeConversationId = null)
     {
         var listingIdList = listingIds.ToList();
-        _logger.LogInformation("RejectAllConversationOffersOnListingsAsync called with listing IDs: {ListingIds}", string.Join(", ", listingIdList));
+        _logger.LogInformation("RejectAllConversationOffersOnListingsAsync called with listing IDs: {ListingIds}, excluding: {ExcludeId}", string.Join(", ", listingIdList), excludeConversationId ?? "none");
 
         if (listingIdList.Count == 0) return new List<Conversation>();
 
         // Find all conversations with active offers on these listings
-        var filter = Builders<Conversation>.Filter.And(
-            Builders<Conversation>.Filter.In(c => c.ListingId, listingIdList),
-            Builders<Conversation>.Filter.Eq(c => c.OfferStatus, "active")
+        var filterBuilder = Builders<Conversation>.Filter;
+        var filter = filterBuilder.And(
+            filterBuilder.In(c => c.ListingId, listingIdList),
+            filterBuilder.Eq(c => c.OfferStatus, "active")
         );
+
+        // Exclude a specific conversation if provided (e.g., the one being accepted)
+        if (!string.IsNullOrEmpty(excludeConversationId))
+        {
+            filter = filterBuilder.And(filter, filterBuilder.Ne(c => c.Id, excludeConversationId));
+        }
 
         var conversationsToReject = await _conversationsCollection.Find(filter).ToListAsync();
         _logger.LogInformation("Found {Count} conversation offers to reject for listings: {ListingIds}", conversationsToReject.Count, string.Join(", ", listingIdList));

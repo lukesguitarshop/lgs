@@ -648,6 +648,34 @@ public class MessagesController : ControllerBase
 
             // Disable the listing (mark as sold/pending)
             await _mongoDbService.SetListingDisabledAsync(conversation.ListingId, true);
+
+            // Auto-decline all other active offers on this listing
+            var rejectedConversations = await _mongoDbService.RejectAllConversationOffersOnListingsAsync(
+                new[] { conversation.ListingId },
+                excludeConversationId: conversationId
+            );
+
+            if (rejectedConversations.Count > 0)
+            {
+                _logger.LogInformation("Auto-declined {Count} other offers on listing {ListingId}", rejectedConversations.Count, conversation.ListingId);
+
+                // Send rejection emails to affected buyers
+                foreach (var rejectedConv in rejectedConversations)
+                {
+                    if (rejectedConv.ActiveOfferBy != null)
+                    {
+                        var rejectedBuyer = await _mongoDbService.GetUserByIdAsync(rejectedConv.ActiveOfferBy);
+                        if (rejectedBuyer?.Email != null && rejectedConv.ActiveOfferAmount.HasValue)
+                        {
+                            _ = _emailService.SendOfferRejectedNotificationAsync(
+                                rejectedBuyer.Email,
+                                listing?.ListingTitle ?? "a listing",
+                                rejectedConv.ActiveOfferAmount.Value,
+                                "Another offer was accepted for this item.");
+                        }
+                    }
+                }
+            }
         }
 
         return Ok(new { success = true, acceptedAmount });
