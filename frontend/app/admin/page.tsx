@@ -150,6 +150,7 @@ export default function AdminPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reviewScraperLoading, setReviewScraperLoading] = useState(false);
   const [reviewScraperResult, setReviewScraperResult] = useState<ScraperResponse | null>(null);
+  const [deleteManualReviewsLoading, setDeleteManualReviewsLoading] = useState(false);
 
   // Load active tab from localStorage on mount
   useEffect(() => {
@@ -430,6 +431,22 @@ export default function AdminPage() {
       });
     } finally {
       setReviewScraperLoading(false);
+    }
+  };
+
+  const deleteManualReviews = async () => {
+    if (!confirm('Are you sure you want to delete all manually entered reviews? This cannot be undone.')) {
+      return;
+    }
+
+    setDeleteManualReviewsLoading(true);
+    try {
+      const response = await api.authDelete<{ deletedCount: number }>('/admin/reviews/manual');
+      alert(`Deleted ${response.deletedCount} manual review(s)`);
+    } catch (err) {
+      alert('Failed to delete manual reviews: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setDeleteManualReviewsLoading(false);
     }
   };
 
@@ -787,23 +804,44 @@ export default function AdminPage() {
               Fetch reviews from your Reverb shop feedback. Only imports new reviews that haven&apos;t been imported yet.
             </p>
 
-            <Button
-              onClick={runReviewScraper}
-              disabled={reviewScraperLoading}
-              className="bg-[#df5e15] hover:bg-[#c54d0a] text-white font-semibold px-6 py-3"
-            >
-              {reviewScraperLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Fetching Reviews...
-                </>
-              ) : (
-                <>
-                  <Play className="h-5 w-5 mr-2" />
-                  Run Review Scraper
-                </>
-              )}
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={runReviewScraper}
+                disabled={reviewScraperLoading}
+                className="bg-[#df5e15] hover:bg-[#c54d0a] text-white font-semibold px-6 py-3"
+              >
+                {reviewScraperLoading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Fetching Reviews...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-5 w-5 mr-2" />
+                    Run Review Scraper
+                  </>
+                )}
+              </Button>
+
+              <Button
+                onClick={deleteManualReviews}
+                disabled={deleteManualReviewsLoading}
+                variant="outline"
+                className="border-red-300 text-red-600 hover:bg-red-50 font-semibold px-6 py-3"
+              >
+                {deleteManualReviewsLoading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="h-5 w-5 mr-2" />
+                    Delete Manual Reviews
+                  </>
+                )}
+              </Button>
+            </div>
 
             {reviewScraperResult && (
               <div className="mt-6">
