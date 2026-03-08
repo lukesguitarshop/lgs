@@ -137,16 +137,21 @@ public class ReviewScraperService
 
                 var feedbackResponse = JsonSerializer.Deserialize<ReverbFeedbackResponse>(content, _jsonOptions);
 
-                if (feedbackResponse == null || feedbackResponse.Feedback == null)
+                if (feedbackResponse == null || feedbackResponse.Feedbacks == null)
                 {
                     _logger.LogWarning("Received null response from Reverb feedback API");
                     break;
                 }
 
-                allFeedback.AddRange(feedbackResponse.Feedback);
+                // Filter for seller feedback only (reviews left by buyers for the shop)
+                var sellerFeedback = feedbackResponse.Feedbacks
+                    .Where(f => f.IsSellerFeedback())
+                    .ToList();
 
-                _logger.LogInformation("Page {Page}: {Count} feedback items (total: {Total})",
-                    currentPage, feedbackResponse.Feedback.Count, allFeedback.Count);
+                allFeedback.AddRange(sellerFeedback);
+
+                _logger.LogInformation("Page {Page}: {Count} seller feedback items out of {TotalOnPage} (running total: {Total})",
+                    currentPage, sellerFeedback.Count, feedbackResponse.Feedbacks.Count, allFeedback.Count);
 
                 nextUrl = feedbackResponse.Links?.Next?.Href;
 
@@ -179,7 +184,7 @@ public class ReviewScraperService
         // Skip if no message (empty review)
         if (string.IsNullOrWhiteSpace(feedback.Message))
         {
-            _logger.LogDebug("Skipping feedback with no message");
+            _logger.LogDebug("Skipping feedback with no message from {Author}", feedback.GetReviewerName());
             return null;
         }
 
@@ -190,12 +195,12 @@ public class ReviewScraperService
         var reviewerName = feedback.GetReviewerName() ?? "Anonymous";
 
         // Get rating (default to 5 if not provided)
-        var rating = feedback.Rating?.Value ?? 5;
+        var rating = feedback.Rating > 0 ? feedback.Rating : 5;
 
         var uniqueId = feedback.GetUniqueId();
 
-        _logger.LogInformation("Converting review: {Title} by {Reviewer} (ID: {Id})",
-            guitarName, reviewerName, uniqueId);
+        _logger.LogInformation("Converting review: {Title} by {Reviewer} (ID: {Id}, Rating: {Rating})",
+            guitarName, reviewerName, uniqueId, rating);
 
         return new Review
         {

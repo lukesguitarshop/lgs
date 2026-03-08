@@ -4,8 +4,8 @@ namespace GuitarDb.API.Models.Reverb;
 
 public class ReverbFeedbackResponse
 {
-    [JsonPropertyName("feedback")]
-    public List<ReverbFeedback> Feedback { get; set; } = new();
+    [JsonPropertyName("feedbacks")]
+    public List<ReverbFeedback> Feedbacks { get; set; } = new();
 
     [JsonPropertyName("total")]
     public int Total { get; set; }
@@ -29,13 +29,25 @@ public class ReverbFeedback
     public string? OrderId { get; set; }
 
     [JsonPropertyName("rating")]
-    public ReverbRating? Rating { get; set; }
+    public int Rating { get; set; }
 
     [JsonPropertyName("message")]
     public string? Message { get; set; }
 
     [JsonPropertyName("created_at")]
     public DateTime CreatedAt { get; set; }
+
+    // Type: "seller" or "buyer"
+    [JsonPropertyName("type")]
+    public string? Type { get; set; }
+
+    // Author name from shop feedback endpoint
+    [JsonPropertyName("author_name")]
+    public string? AuthorName { get; set; }
+
+    // Order title (guitar name) from shop feedback endpoint
+    [JsonPropertyName("order_title")]
+    public string? OrderTitle { get; set; }
 
     // Shop feedback endpoint uses "listing" directly
     [JsonPropertyName("listing")]
@@ -53,26 +65,49 @@ public class ReverbFeedback
     [JsonPropertyName("buyer")]
     public ReverbFeedbackBuyer? Buyer { get; set; }
 
+    // Links containing self href with feedback ID
+    [JsonPropertyName("_links")]
+    public ReverbFeedbackLinks? Links { get; set; }
+
     // Helper to get the listing title from either structure
     public string? GetListingTitle() =>
-        Listing?.Title ?? Order?.Listing?.Title;
+        OrderTitle ?? Listing?.Title ?? Order?.Listing?.Title;
 
     // Helper to get the reviewer name from either structure
     public string? GetReviewerName() =>
-        Author?.Name ?? Buyer?.FullName ?? Buyer?.FirstName;
+        AuthorName ?? Author?.Name ?? Buyer?.FullName ?? Buyer?.FirstName;
 
-    // Helper to get a unique identifier
-    public string? GetUniqueId() =>
-        Id ?? OrderId;
+    // Helper to get a unique identifier (extract from _links.self.href)
+    public string? GetUniqueId()
+    {
+        // Try to get ID from _links.self.href (e.g., "https://api.reverb.com/api/feedback/22447572")
+        var selfHref = Links?.Self?.Href;
+        if (!string.IsNullOrEmpty(selfHref))
+        {
+            var lastSlash = selfHref.LastIndexOf('/');
+            if (lastSlash >= 0 && lastSlash < selfHref.Length - 1)
+            {
+                return selfHref.Substring(lastSlash + 1);
+            }
+        }
+        return Id ?? OrderId;
+    }
+
+    // Check if this is seller feedback
+    public bool IsSellerFeedback() =>
+        Type?.Equals("seller", StringComparison.OrdinalIgnoreCase) == true;
 }
 
-public class ReverbRating
+public class ReverbFeedbackLinks
 {
-    [JsonPropertyName("rating")]
-    public int Value { get; set; }
+    [JsonPropertyName("self")]
+    public ReverbLink? Self { get; set; }
 
-    [JsonPropertyName("description")]
-    public string? Description { get; set; }
+    [JsonPropertyName("order")]
+    public ReverbLink? Order { get; set; }
+
+    [JsonPropertyName("listing")]
+    public ReverbLink? Listing { get; set; }
 }
 
 public class ReverbFeedbackOrder
