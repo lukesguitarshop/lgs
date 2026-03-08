@@ -829,6 +829,8 @@ public class MongoDbService
     public async Task<List<Offer>> RejectAllOffersOnListingsAsync(IEnumerable<string> listingIds)
     {
         var listingIdList = listingIds.ToList();
+        _logger.LogInformation("RejectAllOffersOnListingsAsync called with listing IDs: {ListingIds}", string.Join(", ", listingIdList));
+
         if (listingIdList.Count == 0) return new List<Offer>();
 
         // Find all pending or countered offers on these listings
@@ -838,6 +840,7 @@ public class MongoDbService
         );
 
         var offersToReject = await _offersCollection.Find(filter).ToListAsync();
+        _logger.LogInformation("Found {Count} offers to reject for listings: {ListingIds}", offersToReject.Count, string.Join(", ", listingIdList));
 
         foreach (var offer in offersToReject)
         {

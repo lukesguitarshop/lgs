@@ -68,7 +68,8 @@
       "Bash(git -C \"G:\\\\Projects\\\\lgs\" diff backend/GuitarDb.API/Program.cs)",
       "Bash(git -C \"G:\\\\Projects\\\\lgs\" add backend/GuitarDb.API/Services/OfferExpirationService.cs backend/GuitarDb.API/Program.cs)",
       "Bash(git -C \"G:\\\\Projects\\\\lgs\" commit -m \"$\\(cat <<''EOF''\nfeat: add background job for 48-hour offer expiration\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
-      "Bash(npm run build)"
+      "Bash(npm run build)",
+      "Bash(vercel:*)"
     ]
   }
 }
