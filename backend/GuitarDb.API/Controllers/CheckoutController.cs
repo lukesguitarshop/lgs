@@ -297,7 +297,7 @@ public class CheckoutController : ControllerBase
             }
             _logger.LogInformation("Cleaned up pending cart items for {Count} listings", order.Items.Count);
 
-            // Auto-reject all active offers on the purchased listings
+            // Auto-reject all active offers on the purchased listings (legacy offers collection)
             var rejectedOffers = await _mongoDbService.RejectAllOffersOnListingsAsync(listingIds);
             if (rejectedOffers.Count > 0)
             {
@@ -315,6 +315,31 @@ public class CheckoutController : ControllerBase
                             listing.ListingTitle,
                             rejectedOffer.CurrentOfferAmount,
                             "This item was purchased by another buyer.");
+                    }
+                }
+            }
+
+            // Auto-reject all active conversation-based offers on the purchased listings
+            var rejectedConversations = await _mongoDbService.RejectAllConversationOffersOnListingsAsync(listingIds);
+            if (rejectedConversations.Count > 0)
+            {
+                _logger.LogInformation("Auto-rejected {Count} conversation offers due to checkout purchase", rejectedConversations.Count);
+
+                // Send rejection emails to all affected buyers
+                foreach (var conversation in rejectedConversations)
+                {
+                    if (conversation.ActiveOfferBy != null && conversation.ListingId != null)
+                    {
+                        var buyer = await _mongoDbService.GetUserByIdAsync(conversation.ActiveOfferBy);
+                        var listing = listingMap.GetValueOrDefault(conversation.ListingId);
+                        if (buyer?.Email != null && listing != null && conversation.ActiveOfferAmount.HasValue)
+                        {
+                            _ = _emailService.SendOfferRejectedNotificationAsync(
+                                buyer.Email,
+                                listing.ListingTitle,
+                                conversation.ActiveOfferAmount.Value,
+                                "This item was purchased by another buyer.");
+                        }
                     }
                 }
             }
@@ -658,7 +683,7 @@ public class CheckoutController : ControllerBase
             }
             _logger.LogInformation("Cleaned up pending cart items for {Count} listings", order.Items.Count);
 
-            // Auto-reject all active offers on the purchased listings
+            // Auto-reject all active offers on the purchased listings (legacy offers collection)
             var rejectedOffers = await _mongoDbService.RejectAllOffersOnListingsAsync(listingIds);
             if (rejectedOffers.Count > 0)
             {
@@ -676,6 +701,31 @@ public class CheckoutController : ControllerBase
                             listing.ListingTitle,
                             rejectedOffer.CurrentOfferAmount,
                             "This item was purchased by another buyer.");
+                    }
+                }
+            }
+
+            // Auto-reject all active conversation-based offers on the purchased listings
+            var rejectedConversations = await _mongoDbService.RejectAllConversationOffersOnListingsAsync(listingIds);
+            if (rejectedConversations.Count > 0)
+            {
+                _logger.LogInformation("Auto-rejected {Count} conversation offers due to PayPal checkout purchase", rejectedConversations.Count);
+
+                // Send rejection emails to all affected buyers
+                foreach (var conversation in rejectedConversations)
+                {
+                    if (conversation.ActiveOfferBy != null && conversation.ListingId != null)
+                    {
+                        var buyer = await _mongoDbService.GetUserByIdAsync(conversation.ActiveOfferBy);
+                        var listing = listingMap.GetValueOrDefault(conversation.ListingId);
+                        if (buyer?.Email != null && listing != null && conversation.ActiveOfferAmount.HasValue)
+                        {
+                            _ = _emailService.SendOfferRejectedNotificationAsync(
+                                buyer.Email,
+                                listing.ListingTitle,
+                                conversation.ActiveOfferAmount.Value,
+                                "This item was purchased by another buyer.");
+                        }
                     }
                 }
             }
@@ -906,7 +956,7 @@ public class CheckoutController : ControllerBase
                 await _mongoDbService.DeletePendingCartItemByListingAsync(item.ListingId);
             }
 
-            // Auto-reject all active offers on the purchased listings
+            // Auto-reject all active offers on the purchased listings (legacy offers collection)
             var rejectedOffers = await _mongoDbService.RejectAllOffersOnListingsAsync(listingIds);
             if (rejectedOffers.Count > 0)
             {
@@ -923,6 +973,30 @@ public class CheckoutController : ControllerBase
                             listing.ListingTitle,
                             rejectedOffer.CurrentOfferAmount,
                             "This item was purchased by another buyer.");
+                    }
+                }
+            }
+
+            // Auto-reject all active conversation-based offers on the purchased listings
+            var rejectedConversations = await _mongoDbService.RejectAllConversationOffersOnListingsAsync(listingIds);
+            if (rejectedConversations.Count > 0)
+            {
+                _logger.LogInformation("Webhook: Auto-rejected {Count} conversation offers", rejectedConversations.Count);
+
+                foreach (var conversation in rejectedConversations)
+                {
+                    if (conversation.ActiveOfferBy != null && conversation.ListingId != null)
+                    {
+                        var buyer = await _mongoDbService.GetUserByIdAsync(conversation.ActiveOfferBy);
+                        var listing = listingMap.GetValueOrDefault(conversation.ListingId);
+                        if (buyer?.Email != null && listing != null && conversation.ActiveOfferAmount.HasValue)
+                        {
+                            _ = _emailService.SendOfferRejectedNotificationAsync(
+                                buyer.Email,
+                                listing.ListingTitle,
+                                conversation.ActiveOfferAmount.Value,
+                                "This item was purchased by another buyer.");
+                        }
                     }
                 }
             }

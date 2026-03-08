@@ -862,6 +862,53 @@ public class MongoDbService
         return offersToReject;
     }
 
+    /// <summary>
+    /// Reject all active conversation-based offers on multiple listings when items are purchased via checkout
+    /// </summary>
+    public async Task<List<Conversation>> RejectAllConversationOffersOnListingsAsync(IEnumerable<string> listingIds)
+    {
+        var listingIdList = listingIds.ToList();
+        _logger.LogInformation("RejectAllConversationOffersOnListingsAsync called with listing IDs: {ListingIds}", string.Join(", ", listingIdList));
+
+        if (listingIdList.Count == 0) return new List<Conversation>();
+
+        // Find all conversations with active offers on these listings
+        var filter = Builders<Conversation>.Filter.And(
+            Builders<Conversation>.Filter.In(c => c.ListingId, listingIdList),
+            Builders<Conversation>.Filter.Eq(c => c.OfferStatus, "active")
+        );
+
+        var conversationsToReject = await _conversationsCollection.Find(filter).ToListAsync();
+        _logger.LogInformation("Found {Count} conversation offers to reject for listings: {ListingIds}", conversationsToReject.Count, string.Join(", ", listingIdList));
+
+        foreach (var conversation in conversationsToReject)
+        {
+            var updateFilter = Builders<Conversation>.Filter.Eq(c => c.Id, conversation.Id);
+            var update = Builders<Conversation>.Update
+                .Set(c => c.OfferStatus, "declined")
+                .Set(c => c.PendingActionBy, null)
+                .Set(c => c.OfferExpiresAt, null);
+            await _conversationsCollection.UpdateOneAsync(updateFilter, update);
+
+            // Add a system message to the conversation
+            var systemMessage = new Message
+            {
+                ConversationId = conversation.Id!,
+                SenderId = null,
+                RecipientId = conversation.ActiveOfferBy,
+                ListingId = conversation.ListingId,
+                MessageText = "This offer was automatically declined because the item was purchased.",
+                Type = "decline",
+                IsRead = false
+            };
+            await _messagesCollection.InsertOneAsync(systemMessage);
+
+            _logger.LogInformation("Auto-rejected conversation offer {ConversationId} on listing {ListingId} due to checkout purchase", conversation.Id, conversation.ListingId);
+        }
+
+        return conversationsToReject;
+    }
+
     public async Task<Offer?> GetActiveOfferByBuyerAndListingAsync(string buyerId, string listingId)
     {
         var filter = Builders<Offer>.Filter.And(
