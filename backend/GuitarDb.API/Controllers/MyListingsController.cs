@@ -34,6 +34,29 @@ public class MyListingsController : ControllerBase
         }));
     }
 
+    [HttpGet("sold")]
+    public async Task<IActionResult> GetSoldListings([FromQuery] int? limit = null)
+    {
+        var listings = limit.HasValue && limit.Value > 0
+            ? await _mongoDbService.GetRecentSoldListingsAsync(limit.Value)
+            : await _mongoDbService.GetRecentSoldListingsAsync(100); // Default max for all sold page
+
+        return Ok(listings.Select(l => new
+        {
+            id = l.Id,
+            listing_title = l.ListingTitle,
+            description = l.Description,
+            condition = l.Condition,
+            images = l.Images,
+            reverb_link = l.ReverbLink,
+            price = l.Price,
+            currency = l.Currency,
+            scraped_at = l.ScrapedAt,
+            listed_at = l.ListedAt,
+            disabled = l.Disabled
+        }));
+    }
+
     [HttpGet("{id}")]
     public async Task<IActionResult> GetListingById(string id)
     {

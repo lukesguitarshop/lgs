@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import SearchClient from './components/SearchClient';
+import SoldListingsCarousel from './components/SoldListingsCarousel';
 
 interface Listing {
   id: string;
@@ -41,6 +42,7 @@ export default async function HomePage() {
       <Suspense fallback={<div className="text-center py-8">Loading...</div>}>
         <SearchClient initialListings={listings} />
       </Suspense>
+      <SoldListingsCarousel />
     </div>
   );
 }

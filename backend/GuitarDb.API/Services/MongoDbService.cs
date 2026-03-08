@@ -293,6 +293,15 @@ public class MongoDbService
             .ToListAsync();
     }
 
+    public async Task<List<MyListing>> GetRecentSoldListingsAsync(int limit = 8)
+    {
+        var filter = Builders<MyListing>.Filter.Eq(l => l.Disabled, true);
+        return await _myListingsCollection.Find(filter)
+            .SortByDescending(l => l.ScrapedAt)
+            .Limit(limit)
+            .ToListAsync();
+    }
+
     public async Task<bool> DisableListingsByIdsAsync(IEnumerable<string> ids)
     {
         var filter = Builders<MyListing>.Filter.In(l => l.Id, ids);

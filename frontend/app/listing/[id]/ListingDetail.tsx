@@ -418,14 +418,11 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
         {/* Right side - Product info */}
         <div className="space-y-6">
-          {/* Unavailable banner */}
+          {/* SOLD banner */}
           {listing.disabled && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 text-red-500 flex-shrink-0 mt-0.5" />
-              <div>
-                <p className="font-semibold text-red-700">This listing is no longer available</p>
-                <p className="text-sm text-red-600 mt-1">This item has been sold or reserved.</p>
-              </div>
+            <div className="bg-red-600 text-white rounded-lg p-4 flex items-center gap-3">
+              <span className="text-2xl font-bold">SOLD</span>
+              <span className="text-sm opacity-90">This guitar has found a new home</span>
             </div>
           )}
 
@@ -478,10 +475,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
               disabled={inCart || listing.disabled}
             >
               {listing.disabled ? (
-                <>
-                  <AlertTriangle className="h-5 w-5 mr-2" />
-                  Unavailable
-                </>
+                'SOLD'
               ) : inCart ? (
                 <>
                   <Check className="h-5 w-5 mr-2" />
