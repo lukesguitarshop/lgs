@@ -149,6 +149,30 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Delete a listing permanently
+    /// </summary>
+    [HttpDelete("listings/{id}")]
+    public async Task<IActionResult> DeleteListing(string id)
+    {
+        var listing = await _mongoDbService.GetMyListingByIdAsync(id);
+        if (listing == null)
+        {
+            return NotFound(new { error = "Listing not found" });
+        }
+
+        var success = await _mongoDbService.DeleteMyListingAsync(id);
+
+        if (!success)
+        {
+            return StatusCode(500, new { error = "Failed to delete listing" });
+        }
+
+        _logger.LogInformation("Deleted listing {Id}: {Title}", id, listing.ListingTitle);
+
+        return Ok(new { success = true, message = "Listing deleted successfully" });
+    }
+
+    /// <summary>
     /// Clean up duplicate listings (keeps most recent by ScrapedAt, deletes others)
     /// </summary>
     [HttpPost("cleanup-duplicates")]

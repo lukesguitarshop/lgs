@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users, Trash2 } from 'lucide-react';
 import { DealFinderTab } from '@/components/admin/DealFinderTab';
 import { UsersTab } from '@/components/admin/UsersTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
@@ -147,6 +147,7 @@ export default function AdminPage() {
   const replyInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState('listings');
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // Load active tab from localStorage on mount
   useEffect(() => {
@@ -334,6 +335,23 @@ export default function AdminPage() {
       console.error('Failed to toggle listing:', err);
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  const deleteListing = async (listing: AdminListing) => {
+    if (!confirm(`Are you sure you want to permanently delete "${listing.listing_title}"? This cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingId(listing.id);
+    try {
+      await api.authDelete(`/admin/listings/${listing.id}`);
+      setListings(prev => prev.filter(l => l.id !== listing.id));
+    } catch (err) {
+      console.error('Failed to delete listing:', err);
+      alert('Failed to delete listing');
+    } finally {
+      setDeletingId(null);
     }
   };
 
@@ -647,6 +665,18 @@ export default function AdminPage() {
                                   <ToggleLeft className="h-3 w-3" />
                                   Disable
                                 </>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => deleteListing(listing)}
+                              disabled={deletingId === listing.id}
+                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-red-600 hover:text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                              title="Delete listing"
+                            >
+                              {deletingId === listing.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Trash2 className="h-3 w-3" />
                               )}
                             </button>
                           </div>
