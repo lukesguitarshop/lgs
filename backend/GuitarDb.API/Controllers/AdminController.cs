@@ -16,6 +16,7 @@ public class AdminController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly MongoDbService _mongoDbService;
     private readonly ScraperService _scraperService;
+    private readonly ReviewScraperService _reviewScraperService;
     private readonly EmailService _emailService;
     private readonly DealFinderService _dealFinderService;
 
@@ -24,6 +25,7 @@ public class AdminController : ControllerBase
         IConfiguration configuration,
         MongoDbService mongoDbService,
         ScraperService scraperService,
+        ReviewScraperService reviewScraperService,
         EmailService emailService,
         DealFinderService dealFinderService)
     {
@@ -31,6 +33,7 @@ public class AdminController : ControllerBase
         _configuration = configuration;
         _mongoDbService = mongoDbService;
         _scraperService = scraperService;
+        _reviewScraperService = reviewScraperService;
         _emailService = emailService;
         _dealFinderService = dealFinderService;
     }
@@ -68,6 +71,42 @@ public class AdminController : ControllerBase
             {
                 success = false,
                 message = "Failed to run scraper",
+                error = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// Manually trigger the review scraper to fetch reviews from Reverb
+    /// </summary>
+    [HttpPost("run-review-scraper")]
+    public async Task<IActionResult> RunReviewScraper()
+    {
+        _logger.LogInformation("Manual review scraper trigger requested");
+
+        try
+        {
+            var result = await _reviewScraperService.RunAsync();
+
+            _logger.LogInformation("Review scraper completed successfully: {ReviewsImported} reviews imported",
+                result.ReviewsImported);
+
+            return Ok(new
+            {
+                success = true,
+                message = "Review scraper completed successfully",
+                reviewsImported = result.ReviewsImported,
+                duration = result.Duration.ToString(),
+                output = result.OutputLines
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to run review scraper");
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Failed to run review scraper",
                 error = ex.Message
             });
         }

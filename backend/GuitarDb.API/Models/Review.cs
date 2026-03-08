@@ -10,6 +10,10 @@ public class Review
     [BsonIgnoreIfNull]
     public string? Id { get; set; }
 
+    [BsonElement("reverb_order_id")]
+    [BsonIgnoreIfNull]
+    public string? ReverbOrderId { get; set; }
+
     [BsonElement("guitar_name")]
     [BsonRequired]
     public string GuitarName { get; set; } = string.Empty;

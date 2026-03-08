@@ -35,6 +35,12 @@ builder.Services.AddHttpClient<ScraperService>(client =>
     client.Timeout = TimeSpan.FromMinutes(5); // Scraper may take a while
 });
 
+// Register ReviewScraperService with HttpClient for Reverb API
+builder.Services.AddHttpClient<ReviewScraperService>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(5);
+});
+
 // Register AuthService
 builder.Services.AddSingleton<AuthService>();
 

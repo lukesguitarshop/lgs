@@ -47,7 +47,7 @@ function StarRating({ rating }: { rating: number }) {
   );
 }
 
-const TEXT_TRUNCATE_LENGTH = 200;
+const TEXT_TRUNCATE_LENGTH = 150;
 
 function ReviewCardContent({ review }: { review: Review }) {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -58,10 +58,10 @@ function ReviewCardContent({ review }: { review: Review }) {
     : review.review_text.slice(0, TEXT_TRUNCATE_LENGTH) + '...';
 
   return (
-    <CardContent className="p-6">
+    <CardContent className="p-4">
       <StarRating rating={review.rating} />
-      <h3 className="font-semibold text-base mt-3 mb-1">{review.guitar_name}</h3>
-      <p className="text-xs text-muted-foreground mb-3">
+      <h3 className="font-semibold text-sm mt-2 mb-1 line-clamp-1">{review.guitar_name}</h3>
+      <p className="text-xs text-muted-foreground mb-2">
         {review.reviewer_name} • {formatDate(review.review_date)}
       </p>
       <p className="text-sm text-muted-foreground leading-relaxed">
@@ -73,15 +73,15 @@ function ReviewCardContent({ review }: { review: Review }) {
             e.stopPropagation();
             setIsExpanded(!isExpanded);
           }}
-          className="mt-2 text-sm text-[#df5e15] hover:text-[#c54d0a] font-medium flex items-center gap-1"
+          className="mt-2 text-xs text-[#df5e15] hover:text-[#c54d0a] font-medium flex items-center gap-1"
         >
           {isExpanded ? (
             <>
-              Show less <ChevronUp className="h-4 w-4" />
+              Show less <ChevronUp className="h-3 w-3" />
             </>
           ) : (
             <>
-              Read more <ChevronDown className="h-4 w-4" />
+              Read more <ChevronDown className="h-3 w-3" />
             </>
           )}
         </button>
@@ -93,8 +93,9 @@ function ReviewCardContent({ review }: { review: Review }) {
 export default function ReviewsCarousel() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function fetchReviews() {
@@ -111,30 +112,39 @@ export default function ReviewsCarousel() {
     fetchReviews();
   }, []);
 
-  const goToPrevious = () => {
-    setCurrentIndex((prev) => (prev === 0 ? reviews.length - 1 : prev - 1));
+  const checkScrollButtons = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    setCanScrollLeft(container.scrollLeft > 0);
+    setCanScrollRight(
+      container.scrollLeft < container.scrollWidth - container.clientWidth - 10
+    );
   };
 
-  const goToNext = () => {
-    setCurrentIndex((prev) => (prev === reviews.length - 1 ? 0 : prev + 1));
-  };
-
-  // Scroll to center the current review card
   useEffect(() => {
-    if (containerRef.current && reviews.length > 0) {
-      const cardWidth = 320; // Approximate card width (w-80 = 20rem = 320px)
-      const gap = 16; // gap-4
-      const spacerWidth = 16 + gap; // w-4 spacer + gap
-      const containerWidth = containerRef.current.clientWidth;
-      const cardPosition = spacerWidth + currentIndex * (cardWidth + gap);
-      const scrollPosition = cardPosition - (containerWidth / 2) + (cardWidth / 2);
-
-      containerRef.current.scrollTo({
-        left: Math.max(0, scrollPosition),
-        behavior: 'smooth'
-      });
+    checkScrollButtons();
+    const container = scrollContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', checkScrollButtons);
+      window.addEventListener('resize', checkScrollButtons);
+      return () => {
+        container.removeEventListener('scroll', checkScrollButtons);
+        window.removeEventListener('resize', checkScrollButtons);
+      };
     }
-  }, [currentIndex, reviews.length]);
+  }, [reviews]);
+
+  const scroll = (direction: 'left' | 'right') => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const scrollAmount = 300; // card width + gap
+    container.scrollBy({
+      left: direction === 'left' ? -scrollAmount : scrollAmount,
+      behavior: 'smooth'
+    });
+  };
 
   if (loading) {
     return (
@@ -156,75 +166,55 @@ export default function ReviewsCarousel() {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-xl font-bold">Customer Reviews</h2>
         <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">
-            {currentIndex + 1} / {reviews.length}
-          </span>
           <button
-            onClick={goToPrevious}
-            className="p-2 rounded-full bg-card hover:bg-muted border border-border transition-colors"
-            aria-label="Previous review"
+            onClick={() => scroll('left')}
+            disabled={!canScrollLeft}
+            className={`p-2 rounded-full border border-border transition-colors ${
+              canScrollLeft
+                ? 'bg-card hover:bg-muted cursor-pointer'
+                : 'bg-muted/50 text-muted-foreground/50 cursor-not-allowed'
+            }`}
+            aria-label="Scroll left"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <button
-            onClick={goToNext}
-            className="p-2 rounded-full bg-card hover:bg-muted border border-border transition-colors"
-            aria-label="Next review"
+            onClick={() => scroll('right')}
+            disabled={!canScrollRight}
+            className={`p-2 rounded-full border border-border transition-colors ${
+              canScrollRight
+                ? 'bg-card hover:bg-muted cursor-pointer'
+                : 'bg-muted/50 text-muted-foreground/50 cursor-not-allowed'
+            }`}
+            aria-label="Scroll right"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
         </div>
       </div>
 
-      <div className="relative">
-        <div
-          ref={containerRef}
-          className="flex gap-4 overflow-x-auto px-4 py-4 scroll-smooth snap-x snap-mandatory scrollbar-hide"
-          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
-        >
-          {/* Spacer for left padding */}
-          <div className="flex-shrink-0 w-4" aria-hidden="true" />
-          {reviews.map((review, index) => (
-            <Card
-              key={review.id}
-              className={`flex-shrink-0 w-80 snap-start transition-all duration-300 ${
-                index === currentIndex
-                  ? 'ring-2 ring-[#df5e15] shadow-lg'
-                  : 'opacity-70'
-              }`}
-            >
-              <ReviewCardContent review={review} />
-            </Card>
-          ))}
-          {/* Spacer for right padding */}
-          <div className="flex-shrink-0 w-4" aria-hidden="true" />
-        </div>
-
-        {/* Dot indicators */}
-        <div className="flex justify-center gap-2 mt-4">
-          {reviews.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentIndex(index)}
-              className={`w-2 h-2 rounded-full transition-all ${
-                index === currentIndex
-                  ? 'bg-[#df5e15] w-4'
-                  : 'bg-gray-300 hover:bg-gray-400'
-              }`}
-              aria-label={`Go to review ${index + 1}`}
-            />
-          ))}
-        </div>
-
-        {/* Show all reviews button */}
-        <div className="flex justify-center mt-6">
-          <Link
-            href="/reviews"
-            className="px-6 py-2 text-sm font-medium text-[#df5e15] hover:text-[#c54d0a] border border-[#df5e15] hover:border-[#c54d0a] rounded-lg transition-colors"
+      <div
+        ref={scrollContainerRef}
+        className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide"
+        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+      >
+        {reviews.map((review) => (
+          <Card
+            key={review.id}
+            className="flex-shrink-0 w-72 hover:shadow-lg transition-shadow"
           >
-            Show all reviews
-          </Link>
-        </div>
+            <ReviewCardContent review={review} />
+          </Card>
+        ))}
+      </div>
+
+      <div className="flex justify-center mt-6">
+        <Link
+          href="/reviews"
+          className="px-6 py-2 text-sm font-medium text-[#df5e15] hover:text-[#c54d0a] border border-[#df5e15] hover:border-[#c54d0a] rounded-lg transition-colors"
+        >
+          View all reviews
+        </Link>
       </div>
     </div>
   );

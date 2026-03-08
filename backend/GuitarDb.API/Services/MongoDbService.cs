@@ -82,6 +82,11 @@ public class MongoDbService
                 new CreateIndexModel<Review>(reviewDateIndex, new CreateIndexOptions { Name = "review_date_idx" })
             );
 
+            var reviewOrderIdIndex = Builders<Review>.IndexKeys.Ascending(r => r.ReverbOrderId);
+            await _reviewsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<Review>(reviewOrderIdIndex, new CreateIndexOptions { Name = "reverb_order_id_idx", Sparse = true })
+            );
+
             // User indexes
             var userEmailIndex = Builders<User>.IndexKeys.Ascending(u => u.Email);
             await _usersCollection.Indexes.CreateOneAsync(
@@ -582,6 +587,20 @@ public class MongoDbService
     {
         var result = await _reviewsCollection.DeleteManyAsync(_ => true);
         return result.DeletedCount;
+    }
+
+    public async Task<HashSet<string>> GetAllReviewOrderIdsAsync()
+    {
+        var filter = Builders<Review>.Filter.Ne(r => r.ReverbOrderId, null);
+        var projection = Builders<Review>.Projection.Include(r => r.ReverbOrderId);
+        var reviews = await _reviewsCollection.Find(filter)
+            .Project<Review>(projection)
+            .ToListAsync();
+
+        return reviews
+            .Where(r => !string.IsNullOrEmpty(r.ReverbOrderId))
+            .Select(r => r.ReverbOrderId!)
+            .ToHashSet();
     }
 
     // User operations
