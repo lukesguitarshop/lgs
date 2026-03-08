@@ -75,7 +75,7 @@ export default async function SoldPage() {
                       <span className="text-6xl">🎸</span>
                     </div>
                   )}
-                  <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+                  <div className="absolute top-2 left-2 bg-[#df5e15] text-white text-xs font-bold px-2 py-1 rounded">
                     SOLD
                   </div>
                   {listing.images && listing.images.length > 1 && (

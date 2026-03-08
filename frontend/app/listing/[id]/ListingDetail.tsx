@@ -420,7 +420,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
         <div className="space-y-6">
           {/* SOLD banner */}
           {listing.disabled && (
-            <div className="bg-red-600 text-white rounded-lg p-4 flex items-center gap-3">
+            <div className="bg-[#df5e15] text-white rounded-lg p-4 flex items-center gap-3">
               <span className="text-2xl font-bold">SOLD</span>
               <span className="text-sm opacity-90">This guitar has found a new home</span>
             </div>
