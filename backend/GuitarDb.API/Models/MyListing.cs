@@ -29,6 +29,10 @@ public class MyListing
     [BsonElement("price")]
     public decimal Price { get; set; }
 
+    [BsonElement("original_price")]
+    [BsonIgnoreIfNull]
+    public decimal? OriginalPrice { get; set; }
+
     [BsonElement("currency")]
     public string Currency { get; set; } = "USD";
 

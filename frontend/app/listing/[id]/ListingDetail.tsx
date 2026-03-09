@@ -22,6 +22,7 @@ interface Listing {
   images: string[];
   reverb_link: string | null;
   price: number;
+  original_price: number | null;
   currency: string;
   scraped_at: string;
   listed_at: string | null;
@@ -453,11 +454,29 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
           {/* Price section */}
           <div className="border-t border-b border-border py-6">
-            <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-foreground">
-                {formatPrice(listing.price, listing.currency)}
-              </span>
-            </div>
+            {listing.original_price && listing.price < listing.original_price ? (
+              <>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="bg-[#df5e15] text-white text-sm font-bold px-2 py-1 rounded">
+                    ON SALE
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-3">
+                  <span className="text-3xl font-bold text-[#df5e15]">
+                    {formatPrice(listing.price, listing.currency)}
+                  </span>
+                  <span className="text-xl text-gray-400 line-through">
+                    {formatPrice(listing.original_price, listing.currency)}
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-foreground">
+                  {formatPrice(listing.price, listing.currency)}
+                </span>
+              </div>
+            )}
             <p className="text-green-600 font-medium mt-1">+ Free Shipping</p>
           </div>
 

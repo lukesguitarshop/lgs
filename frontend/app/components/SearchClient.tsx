@@ -22,6 +22,7 @@ interface Listing {
   images: string[];
   reverb_link: string | null;
   price: number;
+  original_price: number | null;
   currency: string;
   scraped_at: string;
   listed_at: string | null;
@@ -387,6 +388,8 @@ interface ListingCardProps {
 }
 
 function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps) {
+  const isOnSale = listing.original_price && listing.price < listing.original_price;
+
   return (
     <Link href={`/listing/${listing.id}`} className="block h-full">
       <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col cursor-pointer">
@@ -401,6 +404,12 @@ function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps
           {listing.images && listing.images.length > 1 && (
             <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
               {listing.images.length} photos
+            </div>
+          )}
+          {/* ON SALE badge */}
+          {isOnSale && (
+            <div className="absolute top-2 left-2 bg-[#df5e15] text-white text-xs font-bold px-2 py-1 rounded">
+              ON SALE
             </div>
           )}
           {/* Favorite button */}
@@ -421,9 +430,22 @@ function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps
             <p className="text-sm text-muted-foreground mb-1">Used - {listing.condition}</p>
           )}
           <h3 className="font-semibold text-lg mb-2 line-clamp-2">{listing.listing_title}</h3>
-          <p className="text-2xl font-bold text-foreground mb-1">
-            {formatPrice(listing.price, listing.currency)}
-          </p>
+          <div className="mb-1">
+            {isOnSale ? (
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-bold text-[#df5e15]">
+                  {formatPrice(listing.price, listing.currency)}
+                </p>
+                <p className="text-lg text-gray-400 line-through">
+                  {formatPrice(listing.original_price!, listing.currency)}
+                </p>
+              </div>
+            ) : (
+              <p className="text-2xl font-bold text-foreground">
+                {formatPrice(listing.price, listing.currency)}
+              </p>
+            )}
+          </div>
           <p className="text-sm text-green-600 mb-3">+ Free Shipping</p>
           <div className="mt-auto">
             <Button className="w-full bg-[#df5e15] hover:bg-[#c54d0a] text-white">

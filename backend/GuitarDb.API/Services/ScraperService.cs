@@ -247,6 +247,7 @@ public class ScraperService
 
     private MyListing ConvertToMyListing(ReverbListing reverb)
     {
+        var scrapedPrice = reverb.Price?.Amount ?? 0;
         return new MyListing
         {
             ListingTitle = reverb.Title,
@@ -254,7 +255,8 @@ public class ScraperService
             Images = reverb.AllImageUrls,
             ReverbLink = UrlHelper.NormalizeReverbLink(reverb.ListingUrl),
             Condition = reverb.Condition?.DisplayName,
-            Price = reverb.Price?.Amount ?? 0,
+            Price = scrapedPrice,
+            OriginalPrice = scrapedPrice,
             Currency = reverb.Price?.Currency ?? "USD",
             ScrapedAt = DateTime.UtcNow,
             ListedAt = reverb.PublishedAt
@@ -268,9 +270,11 @@ public class ScraperService
 
         if (existing != null)
         {
-            // Update existing - preserve Id and Disabled status
+            // Update existing - preserve Id, Disabled status, and admin-set Price
             listing.Id = existing.Id;
             listing.Disabled = existing.Disabled;
+            // Keep the admin-set price, only update OriginalPrice from scrape
+            listing.Price = existing.Price;
             await _mongoDbService.UpdateMyListingAsync(existing.Id!, listing);
         }
         else
