@@ -51,52 +51,89 @@ public class DealFinderService
         {
             _logger.LogInformation("===== Starting Deal Finder =====");
 
-            // Get configuration
-            var makes = _configuration.GetSection("DealFinder:SearchFilters:Makes").Get<List<string>>() ?? new List<string> { "Fender", "Gibson", "PRS", "Schecter" };
-            var priceMax = _configuration.GetValue<decimal>("DealFinder:SearchFilters:PriceMax", 3500);
-            var acceptsOffers = _configuration.GetValue<bool>("DealFinder:SearchFilters:AcceptsOffers", true);
-            var perPage = _configuration.GetValue<int>("DealFinder:SearchFilters:PerPage", 50);
-            var maxListings = _configuration.GetValue<int>("DealFinder:SearchFilters:MaxListings", 500);
-            var category = _configuration["DealFinder:SearchFilters:Category"] ?? "solid-body";
-            var productType = _configuration["DealFinder:SearchFilters:ProductType"] ?? "electric-guitars";
-            var shipFromCountryCode = _configuration["DealFinder:SearchFilters:ShipFromCountryCode"] ?? "US";
+            // Get cleanup configuration
             var removeStaleListings = _configuration.GetValue<bool>("DealFinder:Cleanup:RemoveStaleListings", true);
             var keepResolvedDays = _configuration.GetValue<int>("DealFinder:Cleanup:KeepResolvedDays", 30);
 
-            // Fetch listings
-            var listings = await _apiClient.FetchPublicListingsAsync(
-                makes, priceMax, acceptsOffers, perPage, maxListings,
-                category, productType, shipFromCountryCode, cancellationToken);
+            // Get search filter sets (supports multiple categories like electric + acoustic)
+            var filterSets = _configuration.GetSection("DealFinder:SearchFilterSets").Get<List<SearchFilterSet>>();
 
-            result.ListingsChecked = listings.Count;
-            _logger.LogInformation("Fetched {Count} listings to analyze", listings.Count);
-
-            int withPriceGuide = 0, withoutPriceGuide = 0, dealsFound = 0, errors = 0;
-
-            foreach (var listing in listings)
+            // Fallback to legacy single SearchFilters config if SearchFilterSets not defined
+            if (filterSets == null || filterSets.Count == 0)
             {
-                try
+                filterSets = new List<SearchFilterSet>
                 {
-                    var potentialBuy = await ProcessListingAsync(listing, cancellationToken);
-                    await _mongoDbService.UpsertPotentialBuyAsync(potentialBuy, cancellationToken);
+                    new SearchFilterSet
+                    {
+                        Name = "Default",
+                        Makes = _configuration.GetSection("DealFinder:SearchFilters:Makes").Get<List<string>>() ?? new List<string> { "Fender", "Gibson", "PRS", "Schecter" },
+                        PriceMax = _configuration.GetValue<decimal>("DealFinder:SearchFilters:PriceMax", 3500),
+                        AcceptsOffers = _configuration.GetValue<bool>("DealFinder:SearchFilters:AcceptsOffers", true),
+                        PerPage = _configuration.GetValue<int>("DealFinder:SearchFilters:PerPage", 50),
+                        MaxListings = _configuration.GetValue<int>("DealFinder:SearchFilters:MaxListings", 500),
+                        Category = _configuration["DealFinder:SearchFilters:Category"] ?? "solid-body",
+                        ProductType = _configuration["DealFinder:SearchFilters:ProductType"] ?? "electric-guitars",
+                        ShipFromCountryCode = _configuration["DealFinder:SearchFilters:ShipFromCountryCode"] ?? "US"
+                    }
+                };
+            }
 
-                    if (potentialBuy.HasPriceGuide)
-                    {
-                        withPriceGuide++;
-                        if (potentialBuy.IsDeal) dealsFound++;
-                    }
-                    else
-                    {
-                        withoutPriceGuide++;
-                    }
-                }
-                catch (Exception ex)
+            int totalWithPriceGuide = 0, totalWithoutPriceGuide = 0, totalDealsFound = 0, totalErrors = 0;
+
+            // Process each filter set
+            foreach (var filterSet in filterSets)
+            {
+                _logger.LogInformation("----- Processing: {Name} -----", filterSet.Name);
+
+                var listings = await _apiClient.FetchPublicListingsAsync(
+                    filterSet.Makes,
+                    filterSet.PriceMax,
+                    filterSet.AcceptsOffers,
+                    filterSet.PerPage,
+                    filterSet.MaxListings,
+                    filterSet.Category,
+                    filterSet.ProductType,
+                    filterSet.ShipFromCountryCode,
+                    cancellationToken);
+
+                result.ListingsChecked += listings.Count;
+                _logger.LogInformation("Fetched {Count} listings for {Name}", listings.Count, filterSet.Name);
+
+                int withPriceGuide = 0, withoutPriceGuide = 0, dealsFound = 0, errors = 0;
+
+                foreach (var listing in listings)
                 {
-                    _logger.LogWarning(ex, "Failed to process listing {Id}", listing.Id);
-                    errors++;
+                    try
+                    {
+                        var potentialBuy = await ProcessListingAsync(listing, cancellationToken);
+                        await _mongoDbService.UpsertPotentialBuyAsync(potentialBuy, cancellationToken);
+
+                        if (potentialBuy.HasPriceGuide)
+                        {
+                            withPriceGuide++;
+                            if (potentialBuy.IsDeal) dealsFound++;
+                        }
+                        else
+                        {
+                            withoutPriceGuide++;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to process listing {Id}", listing.Id);
+                        errors++;
+                    }
+
+                    await Task.Delay(200, cancellationToken); // Rate limiting
                 }
 
-                await Task.Delay(200, cancellationToken); // Rate limiting
+                _logger.LogInformation("{Name}: {Deals} deals, {WithGuide} with price guide, {WithoutGuide} without, {Errors} errors",
+                    filterSet.Name, dealsFound, withPriceGuide, withoutPriceGuide, errors);
+
+                totalWithPriceGuide += withPriceGuide;
+                totalWithoutPriceGuide += withoutPriceGuide;
+                totalDealsFound += dealsFound;
+                totalErrors += errors;
             }
 
             // Cleanup
@@ -118,15 +155,16 @@ public class DealFinderService
 
             result.Success = true;
             result.Message = "Deal finder completed successfully";
-            result.DealsFound = dealsFound;
+            result.DealsFound = totalDealsFound;
             result.Duration = DateTime.UtcNow - startTime;
 
             _logger.LogInformation("===== DEAL FINDER SUMMARY =====");
+            _logger.LogInformation("Filter Sets Processed: {Count}", filterSets.Count);
             _logger.LogInformation("Listings Checked: {Count}", result.ListingsChecked);
-            _logger.LogInformation("With Price Guide: {Count}", withPriceGuide);
-            _logger.LogInformation("Without Price Guide: {Count}", withoutPriceGuide);
-            _logger.LogInformation("Deals Found: {Count}", dealsFound);
-            _logger.LogInformation("Errors: {Count}", errors);
+            _logger.LogInformation("With Price Guide: {Count}", totalWithPriceGuide);
+            _logger.LogInformation("Without Price Guide: {Count}", totalWithoutPriceGuide);
+            _logger.LogInformation("Deals Found: {Count}", totalDealsFound);
+            _logger.LogInformation("Errors: {Count}", totalErrors);
             _logger.LogInformation("Price Guides Cached: {Count}", _priceGuideCache.CacheSize);
             _logger.LogInformation("Total in Database: {Count}", totalInDb);
             _logger.LogInformation("Duration: {Duration}", result.Duration);
@@ -223,4 +261,17 @@ public class DealFinderResult
     public int ListingsChecked { get; set; }
     public int DealsFound { get; set; }
     public TimeSpan Duration { get; set; }
+}
+
+public class SearchFilterSet
+{
+    public string Name { get; set; } = "Default";
+    public List<string> Makes { get; set; } = new();
+    public decimal PriceMax { get; set; } = 3500;
+    public bool AcceptsOffers { get; set; } = true;
+    public int PerPage { get; set; } = 50;
+    public int MaxListings { get; set; } = 500;
+    public string Category { get; set; } = "solid-body";
+    public string ProductType { get; set; } = "electric-guitars";
+    public string ShipFromCountryCode { get; set; } = "US";
 }
