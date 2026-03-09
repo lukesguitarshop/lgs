@@ -12,6 +12,7 @@ import {
   isAuthenticated as checkIsAuthenticated,
 } from '@/lib/auth';
 import { clearCart } from '@/lib/cart';
+import { trackLogin, trackSignUp } from '@/lib/analytics';
 
 interface AuthContextType {
   user: User | null;
@@ -75,6 +76,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const response = await authLogin(email, password);
     setUser(response.user);
     setShowLoginModal(false);
+    trackLogin('email');
   }, []);
 
   const register = useCallback(async (email: string, password: string, fullName: string) => {
@@ -84,6 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (response.user) {
       setUser(response.user);
       setShowRegisterModal(false);
+      trackSignUp('email');
       // Call the success callback if set, then clear it
       if (onRegisterSuccess) {
         onRegisterSuccess();

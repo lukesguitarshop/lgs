@@ -13,6 +13,7 @@ import api from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
 import ReviewsCarousel from './ReviewsCarousel';
 import { MakeOfferModal } from '@/components/offers/MakeOfferModal';
+import { trackAddToCart, trackViewItem } from '@/lib/analytics';
 
 interface Listing {
   id: string;
@@ -63,6 +64,16 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   useEffect(() => {
     setInCart(isInCart(listing.id));
   }, [listing.id]);
+
+  // Track view item event for analytics
+  useEffect(() => {
+    trackViewItem({
+      id: listing.id,
+      name: listing.listing_title,
+      price: listing.price,
+      currency: listing.currency,
+    });
+  }, [listing.id, listing.listing_title, listing.price, listing.currency]);
 
   // Check if listing is favorited on mount
   useEffect(() => {
@@ -213,6 +224,12 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
       image: images[0] || '',
     };
     addToCart(cartItem);
+    trackAddToCart({
+      id: listing.id,
+      name: listing.listing_title,
+      price: listing.price,
+      currency: listing.currency,
+    });
     setInCart(true);
     setJustAdded(true);
 
