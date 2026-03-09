@@ -143,15 +143,12 @@ public class ReviewScraperService
                     break;
                 }
 
-                // Filter for seller feedback only (reviews left by buyers for the shop)
-                var sellerFeedback = feedbackResponse.Feedbacks
-                    .Where(f => f.IsSellerFeedback())
-                    .ToList();
+                // Shop feedback endpoint already returns feedback FOR the shop (seller feedback)
+                // No need to filter by type - all items from this endpoint are seller reviews
+                allFeedback.AddRange(feedbackResponse.Feedbacks);
 
-                allFeedback.AddRange(sellerFeedback);
-
-                _logger.LogInformation("Page {Page}: {Count} seller feedback items out of {TotalOnPage} (running total: {Total})",
-                    currentPage, sellerFeedback.Count, feedbackResponse.Feedbacks.Count, allFeedback.Count);
+                _logger.LogInformation("Page {Page}: {Count} feedback items (running total: {Total})",
+                    currentPage, feedbackResponse.Feedbacks.Count, allFeedback.Count);
 
                 nextUrl = feedbackResponse.Links?.Next?.Href;
 

@@ -82,7 +82,7 @@ function ReviewCard({ review }: { review: Review }) {
         <p className="text-sm text-muted-foreground mb-3">
           {review.reviewer_name} • {formatDate(review.review_date)}
         </p>
-        <p className="text-gray-700 dark:text-gray-300 leading-relaxed">{review.review_text}</p>
+        <p className="text-gray-900 leading-relaxed">{review.review_text}</p>
       </CardContent>
     </Card>
   );
@@ -220,20 +220,20 @@ function ReviewsTab() {
         </div>
         <div className="flex gap-2">
           <Select value={dateFilter} onValueChange={(value: DateFilter) => setDateFilter(value)}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[140px] bg-white">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white">
               {dateFilterOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
-            <SelectTrigger className="w-[140px]">
+            <SelectTrigger className="w-[140px] bg-white">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="bg-white">
               {sortOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
               ))}
