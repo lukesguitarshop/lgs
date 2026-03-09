@@ -150,6 +150,7 @@ export default function AdminPage() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [reviewScraperLoading, setReviewScraperLoading] = useState(false);
   const [reviewScraperResult, setReviewScraperResult] = useState<ScraperResponse | null>(null);
+  const [initPricesLoading, setInitPricesLoading] = useState(false);
 
   // Load active tab from localStorage on mount
   useEffect(() => {
@@ -430,6 +431,18 @@ export default function AdminPage() {
       });
     } finally {
       setReviewScraperLoading(false);
+    }
+  };
+
+  const initializeOriginalPrices = async () => {
+    setInitPricesLoading(true);
+    try {
+      const response = await api.authPost<{ success: boolean; message: string; updatedCount: number }>('/admin/initialize-original-prices', {});
+      alert(response.message);
+    } catch (err) {
+      alert('Failed to initialize prices: ' + (err instanceof Error ? err.message : 'Unknown error'));
+    } finally {
+      setInitPricesLoading(false);
     }
   };
 
@@ -717,23 +730,40 @@ export default function AdminPage() {
               current listings and update the database.
             </p>
 
-            <Button
-              onClick={runScraper}
-              disabled={loading}
-              className="bg-[#df5e15] hover:bg-[#c54d0a] text-white font-semibold px-6 py-3"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Running Scraper...
-                </>
-              ) : (
-                <>
-                  <Play className="h-5 w-5 mr-2" />
-                  Run Scraper
-                </>
-              )}
-            </Button>
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={runScraper}
+                disabled={loading}
+                className="bg-[#df5e15] hover:bg-[#c54d0a] text-white font-semibold px-6 py-3"
+              >
+                {loading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Running Scraper...
+                  </>
+                ) : (
+                  <>
+                    <Play className="h-5 w-5 mr-2" />
+                    Run Scraper
+                  </>
+                )}
+              </Button>
+              <Button
+                onClick={initializeOriginalPrices}
+                disabled={initPricesLoading}
+                variant="outline"
+                className="font-semibold px-6 py-3"
+              >
+                {initPricesLoading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Initializing...
+                  </>
+                ) : (
+                  'Initialize Sale Prices'
+                )}
+              </Button>
+            </div>
 
             {result && (
               <div className="mt-6">
