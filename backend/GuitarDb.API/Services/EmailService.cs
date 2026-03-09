@@ -591,6 +591,114 @@ public class EmailService
         await SendEmailAsync(recipientEmail, subject, body);
     }
 
+    /// <summary>
+    /// Send order confirmation email to buyer
+    /// </summary>
+    public async Task SendOrderConfirmationToBuyerAsync(
+        string buyerEmail,
+        string orderId,
+        List<(string Title, decimal Price, string Currency)> items,
+        decimal totalAmount,
+        string shippingName,
+        string shippingAddress)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(buyerEmail))
+        {
+            _logger.LogDebug("Skipping order confirmation to buyer - email not configured");
+            return;
+        }
+
+        var subject = "Order Confirmed - Luke's Guitar Shop";
+
+        var itemsList = string.Join("", items.Select(i =>
+            $"<li><strong>{i.Title}</strong> - ${i.Price:N2} {i.Currency}</li>"));
+
+        var body = $@"
+<h2>Thank You for Your Order!</h2>
+<p>Your order has been received and is being processed.</p>
+
+<h3>Order Details</h3>
+<p><strong>Order Reference:</strong> #{orderId[^8..].ToUpper()}</p>
+
+<h3>Items Ordered</h3>
+<ul>
+{itemsList}
+</ul>
+
+<p><strong>Total:</strong> ${totalAmount:N2}</p>
+
+<h3>Shipping To</h3>
+<p>
+{shippingName}<br>
+{shippingAddress.Replace("\n", "<br>")}
+</p>
+
+<p>We'll send you another email with tracking information once your order ships.</p>
+
+<p>If you have any questions about your order, please don't hesitate to contact us.</p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+";
+
+        await SendEmailAsync(buyerEmail, subject, body);
+    }
+
+    /// <summary>
+    /// Send new order notification to seller
+    /// </summary>
+    public async Task SendNewOrderNotificationToSellerAsync(
+        string orderId,
+        List<(string Title, decimal Price, string Currency)> items,
+        decimal totalAmount,
+        string buyerName,
+        string shippingAddress,
+        string paymentMethod)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(_sellerEmail))
+        {
+            _logger.LogDebug("Skipping new order notification to seller - email not configured");
+            return;
+        }
+
+        var subject = $"New Order Received - ${totalAmount:N2}";
+
+        var itemsList = string.Join("", items.Select(i =>
+            $"<li><strong>{i.Title}</strong> - ${i.Price:N2} {i.Currency}</li>"));
+
+        var body = $@"
+<h2>New Order Received!</h2>
+<p>You have received a new order.</p>
+
+<h3>Order Details</h3>
+<ul>
+    <li><strong>Order Reference:</strong> #{orderId[^8..].ToUpper()}</li>
+    <li><strong>Payment Method:</strong> {paymentMethod}</li>
+    <li><strong>Total:</strong> ${totalAmount:N2}</li>
+</ul>
+
+<h3>Items Sold</h3>
+<ul>
+{itemsList}
+</ul>
+
+<h3>Ship To</h3>
+<p>
+{buyerName}<br>
+{shippingAddress.Replace("\n", "<br>")}
+</p>
+
+<p style=""margin: 24px 0;"">
+    <a href=""{_frontendUrl}/admin"" style=""background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View in Admin Portal</a>
+</p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+";
+
+        await SendEmailAsync(_sellerEmail, subject, body);
+    }
+
     private static string? GetTrackingUrl(string carrier, string trackingNumber)
     {
         return carrier.ToUpper() switch

@@ -344,6 +344,32 @@ public class CheckoutController : ControllerBase
                 }
             }
 
+            // Send order confirmation emails
+            var orderUser = userId != null ? await _mongoDbService.GetUserByIdAsync(userId) : null;
+            var itemsForEmail = orderItems.Select(i => (i.ListingTitle, i.Price, i.Currency)).ToList();
+            var shippingAddressFormatted = $"{shippingAddress.Line1}\n{(string.IsNullOrEmpty(shippingAddress.Line2) ? "" : shippingAddress.Line2 + "\n")}{shippingAddress.City}, {shippingAddress.State} {shippingAddress.PostalCode}\n{shippingAddress.Country}";
+
+            // Send confirmation to buyer
+            if (orderUser?.Email != null)
+            {
+                _ = _emailService.SendOrderConfirmationToBuyerAsync(
+                    orderUser.Email,
+                    order.Id!,
+                    itemsForEmail,
+                    totalAmount,
+                    shippingAddress.FullName,
+                    shippingAddressFormatted);
+            }
+
+            // Send notification to seller
+            _ = _emailService.SendNewOrderNotificationToSellerAsync(
+                order.Id!,
+                itemsForEmail,
+                totalAmount,
+                shippingAddress.FullName,
+                shippingAddressFormatted,
+                "Stripe");
+
             return Ok(new { success = true, message = "Checkout completed successfully", orderId = order.Id });
         }
         catch (StripeException ex)
@@ -730,6 +756,32 @@ public class CheckoutController : ControllerBase
                 }
             }
 
+            // Send order confirmation emails
+            var orderUser = userId != null ? await _mongoDbService.GetUserByIdAsync(userId) : null;
+            var itemsForEmail = orderItems.Select(i => (i.ListingTitle, i.Price, i.Currency)).ToList();
+            var shippingAddressFormatted = $"{shippingAddress.Line1}\n{(string.IsNullOrEmpty(shippingAddress.Line2) ? "" : shippingAddress.Line2 + "\n")}{shippingAddress.City}, {shippingAddress.State} {shippingAddress.PostalCode}\n{shippingAddress.Country}";
+
+            // Send confirmation to buyer
+            if (orderUser?.Email != null)
+            {
+                _ = _emailService.SendOrderConfirmationToBuyerAsync(
+                    orderUser.Email,
+                    order.Id!,
+                    itemsForEmail,
+                    totalAmount,
+                    shippingAddress.FullName,
+                    shippingAddressFormatted);
+            }
+
+            // Send notification to seller
+            _ = _emailService.SendNewOrderNotificationToSellerAsync(
+                order.Id!,
+                itemsForEmail,
+                totalAmount,
+                shippingAddress.FullName,
+                shippingAddressFormatted,
+                "PayPal");
+
             return Ok(new { success = true, message = "Payment captured successfully", orderId = order.Id });
         }
         catch (Exception ex)
@@ -1000,6 +1052,32 @@ public class CheckoutController : ControllerBase
                     }
                 }
             }
+
+            // Send order confirmation emails
+            var orderUser = userId != null ? await _mongoDbService.GetUserByIdAsync(userId) : null;
+            var itemsForEmail = orderItems.Select(i => (i.ListingTitle, i.Price, i.Currency)).ToList();
+            var shippingAddressFormatted = $"{shippingAddress.Line1}\n{(string.IsNullOrEmpty(shippingAddress.Line2) ? "" : shippingAddress.Line2 + "\n")}{shippingAddress.City}, {shippingAddress.State} {shippingAddress.PostalCode}\n{shippingAddress.Country}";
+
+            // Send confirmation to buyer
+            if (orderUser?.Email != null)
+            {
+                _ = _emailService.SendOrderConfirmationToBuyerAsync(
+                    orderUser.Email,
+                    order.Id!,
+                    itemsForEmail,
+                    totalAmount,
+                    shippingAddress.FullName,
+                    shippingAddressFormatted);
+            }
+
+            // Send notification to seller
+            _ = _emailService.SendNewOrderNotificationToSellerAsync(
+                order.Id!,
+                itemsForEmail,
+                totalAmount,
+                shippingAddress.FullName,
+                shippingAddressFormatted,
+                "Stripe");
         }
 
         return Ok();

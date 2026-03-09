@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { api } from '@/lib/api';
@@ -12,6 +12,7 @@ import { DealFinderTab } from '@/components/admin/DealFinderTab';
 import { UsersTab } from '@/components/admin/UsersTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/toast';
 
 interface ScraperResponse {
   success: boolean;
@@ -120,6 +121,7 @@ function formatTimeAgo(dateString: string | null): string {
 
 export default function AdminPage() {
   const { isAdmin, isLoading, isAuthenticated, setShowLoginModal } = useAuth();
+  const { showToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScraperResponse | null>(null);
   const [listings, setListings] = useState<AdminListing[]>([]);
@@ -151,6 +153,8 @@ export default function AdminPage() {
   const [reviewScraperLoading, setReviewScraperLoading] = useState(false);
   const [reviewScraperResult, setReviewScraperResult] = useState<ScraperResponse | null>(null);
   const [initPricesLoading, setInitPricesLoading] = useState(false);
+  const lastKnownOrderCountRef = useRef<number | null>(null);
+  const initialLoadDoneRef = useRef(false);
 
   // Load active tab from localStorage on mount
   useEffect(() => {
@@ -397,6 +401,51 @@ export default function AdminPage() {
       fetchOrders();
     }
   }, [isAdmin]);
+
+  // Poll for new orders and show toast notification
+  const checkForNewOrders = useCallback(async () => {
+    if (!isAdmin) return;
+
+    try {
+      const data = await api.authGet<AdminOrder[]>('/admin/orders');
+      const newOrderCount = data.length;
+
+      // Only show toast if this isn't the initial load and there are new orders
+      if (initialLoadDoneRef.current && lastKnownOrderCountRef.current !== null) {
+        const newOrdersAdded = newOrderCount - lastKnownOrderCountRef.current;
+        if (newOrdersAdded > 0) {
+          const message = newOrdersAdded === 1
+            ? 'New order received!'
+            : `${newOrdersAdded} new orders received!`;
+          showToast(message, 'success', 8000);
+          // Update the orders state with the new data
+          setOrders(data);
+        }
+      } else {
+        initialLoadDoneRef.current = true;
+      }
+
+      lastKnownOrderCountRef.current = newOrderCount;
+    } catch (err) {
+      console.error('Failed to check for new orders:', err);
+    }
+  }, [isAdmin, showToast]);
+
+  // Set initial order count when orders are first loaded
+  useEffect(() => {
+    if (orders.length > 0 && lastKnownOrderCountRef.current === null) {
+      lastKnownOrderCountRef.current = orders.length;
+      initialLoadDoneRef.current = true;
+    }
+  }, [orders.length]);
+
+  // Poll for new orders every 30 seconds
+  useEffect(() => {
+    if (!isAdmin) return;
+
+    const interval = setInterval(checkForNewOrders, 30000);
+    return () => clearInterval(interval);
+  }, [isAdmin, checkForNewOrders]);
 
   const runScraper = async () => {
     setLoading(true);

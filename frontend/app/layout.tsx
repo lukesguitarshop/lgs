@@ -7,6 +7,7 @@ import DevBanner from "./components/DevBanner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LoginModal } from "@/components/auth/LoginModal";
 import { RegisterModal } from "@/components/auth/RegisterModal";
+import { ToastProvider } from "@/components/ui/toast";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -176,15 +177,17 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-background text-foreground`}
       >
         <DevBanner />
-        <AuthProvider>
-          <Header />
-          <main className="flex-grow container mx-auto px-4 py-8">
-            {children}
-          </main>
-          <Footer />
-          <LoginModal />
-          <RegisterModal />
-        </AuthProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <Header />
+            <main className="flex-grow container mx-auto px-4 py-8">
+              {children}
+            </main>
+            <Footer />
+            <LoginModal />
+            <RegisterModal />
+          </AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );
