@@ -15,12 +15,12 @@ public class Review
     public string? ReverbOrderId { get; set; }
 
     [BsonElement("guitar_name")]
-    [BsonRequired]
-    public string GuitarName { get; set; } = string.Empty;
+    [BsonIgnoreIfNull]
+    public string? GuitarName { get; set; }
 
     [BsonElement("reviewer_name")]
-    [BsonRequired]
-    public string ReviewerName { get; set; } = string.Empty;
+    [BsonIgnoreIfNull]
+    public string? ReviewerName { get; set; }
 
     [BsonElement("review_date")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
@@ -30,6 +30,6 @@ public class Review
     public int Rating { get; set; } = 5;
 
     [BsonElement("review_text")]
-    [BsonRequired]
-    public string ReviewText { get; set; } = string.Empty;
+    [BsonIgnoreIfNull]
+    public string? ReviewText { get; set; }
 }
