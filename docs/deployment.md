@@ -130,15 +130,37 @@ http://localhost:5000/swagger # API docs
             └─────────────┘                          └───────────┘    └───────────┘
 ```
 
+### Git Branch → Frontend Auto-Deploy
+
+| Branch | Frontend Deployment | URL |
+|--------|---------------------|-----|
+| `master` | Production (auto) | lukesguitarshop.com |
+| `dev` | Development (auto) | lgs-dev.vercel.app |
+
+- **Push to `master`** → auto-deploys production frontend via Vercel
+- **Push to `dev`** → auto-deploys development frontend via Vercel
+
 ### Deploy Commands
 
 | What | Environment | Command |
 |------|-------------|---------|
-| **Frontend** | Production | `cd frontend && vercel --prod` |
-| **Frontend** | Development | Auto on PR/branch (Vercel Preview) |
-| **Backend** | Production | `cd backend/GuitarDb.API && flyctl deploy` |
-| **Backend** | Development | `cd backend/GuitarDb.API && flyctl deploy --config fly.dev.toml` |
+| **Frontend** | Production | `git push origin master` (auto-deploys via Vercel) |
+| **Frontend** | Development | `git push origin master:dev` (auto-deploys via Vercel) |
+| **Backend** | Production | `cd backend/GuitarDb.API && fly deploy` |
+| **Backend** | Development | `cd backend/GuitarDb.API && fly deploy --app guitar-price-api-dev` |
 | **Scraper** | Production | Runs automatically every 6 hours (GitHub Actions) |
+
+### Full Deployment (Frontend + Backend)
+
+```bash
+# Deploy to PRODUCTION
+git push origin master
+cd backend/GuitarDb.API && fly deploy
+
+# Deploy to DEVELOPMENT
+git push origin master:dev
+cd backend/GuitarDb.API && fly deploy --app guitar-price-api-dev
+```
 
 ---
 
@@ -151,11 +173,10 @@ http://localhost:5000/swagger # API docs
 # 2. Test locally
 cd frontend && npm run dev
 
-# 3. Deploy to Vercel
-vercel --prod
-
-# 4. Commit & push
-git add . && git commit -m "Your message" && git push
+# 3. Commit & push (auto-deploys to Vercel)
+git add . && git commit -m "Your message"
+git push origin master        # Production
+git push origin master:dev    # Development
 ```
 
 ### Backend Changes
@@ -165,12 +186,13 @@ git add . && git commit -m "Your message" && git push
 # 2. Test locally
 cd backend/GuitarDb.API && dotnet run
 
-# 3. Deploy to Fly.io
-cd backend/GuitarDb.API
-flyctl deploy
-
-# 4. Commit & push
+# 3. Commit & push
 git add . && git commit -m "Your message" && git push
+
+# 4. Deploy to Fly.io
+cd backend/GuitarDb.API
+fly deploy                           # Production
+fly deploy --app guitar-price-api-dev  # Development
 ```
 
 ---
@@ -200,7 +222,8 @@ flyctl secrets set KEY="value"
 
 ```bash
 # Check API logs on Fly.io
-flyctl logs
+fly logs                              # Production
+fly logs --app guitar-price-api-dev   # Development
 
 # Check scraper status
 gh run list --workflow=scraper.yml
@@ -208,11 +231,14 @@ gh run list --workflow=scraper.yml
 # Manually trigger scraper
 gh workflow run scraper.yml
 
-# Redeploy frontend
-cd frontend && vercel --prod
+# Deploy frontend (auto via git push)
+git push origin master        # Production
+git push origin master:dev    # Development
 
-# Redeploy backend
-cd backend/GuitarDb.API && flyctl deploy
+# Deploy backend
+cd backend/GuitarDb.API
+fly deploy                           # Production
+fly deploy --app guitar-price-api-dev  # Development
 ```
 
 ---
