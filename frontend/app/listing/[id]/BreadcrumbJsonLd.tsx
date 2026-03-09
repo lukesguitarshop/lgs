@@ -1,6 +1,7 @@
 interface Listing {
   id: string;
   listing_title: string;
+  original_price?: number | null;
 }
 
 export function BreadcrumbJsonLd({ listing }: { listing: Listing }) {

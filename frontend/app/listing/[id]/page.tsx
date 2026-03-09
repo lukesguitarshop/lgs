@@ -11,6 +11,7 @@ interface Listing {
   images: string[];
   reverb_link: string | null;
   price: number;
+  original_price: number | null;
   currency: string;
   scraped_at: string;
   listed_at: string | null;

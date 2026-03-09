@@ -5,6 +5,7 @@ interface Listing {
   condition: string | null;
   images: string[];
   price: number;
+  original_price: number | null;
   currency: string;
   disabled?: boolean;
 }

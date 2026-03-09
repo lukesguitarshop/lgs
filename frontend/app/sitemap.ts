@@ -5,6 +5,7 @@ interface Listing {
   listing_title: string;
   scraped_at: string;
   disabled?: boolean;
+  original_price?: number | null;
 }
 
 async function getListings(): Promise<Listing[]> {
