@@ -313,7 +313,7 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
             </Button>
           </Link>
         </div>
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="text-3xl font-bold mb-2">Listings</h1>
             <p className="text-muted-foreground">
