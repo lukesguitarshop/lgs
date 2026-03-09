@@ -113,6 +113,37 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Initialize original_price for all listings that don't have it set
+    /// </summary>
+    [HttpPost("initialize-original-prices")]
+    public async Task<IActionResult> InitializeOriginalPrices()
+    {
+        _logger.LogInformation("Initialize original prices requested");
+
+        try
+        {
+            var updatedCount = await _mongoDbService.InitializeOriginalPricesAsync();
+
+            return Ok(new
+            {
+                success = true,
+                message = $"Initialized original_price for {updatedCount} listing(s)",
+                updatedCount
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to initialize original prices");
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Failed to initialize original prices",
+                error = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
     /// Delete manually entered reviews (those without a Reverb order ID)
     /// </summary>
     [HttpDelete("reviews/manual")]

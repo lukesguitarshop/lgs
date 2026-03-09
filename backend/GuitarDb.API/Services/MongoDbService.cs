@@ -614,6 +614,26 @@ public class MongoDbService
         return result.DeletedCount;
     }
 
+    public async Task<long> InitializeOriginalPricesAsync()
+    {
+        // Set original_price = price for all listings where original_price is null
+        var filter = Builders<MyListing>.Filter.Eq(l => l.OriginalPrice, null);
+        var listings = await _myListingsCollection.Find(filter).ToListAsync();
+        long updatedCount = 0;
+
+        foreach (var listing in listings)
+        {
+            var updateDef = Builders<MyListing>.Update.Set(l => l.OriginalPrice, listing.Price);
+            var result = await _myListingsCollection.UpdateOneAsync(
+                Builders<MyListing>.Filter.Eq(l => l.Id, listing.Id),
+                updateDef
+            );
+            if (result.ModifiedCount > 0) updatedCount++;
+        }
+
+        return updatedCount;
+    }
+
     // User operations
     public async Task<User> CreateUserAsync(User user)
     {
