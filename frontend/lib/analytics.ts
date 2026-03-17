@@ -1,17 +1,23 @@
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
-// Track page views (called automatically by GA4, but useful for SPA navigation)
+// Helper to safely push to dataLayer (works with @next/third-parties)
+const gtag = (...args: unknown[]) => {
+  if (typeof window !== 'undefined') {
+    window.dataLayer = window.dataLayer || [];
+    window.dataLayer.push(args);
+  }
+};
+
+// Track page views for SPA navigation
 export const pageview = (url: string) => {
-  if (typeof window !== 'undefined' && window.gtag && GA_ID) {
-    window.gtag('config', GA_ID, { page_path: url });
+  if (GA_ID) {
+    gtag('config', GA_ID, { page_path: url });
   }
 };
 
 // Track custom events
 export const event = (action: string, params?: Record<string, unknown>) => {
-  if (typeof window !== 'undefined' && window.gtag) {
-    window.gtag('event', action, params);
-  }
+  gtag('event', action, params);
 };
 
 // Specific tracking functions
