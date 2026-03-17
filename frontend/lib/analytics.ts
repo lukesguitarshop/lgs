@@ -1,17 +1,20 @@
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
-// Helper to safely push to dataLayer (works with @next/third-parties)
-const gtag = (...args: unknown[]) => {
+// Must be a regular function (not arrow) so `arguments` is available.
+// GA4 requires the actual Arguments object, not a plain array.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function gtag(..._args: unknown[]) {
   if (typeof window !== 'undefined') {
     window.dataLayer = window.dataLayer || [];
-    window.dataLayer.push(args);
+    // eslint-disable-next-line prefer-rest-params
+    window.dataLayer.push(arguments);
   }
-};
+}
 
 // Track page views for SPA navigation
 export const pageview = (url: string) => {
   if (GA_ID) {
-    gtag('config', GA_ID, { page_path: url });
+    gtag('event', 'page_view', { page_path: url, page_location: window.location.href });
   }
 };
 
