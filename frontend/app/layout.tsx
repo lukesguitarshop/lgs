@@ -9,7 +9,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { LoginModal } from "@/components/auth/LoginModal";
 import { RegisterModal } from "@/components/auth/RegisterModal";
 import { ToastProvider } from "@/components/ui/toast";
-import GoogleAnalyticsPageview from "@/components/GoogleAnalytics";
+import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
@@ -176,25 +176,13 @@ export default function RootLayout({
         <OrganizationJsonLd />
         <WebSiteJsonLd />
         <LocalBusinessJsonLd />
-        {GA_ID && (
-          <>
-            <script
-              dangerouslySetInnerHTML={{
-                __html: `window.dataLayer=window.dataLayer||[];function gtag(){window.dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`,
-              }}
-            />
-            <script async src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`} />
-          </>
-        )}
       </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-background text-foreground`}
       >
-        {GA_ID && (
-          <Suspense fallback={null}>
-            <GoogleAnalyticsPageview />
-          </Suspense>
-        )}
+        <Suspense fallback={null}>
+          <GoogleAnalytics />
+        </Suspense>
         <DevBanner />
         <ToastProvider>
           <AuthProvider>
