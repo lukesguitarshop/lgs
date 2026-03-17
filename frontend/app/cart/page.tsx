@@ -8,6 +8,7 @@ import { ShoppingCart, Trash2, ArrowLeft, Lock, AlertCircle } from 'lucide-react
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { CartItem, getCart, removeFromCart } from '@/lib/cart';
+import { trackRemoveFromCart } from '@/lib/analytics';
 
 interface PendingCartItemResponse {
   id: string;
@@ -98,9 +99,13 @@ export default function CartPage() {
   )];
 
   const removeItem = (itemId: string) => {
+    const item = cartItems.find((i) => i.id === itemId);
     // Use removeFromCart which handles locked items
     const removed = removeFromCart(itemId);
     if (removed) {
+      if (item) {
+        trackRemoveFromCart({ id: item.id, name: item.title, price: item.price });
+      }
       setLocalCartItems(localCartItems.filter((item) => item.id !== itemId));
     }
   };

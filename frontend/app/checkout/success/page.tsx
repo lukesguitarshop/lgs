@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { clearCart, refreshPendingCart } from '@/lib/cart';
 import { useAuth } from '@/contexts/AuthContext';
 import { getToken } from '@/lib/auth';
+import { trackPurchase } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
 import { UserPlus } from 'lucide-react';
 
@@ -53,6 +54,12 @@ function CheckoutSuccessContent() {
         }
       }
       // PayPal checkout - order already completed during capture, nothing to do
+
+      // Track purchase event in GA4
+      const orderId = sessionId || paypalOrderId || 'unknown';
+      const checkoutData = JSON.parse(sessionStorage.getItem('checkout_total') || '{}');
+      trackPurchase(orderId, checkoutData.total || 0, checkoutData.currency || 'USD');
+      sessionStorage.removeItem('checkout_total');
 
       // Clear the cart after checkout and dispatch event to update header
       clearCart();

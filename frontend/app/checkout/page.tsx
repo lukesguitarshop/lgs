@@ -11,6 +11,7 @@ import PayPalCheckoutButton from '@/components/PayPalCheckoutButton';
 import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { ShippingAddress } from '@/lib/auth';
+import { trackBeginCheckout } from '@/lib/analytics';
 
 type PaymentMethod = 'stripe' | 'paypal';
 
@@ -141,6 +142,8 @@ export default function CheckoutPage() {
 
     setCheckoutLoading(true);
     setError(null);
+    trackBeginCheckout(total, currency);
+    sessionStorage.setItem('checkout_total', JSON.stringify({ total, currency }));
 
     try {
       // Build checkout request data
