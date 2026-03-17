@@ -1,26 +1,21 @@
 export const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
-// Must be a regular function (not arrow) so `arguments` is available.
-// GA4 requires the actual Arguments object, not a plain array.
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function gtag(..._args: unknown[]) {
-  if (typeof window !== 'undefined') {
-    window.dataLayer = window.dataLayer || [];
-    // eslint-disable-next-line prefer-rest-params
-    window.dataLayer.push(arguments);
-  }
-}
-
 // Track page views for SPA navigation
+// Uses the global gtag() function defined in the inline script in layout.tsx
 export const pageview = (url: string) => {
-  if (GA_ID) {
-    gtag('event', 'page_view', { page_path: url, page_location: window.location.href });
+  if (typeof window !== 'undefined' && window.gtag && GA_ID) {
+    window.gtag('event', 'page_view', {
+      page_path: url,
+      page_location: window.location.href,
+    });
   }
 };
 
 // Track custom events
 export const event = (action: string, params?: Record<string, unknown>) => {
-  gtag('event', action, params);
+  if (typeof window !== 'undefined' && window.gtag) {
+    window.gtag('event', action, params);
+  }
 };
 
 // Specific tracking functions
