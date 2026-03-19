@@ -202,7 +202,11 @@ public class AuthController : ControllerBase
             user.FullName = request.FullName.Trim();
         }
 
-        if (request.ShippingAddress != null)
+        if (request.RemoveShippingAddress)
+        {
+            user.ShippingAddress = null;
+        }
+        else if (request.ShippingAddress != null)
         {
             user.ShippingAddress = new UserShippingAddress
             {
@@ -476,6 +480,7 @@ public class UpdateProfileRequest
     public string? CurrentPassword { get; set; }
     public string? NewPassword { get; set; }
     public ShippingAddressDto? ShippingAddress { get; set; }
+    public bool RemoveShippingAddress { get; set; }
 }
 
 public class ForgotPasswordRequest

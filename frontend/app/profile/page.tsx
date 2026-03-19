@@ -8,7 +8,9 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAuthHeaders } from '@/lib/auth';
 import api from '@/lib/api';
-import { User, Heart, MessageSquare, Tag, Package, Edit, ChevronRight, Truck, ExternalLink } from 'lucide-react';
+import { User, Heart, MessageSquare, Tag, Package, Edit, ChevronRight, Truck, ExternalLink, MapPin, Trash2 } from 'lucide-react';
+import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
+import { ShippingAddress, deleteShippingAddress } from '@/lib/auth';
 
 interface OrderItem {
   listingTitle: string;
@@ -73,9 +75,12 @@ function getTrackingUrl(carrier: string, trackingNumber: string): string | null 
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, isAdmin, setShowLoginModal } = useAuth();
+  const { user, isAuthenticated, isLoading, isAdmin, setShowLoginModal, refreshUser } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -119,6 +124,19 @@ export default function ProfilePage() {
     return null;
   }
 
+  const handleDeleteAddress = async () => {
+    setDeleting(true);
+    try {
+      await deleteShippingAddress();
+      await refreshUser();
+      setShowDeleteConfirm(false);
+    } catch (err) {
+      console.error('Failed to delete address:', err);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const quickLinks = [
     {
       href: '/favorites',
@@ -143,13 +161,13 @@ export default function ProfilePage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="font-morphine text-5xl mb-8 text-[#6E0114]">My Profile</h1>
+        <h1 className="font-heading text-5xl mb-8 text-[#6E0114]">My Profile</h1>
 
         {/* User Information */}
         <Card className="mb-6">
           <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-[#6E0114] flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-[#020E1C] flex items-center justify-center">
                 <User className="h-8 w-8 text-[#FFFFF3]" />
               </div>
               <div>
@@ -180,15 +198,94 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
+        {/* Shipping Address - hidden for admin */}
+        {!isAdmin && (
+          <Card className="mb-6">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <CardTitle className="flex items-center gap-2">
+                <MapPin className="h-5 w-5" />
+                Shipping Address
+              </CardTitle>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setAddressModalOpen(true)}
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  {user.shippingAddress ? 'Edit Address' : 'Add Address'}
+                </Button>
+                {user.shippingAddress && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowDeleteConfirm(true)}
+                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Delete confirmation */}
+              {showDeleteConfirm && (
+                <div className="mb-4 p-3 border border-red-200 bg-red-50 rounded-lg">
+                  <p className="text-sm font-medium text-red-800 mb-2">
+                    Are you sure you want to delete your shipping address?
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleDeleteAddress}
+                      disabled={deleting}
+                    >
+                      {deleting ? 'Deleting...' : 'Yes, Delete'}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowDeleteConfirm(false)}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {user.shippingAddress ? (
+                <div className="text-sm space-y-1">
+                  <p className="font-medium">{user.shippingAddress.fullName}</p>
+                  <p>{user.shippingAddress.line1}</p>
+                  {user.shippingAddress.line2 && <p>{user.shippingAddress.line2}</p>}
+                  <p>
+                    {user.shippingAddress.city}, {user.shippingAddress.state} {user.shippingAddress.postalCode}
+                  </p>
+                  <p>{user.shippingAddress.country}</p>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No shipping address saved. Add one for faster checkout.</p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        <ShippingAddressModal
+          isOpen={addressModalOpen}
+          onClose={() => setAddressModalOpen(false)}
+          initialAddress={user.shippingAddress}
+          onSave={() => setAddressModalOpen(false)}
+        />
+
         {/* Quick Links - hidden for admin */}
         {!isAdmin && (
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             {quickLinks.map((link) => (
               <Link key={link.href} href={link.href}>
-                <Card className="h-full hover:border-[#6E0114] transition-colors cursor-pointer">
+                <Card className="h-full hover:border-[#020E1C] transition-colors cursor-pointer">
                   <CardContent className="p-4 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center">
-                      <link.icon className="h-6 w-6 text-[#6E0114]" />
+                    <div className="w-12 h-12 rounded-lg bg-[#020E1C]/10 flex items-center justify-center">
+                      <link.icon className="h-6 w-6 text-[#020E1C]" />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-medium">{link.title}</h3>
@@ -251,9 +348,9 @@ export default function ProfilePage() {
                       </div>
                       {/* Tracking Information */}
                       {order.trackingNumber && order.trackingCarrier && (
-                        <div className="flex items-center gap-2 mb-2 p-2 bg-red-50 rounded-md">
-                          <Truck className="h-4 w-4 text-[#6E0114]" />
-                          <span className="text-sm font-medium text-red-900">
+                        <div className="flex items-center gap-2 mb-2 p-2 bg-[#020E1C]/10 rounded-md">
+                          <Truck className="h-4 w-4 text-[#020E1C]" />
+                          <span className="text-sm font-medium text-[#020E1C]">
                             {order.trackingCarrier}:
                           </span>
                           {getTrackingUrl(order.trackingCarrier, order.trackingNumber) ? (
@@ -261,13 +358,13 @@ export default function ProfilePage() {
                               href={getTrackingUrl(order.trackingCarrier, order.trackingNumber)!}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-[#6E0114] hover:underline font-mono inline-flex items-center gap-1"
+                              className="text-sm text-[#020E1C] hover:underline font-mono inline-flex items-center gap-1"
                             >
                               {order.trackingNumber}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (
-                            <span className="text-sm text-red-900 font-mono">
+                            <span className="text-sm text-[#020E1C] font-mono">
                               {order.trackingNumber}
                             </span>
                           )}

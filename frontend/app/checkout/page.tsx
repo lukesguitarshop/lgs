@@ -136,7 +136,7 @@ export default function CheckoutPage() {
   const handleCheckout = async () => {
     if (cartItems.length === 0) return;
     if (!hasValidAddress || !savedAddress) {
-      setError('Please add a shipping address first');
+      setError('Please add a shipping address to continue');
       return;
     }
 
@@ -400,12 +400,6 @@ export default function CheckoutPage() {
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
                 {error}
-              </div>
-            )}
-
-            {!hasValidAddress && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
-                Please add a shipping address to continue
               </div>
             )}
 

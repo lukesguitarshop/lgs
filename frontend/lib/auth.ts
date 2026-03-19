@@ -195,6 +195,18 @@ export async function saveShippingAddress(address: ShippingAddress): Promise<Use
 }
 
 /**
+ * Delete shipping address from user profile
+ */
+export async function deleteShippingAddress(): Promise<User> {
+  const response = await api.put<User>('/auth/profile', { removeShippingAddress: true }, {
+    headers: getAuthHeaders(),
+  });
+
+  setStoredUser(response);
+  return response;
+}
+
+/**
  * Request password reset email
  */
 export async function forgotPassword(email: string): Promise<{ message: string }> {
