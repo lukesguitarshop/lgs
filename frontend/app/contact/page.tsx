@@ -59,7 +59,7 @@ export default function ContactPage() {
             </p>
             <button
               onClick={() => setSuccess(false)}
-              className="px-6 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors font-medium"
+              className="px-6 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors font-medium"
             >
               Send Another Message
             </button>
@@ -93,7 +93,7 @@ export default function ContactPage() {
               id="name"
               name="name"
               required
-              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#df5e15] focus:border-transparent"
+              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent"
               placeholder="Your name"
             />
           </div>
@@ -107,7 +107,7 @@ export default function ContactPage() {
               id="email"
               name="email"
               required
-              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#df5e15] focus:border-transparent"
+              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent"
               placeholder="your@email.com"
             />
           </div>
@@ -121,7 +121,7 @@ export default function ContactPage() {
               id="subject"
               name="subject"
               required
-              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#df5e15] focus:border-transparent"
+              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent"
               placeholder="What's this about?"
             />
           </div>
@@ -135,7 +135,7 @@ export default function ContactPage() {
               name="message"
               required
               rows={6}
-              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#df5e15] focus:border-transparent resize-none"
+              className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent resize-none"
               placeholder="Your message..."
             />
           </div>
@@ -143,7 +143,7 @@ export default function ContactPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full px-6 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full px-6 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isLoading ? 'Sending...' : 'Send Message'}
           </button>
@@ -153,7 +153,7 @@ export default function ContactPage() {
           You can also email us directly at{' '}
           <a
             href="mailto:lukesguitarshop@gmail.com"
-            className="text-[#df5e15] hover:text-[#c74d12] underline"
+            className="text-[#6E0114] hover:text-[#580110] underline"
           >
             lukesguitarshop@gmail.com
           </a>

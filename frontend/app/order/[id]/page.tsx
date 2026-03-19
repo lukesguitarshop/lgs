@@ -367,7 +367,7 @@ export default function OrderDetailPage() {
                   </button>
                   <a
                     href={`mailto:${order.buyerEmail}`}
-                    className="text-[#df5e15] hover:text-[#c54d0a]"
+                    className="text-[#6E0114] hover:text-[#580110]"
                     title="Send email"
                   >
                     <Mail className="h-4 w-4" />
@@ -462,7 +462,7 @@ export default function OrderDetailPage() {
                   <Button
                     onClick={saveTracking}
                     disabled={savingTracking}
-                    className="bg-[#df5e15] hover:bg-[#c54d0a]"
+                    className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                   >
                     {savingTracking ? (
                       <>
@@ -484,7 +484,7 @@ export default function OrderDetailPage() {
               </div>
             ) : order.trackingCarrier && order.trackingNumber ? (
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg">
+                <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
                   <div>
                     <p className="text-sm text-gray-500">Carrier</p>
                     <p className="font-medium text-lg">{order.trackingCarrier}</p>
@@ -552,7 +552,7 @@ export default function OrderDetailPage() {
                 <p className="text-gray-500 mb-4">No tracking information added yet</p>
                 <Button
                   onClick={startEditTracking}
-                  className="bg-[#df5e15] hover:bg-[#c54d0a]"
+                  className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                 >
                   Add Tracking
                 </Button>
@@ -577,7 +577,7 @@ export default function OrderDetailPage() {
                     <div className="flex-1">
                       <Link
                         href={`/listing/${item.listingId}`}
-                        className="font-medium text-gray-900 hover:text-[#df5e15]"
+                        className="font-medium text-[#020E1C] hover:text-[#6E0114]"
                       >
                         {item.listingTitle}
                       </Link>
@@ -602,7 +602,7 @@ export default function OrderDetailPage() {
             <div className="border-t border-gray-200 mt-4 pt-4">
               <div className="flex justify-between items-center">
                 <span className="text-lg font-medium">Total</span>
-                <span className="text-2xl font-bold text-[#df5e15]">
+                <span className="text-2xl font-bold text-[#6E0114]">
                   {formatCurrency(order.totalAmount, order.currency)}
                 </span>
               </div>

@@ -281,7 +281,7 @@ export function NewMessageModal({
                         <User className="h-5 w-5 text-gray-500" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-gray-900 truncate">
+                        <p className="font-medium text-[#020E1C] truncate">
                           {user.fullName}
                         </p>
                         <p className="text-sm text-gray-500 truncate flex items-center gap-1">
@@ -290,7 +290,7 @@ export function NewMessageModal({
                         </p>
                       </div>
                       {user.isAdmin && (
-                        <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs flex items-center gap-1">
+                        <span className="px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-xs flex items-center gap-1">
                           <ShieldCheck className="h-3 w-3" />
                           Admin
                         </span>
@@ -315,7 +315,7 @@ export function NewMessageModal({
                 <User className="h-4 w-4 text-gray-500" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 truncate">
+                <p className="text-sm font-medium text-[#020E1C] truncate">
                   To: {selectedUser?.fullName}
                 </p>
               </div>
@@ -356,7 +356,7 @@ export function NewMessageModal({
                       <X className="h-5 w-5 text-gray-400" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-medium text-gray-900">No listing</p>
+                      <p className="font-medium text-[#020E1C]">No listing</p>
                       <p className="text-sm text-gray-500">
                         Send message without a listing reference
                       </p>
@@ -390,7 +390,7 @@ export function NewMessageModal({
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
-                            <p className="font-medium text-gray-900 truncate">
+                            <p className="font-medium text-[#020E1C] truncate">
                               {listing.listing_title}
                             </p>
                             <p className="text-sm text-gray-500">
@@ -440,7 +440,7 @@ export function NewMessageModal({
                               )}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="font-medium text-gray-900 truncate">
+                              <p className="font-medium text-[#020E1C] truncate">
                                 {listing.listing_title}
                               </p>
                               <div className="flex items-center gap-2">
@@ -484,7 +484,7 @@ export function NewMessageModal({
                 <User className="h-5 w-5 text-gray-500" />
               </div>
               <div className="flex-1">
-                <p className="font-medium text-gray-900">
+                <p className="font-medium text-[#020E1C]">
                   {selectedUser?.fullName}
                 </p>
                 <p className="text-sm text-gray-500">{selectedUser?.email}</p>
@@ -510,7 +510,7 @@ export function NewMessageModal({
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-medium text-gray-900 truncate">
+                  <p className="font-medium text-[#020E1C] truncate">
                     {selectedListing.listing_title}
                   </p>
                   <p className="text-sm text-gray-500">
@@ -548,7 +548,7 @@ export function NewMessageModal({
               <Button
                 onClick={handleSend}
                 disabled={!messageText.trim() || sending}
-                className="bg-[#df5e15] hover:bg-[#c54d0a] text-white"
+                className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
               >
                 {sending ? (
                   <>

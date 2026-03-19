@@ -75,11 +75,11 @@ export default async function SoldPage() {
                       <span className="text-6xl">🎸</span>
                     </div>
                   )}
-                  <div className="absolute top-2 left-2 bg-[#df5e15] text-white text-xs font-bold px-2 py-1 rounded">
+                  <div className="absolute top-2 left-2 bg-[#6E0114] text-[#FFFFF3] text-xs font-bold px-2 py-1 rounded">
                     SOLD
                   </div>
                   {listing.images && listing.images.length > 1 && (
-                    <div className="absolute bottom-2 right-2 bg-black/60 text-white text-xs px-2 py-1 rounded">
+                    <div className="absolute bottom-2 right-2 bg-[#020E1C]/60 text-[#FFFFF3] text-xs px-2 py-1 rounded">
                       +{listing.images.length - 1} photos
                     </div>
                   )}
@@ -106,7 +106,7 @@ export default async function SoldPage() {
       <div className="mt-12 text-center">
         <Link
           href="/"
-          className="inline-flex items-center px-6 py-3 bg-[#df5e15] hover:bg-[#c54d0a] text-white font-medium rounded-lg transition-colors"
+          className="inline-flex items-center px-6 py-3 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-medium rounded-lg transition-colors"
         >
           Browse Available Guitars
         </Link>

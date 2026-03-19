@@ -18,22 +18,35 @@ public class DeliveryTrackingService : BackgroundService
     {
         _logger.LogInformation("Delivery tracking service started");
 
-        // Wait a bit before first check to let the app fully start
-        await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
-
-        while (!stoppingToken.IsCancellationRequested)
+        try
         {
-            try
-            {
-                await CheckDeliveriesAsync(stoppingToken);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error checking deliveries");
-            }
+            // Wait a bit before first check to let the app fully start
+            await Task.Delay(TimeSpan.FromMinutes(1), stoppingToken);
 
-            await Task.Delay(_checkInterval, stoppingToken);
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    await CheckDeliveriesAsync(stoppingToken);
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error checking deliveries");
+                }
+
+                await Task.Delay(_checkInterval, stoppingToken);
+            }
         }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // Normal shutdown, don't let this propagate and crash the host
+        }
+
+        _logger.LogInformation("Delivery tracking service stopped");
     }
 
     private async Task CheckDeliveriesAsync(CancellationToken stoppingToken)

@@ -186,10 +186,10 @@ function FilterPageContent() {
             </CardHeader>
             <CardContent>
               <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
-                <SelectTrigger className="w-full bg-white border-border">
+                <SelectTrigger className="w-full bg-[#FFFFF3] border-border">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-white border-border">
+                <SelectContent className="bg-[#FFFFF3] border-border">
                   {sortOptions.map(option => (
                     <SelectItem key={option.value} value={option.value}>
                       {option.label}
@@ -205,12 +205,12 @@ function FilterPageContent() {
       {/* Fixed Bottom Actions */}
       <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border p-4 space-y-3">
         {hasActiveFilters && (
-          <Button onClick={clearFilters} variant="outline" className="w-full bg-white">
+          <Button onClick={clearFilters} variant="outline" className="w-full bg-[#FFFFF3]">
             <X className="h-4 w-4 mr-2" />
             Clear All Filters
           </Button>
         )}
-        <Button onClick={applyFilters} className="w-full bg-[#df5e15] hover:bg-[#c54d0a] text-white">
+        <Button onClick={applyFilters} className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
           Apply Filters
         </Button>
       </div>

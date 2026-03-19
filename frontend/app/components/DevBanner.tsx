@@ -7,7 +7,7 @@ export default function DevBanner() {
   if (!isDev) return null;
 
   return (
-    <div className="bg-yellow-500 text-black text-center py-1 px-4 text-sm font-semibold">
+    <div className="bg-yellow-500 text-[#020E1C] text-center py-1 px-4 text-sm font-semibold">
       DEV ENVIRONMENT - API: {apiUrl}
     </div>
   );

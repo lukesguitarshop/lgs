@@ -185,7 +185,7 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess, onOffer
               </Button>
               <Button
                 type="submit"
-                className="flex-1 bg-[#df5e15] hover:bg-[#c74d12]"
+                className="flex-1 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                 disabled={isLoading || !offerAmount}
               >
                 {isLoading ? 'Submitting...' : 'Submit Offer'}

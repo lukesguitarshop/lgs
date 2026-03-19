@@ -149,7 +149,7 @@ export default function SoldListingsCarousel() {
                     <span className="text-4xl">🎸</span>
                   </div>
                 )}
-                <div className="absolute top-2 left-2 bg-[#df5e15] text-white text-xs font-bold px-2 py-1 rounded">
+                <div className="absolute top-2 left-2 bg-[#6E0114] text-[#FFFFF3] text-xs font-bold px-2 py-1 rounded">
                   SOLD
                 </div>
               </div>
@@ -169,7 +169,7 @@ export default function SoldListingsCarousel() {
       <div className="flex justify-center mt-6">
         <Link
           href="/sold"
-          className="px-6 py-2 text-sm font-medium text-[#df5e15] hover:text-[#c54d0a] border border-[#df5e15] hover:border-[#c54d0a] rounded-lg transition-colors"
+          className="px-6 py-2 text-sm font-medium text-[#6E0114] hover:text-[#580110] border border-[#6E0114] hover:border-[#580110] rounded-lg transition-colors"
         >
           View all sold listings
         </Link>

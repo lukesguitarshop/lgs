@@ -53,10 +53,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={toast.id}
             className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg min-w-[300px] max-w-[400px] animate-slide-up ${
               toast.type === 'success'
-                ? 'bg-green-600 text-white'
+                ? 'bg-green-600 text-[#FFFFF3]'
                 : toast.type === 'error'
-                ? 'bg-red-600 text-white'
-                : 'bg-[#df5e15] text-white'
+                ? 'bg-red-600 text-[#FFFFF3]'
+                : 'bg-[#6E0114] text-[#FFFFF3]'
             }`}
           >
             {toast.type === 'success' && <CheckCircle className="h-5 w-5 flex-shrink-0" />}
@@ -65,7 +65,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <p className="flex-1 text-sm font-medium">{toast.message}</p>
             <button
               onClick={() => removeToast(toast.id)}
-              className="p-1 hover:bg-white/20 rounded transition-colors"
+              className="p-1 hover:bg-[#FFFFF3]/20 rounded transition-colors"
             >
               <X className="h-4 w-4" />
             </button>

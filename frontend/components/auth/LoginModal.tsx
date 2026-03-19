@@ -79,7 +79,7 @@ export function LoginModal() {
                 <button
                   type="button"
                   onClick={handleResendVerification}
-                  className="block mt-2 text-[#df5e15] hover:underline font-medium"
+                  className="block mt-2 text-[#6E0114] hover:underline font-medium"
                 >
                   Resend verification email
                 </button>
@@ -124,7 +124,7 @@ export function LoginModal() {
               <button
                 type="button"
                 onClick={handleForgotPassword}
-                className="text-sm text-[#df5e15] hover:underline"
+                className="text-sm text-[#6E0114] hover:underline"
               >
                 Forgot password?
               </button>
@@ -132,7 +132,7 @@ export function LoginModal() {
           </div>
           <Button
             type="submit"
-            className="w-full bg-[#df5e15] hover:bg-[#c74d12]"
+            className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
             disabled={isLoading}
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
@@ -142,7 +142,7 @@ export function LoginModal() {
             <button
               type="button"
               onClick={switchToRegister}
-              className="text-[#df5e15] hover:underline font-medium"
+              className="text-[#6E0114] hover:underline font-medium"
             >
               Create one
             </button>

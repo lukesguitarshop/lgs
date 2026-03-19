@@ -73,7 +73,7 @@ function ReviewCardContent({ review }: { review: Review }) {
             e.stopPropagation();
             setIsExpanded(!isExpanded);
           }}
-          className="mt-2 text-xs text-[#df5e15] hover:text-[#c54d0a] font-medium flex items-center gap-1"
+          className="mt-2 text-xs text-[#6E0114] hover:text-[#580110] font-medium flex items-center gap-1"
         >
           {isExpanded ? (
             <>
@@ -211,7 +211,7 @@ export default function ReviewsCarousel() {
       <div className="flex justify-center mt-6">
         <Link
           href="/reviews"
-          className="px-6 py-2 text-sm font-medium text-[#df5e15] hover:text-[#c54d0a] border border-[#df5e15] hover:border-[#c54d0a] rounded-lg transition-colors"
+          className="px-6 py-2 text-sm font-medium text-[#6E0114] hover:text-[#580110] border border-[#6E0114] hover:border-[#580110] rounded-lg transition-colors"
         >
           View all reviews
         </Link>

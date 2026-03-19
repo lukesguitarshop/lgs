@@ -87,7 +87,7 @@ function ResetPasswordContent() {
                   </p>
                   <Button
                     onClick={() => router.push('/')}
-                    className="w-full bg-[#df5e15] hover:bg-[#c74d12]"
+                    className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                   >
                     Go to Home
                   </Button>
@@ -175,7 +175,7 @@ function ResetPasswordContent() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-[#df5e15] hover:bg-[#c74d12]"
+                  className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -275,7 +275,7 @@ function ResetPasswordContent() {
 
               <Button
                 type="submit"
-                className="w-full bg-[#df5e15] hover:bg-[#c74d12]"
+                className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                 disabled={isLoading}
               >
                 {isLoading ? (

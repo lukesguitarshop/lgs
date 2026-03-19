@@ -143,14 +143,14 @@ export default function ProfilePage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold mb-8">My Profile</h1>
+        <h1 className="font-morphine text-5xl mb-8 text-[#6E0114]">My Profile</h1>
 
         {/* User Information */}
         <Card className="mb-6">
           <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-[#df5e15] flex items-center justify-center">
-                <User className="h-8 w-8 text-white" />
+              <div className="w-16 h-16 rounded-full bg-[#6E0114] flex items-center justify-center">
+                <User className="h-8 w-8 text-[#FFFFF3]" />
               </div>
               <div>
                 <CardTitle className="text-2xl">{user.fullName}</CardTitle>
@@ -185,10 +185,10 @@ export default function ProfilePage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
             {quickLinks.map((link) => (
               <Link key={link.href} href={link.href}>
-                <Card className="h-full hover:border-[#df5e15] transition-colors cursor-pointer">
+                <Card className="h-full hover:border-[#6E0114] transition-colors cursor-pointer">
                   <CardContent className="p-4 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-orange-100 flex items-center justify-center">
-                      <link.icon className="h-6 w-6 text-[#df5e15]" />
+                    <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center">
+                      <link.icon className="h-6 w-6 text-[#6E0114]" />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-medium">{link.title}</h3>
@@ -251,9 +251,9 @@ export default function ProfilePage() {
                       </div>
                       {/* Tracking Information */}
                       {order.trackingNumber && order.trackingCarrier && (
-                        <div className="flex items-center gap-2 mb-2 p-2 bg-orange-50 rounded-md">
-                          <Truck className="h-4 w-4 text-[#df5e15]" />
-                          <span className="text-sm font-medium text-orange-800">
+                        <div className="flex items-center gap-2 mb-2 p-2 bg-red-50 rounded-md">
+                          <Truck className="h-4 w-4 text-[#6E0114]" />
+                          <span className="text-sm font-medium text-red-900">
                             {order.trackingCarrier}:
                           </span>
                           {getTrackingUrl(order.trackingCarrier, order.trackingNumber) ? (
@@ -261,13 +261,13 @@ export default function ProfilePage() {
                               href={getTrackingUrl(order.trackingCarrier, order.trackingNumber)!}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-[#df5e15] hover:underline font-mono inline-flex items-center gap-1"
+                              className="text-sm text-[#6E0114] hover:underline font-mono inline-flex items-center gap-1"
                             >
                               {order.trackingNumber}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (
-                            <span className="text-sm text-orange-800 font-mono">
+                            <span className="text-sm text-red-900 font-mono">
                               {order.trackingNumber}
                             </span>
                           )}

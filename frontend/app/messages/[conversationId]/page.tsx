@@ -388,7 +388,7 @@ function ConversationPageContent() {
             </p>
             <Button
               onClick={() => setShowLoginModal(true)}
-              className="bg-[#df5e15] hover:bg-[#c54d0a] text-white"
+              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
             >
               Sign In
             </Button>
@@ -493,8 +493,8 @@ function ConversationPageContent() {
             <div className="border-t p-4">
               {/* Offer Status Banner */}
               {conversation?.offerStatus === 'active' && (
-                <div className="mb-3 p-3 bg-[#df5e15]/10 border border-[#df5e15]/30 rounded-lg">
-                  <div className="text-sm text-[#df5e15]">
+                <div className="mb-3 p-3 bg-[#6E0114]/10 border border-[#6E0114]/30 rounded-lg">
+                  <div className="text-sm text-[#6E0114]">
                     <span className="font-medium">Active offer: </span>
                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(conversation.activeOfferAmount || 0)}
                     {isMyTurn && <span className="ml-2 opacity-80">(Your turn to respond)</span>}
@@ -540,7 +540,7 @@ function ConversationPageContent() {
                       <button
                         type="button"
                         onClick={() => removeImage(index)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
+                        className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] rounded-full p-0.5 hover:bg-red-600"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -584,7 +584,7 @@ function ConversationPageContent() {
                     <Button
                       type="submit"
                       disabled={(!newMessage.trim() && selectedImages.length === 0) || isSending}
-                      className="bg-[#df5e15] hover:bg-[#c54d0a] text-white"
+                      className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                     >
                       {isSending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -630,7 +630,7 @@ function ConversationPageContent() {
                 </Link>
 
                 <Link href={`/listing/${conversation.listingId}`}>
-                  <h3 className="font-semibold text-lg mb-3 hover:text-[#df5e15] transition-colors line-clamp-2">
+                  <h3 className="font-semibold text-lg mb-3 hover:text-[#6E0114] transition-colors line-clamp-2">
                     {conversation.listingTitle}
                   </h3>
                 </Link>
@@ -644,7 +644,7 @@ function ConversationPageContent() {
                   {listingPrice && (
                     <Button
                       variant="outline"
-                      className="w-full border-[#df5e15] text-[#df5e15] hover:bg-[#df5e15]/5"
+                      className="w-full border-[#6E0114] text-[#6E0114] hover:bg-[#6E0114]/5"
                       onClick={() => setShowOfferModal(true)}
                     >
                       <Tag className="h-4 w-4 mr-2" />
@@ -743,7 +743,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
     return (
       <div className={`flex ${message.isMine ? 'justify-end' : 'justify-start'}`}>
         <div className={`max-w-[80%] rounded-lg p-4 ${
-          message.isMine ? 'bg-[#df5e15] text-white' : 'bg-muted text-foreground border border-gray-300'
+          message.isMine ? 'bg-[#6E0114] text-[#FFFFF3]' : 'bg-muted text-foreground border border-gray-300'
         }`}>
           <div className="text-xs uppercase tracking-wide opacity-75 mb-1">
             {message.isMine ? 'Your Offer' : 'Their Offer'}
@@ -752,16 +752,16 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
             {formatPrice(message.offerAmount || 0)}
           </div>
           {wasCountered && (
-            <p className={`text-xs mt-1 ${message.isMine ? 'text-orange-200' : 'text-muted-foreground'}`}>
+            <p className={`text-xs mt-1 ${message.isMine ? 'text-red-200' : 'text-muted-foreground'}`}>
               Countered
             </p>
           )}
           {isActiveOffer && !wasCountered && (
-            <p className={`text-xs mt-1 ${message.isMine ? 'text-orange-200' : 'text-muted-foreground'}`}>
+            <p className={`text-xs mt-1 ${message.isMine ? 'text-red-200' : 'text-muted-foreground'}`}>
               {message.isMine ? 'Waiting for seller to respond' : 'Waiting for buyer to respond'}
             </p>
           )}
-          <p className={`text-xs mt-2 ${message.isMine ? 'text-orange-200' : 'text-muted-foreground'}`}>
+          <p className={`text-xs mt-2 ${message.isMine ? 'text-red-200' : 'text-muted-foreground'}`}>
             {formatTime(message.createdAt)}
           </p>
           {!message.isMine && isMyTurn && isActiveOffer && !wasCountered && (
@@ -770,7 +770,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
                 size="sm"
                 onClick={onAccept}
                 disabled={isActioning}
-                className="bg-green-500 hover:bg-green-600 text-white"
+                className="bg-green-500 hover:bg-green-600 text-[#FFFFF3]"
               >
                 Accept
               </Button>
@@ -778,7 +778,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
                 size="sm"
                 onClick={onCounter}
                 disabled={isActioning}
-                className="bg-white hover:bg-gray-100 text-gray-900 border border-gray-300"
+                className="bg-[#FFFFF3] hover:bg-gray-100 text-[#020E1C] border border-gray-300"
               >
                 Counter
               </Button>
@@ -786,7 +786,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
                 size="sm"
                 onClick={onDecline}
                 disabled={isActioning}
-                className="bg-red-500 hover:bg-red-600 text-white"
+                className="bg-red-500 hover:bg-red-600 text-[#FFFFF3]"
               >
                 Decline
               </Button>
@@ -803,7 +803,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
       <div
         className={`max-w-[80%] rounded-lg px-4 py-2 ${
           message.isMine
-            ? 'bg-[#df5e15] text-white'
+            ? 'bg-[#6E0114] text-[#FFFFF3]'
             : 'bg-muted text-foreground border border-gray-300'
         }`}
       >
@@ -832,7 +832,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
         )}
         <p
           className={`text-xs mt-1 ${
-            message.isMine ? 'text-orange-200' : 'text-muted-foreground'
+            message.isMine ? 'text-red-200' : 'text-muted-foreground'
           }`}
         >
           {formatTime(message.createdAt)}

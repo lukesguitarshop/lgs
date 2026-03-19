@@ -73,7 +73,7 @@ export default function Header() {
   return (
     <>
       {isAdmin && (
-        <div className="bg-[#df5e15] text-white text-center py-2 text-sm font-medium">
+        <div className="bg-[#6E0114] text-[#FFFFF3] text-center py-2 text-sm font-medium">
           Signed in as admin
         </div>
       )}
@@ -94,20 +94,20 @@ export default function Header() {
             <nav className="hidden md:flex items-center space-x-4">
               <Link
                 href="/"
-                className="px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer"
               >
                 Listings
               </Link>
               <Link
                 href="/shop-info"
-                className="px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors cursor-pointer"
+                className="px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer"
               >
                 Shop Info
               </Link>
               {isAdmin ? (
                 <Link
                   href="/admin"
-                  className="px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors flex items-center gap-2 cursor-pointer"
+                  className="px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors flex items-center gap-2 cursor-pointer"
                 >
                   <Shield className="h-5 w-5" />
                   Admin Portal
@@ -115,11 +115,11 @@ export default function Header() {
               ) : (
                 <Link
                   href="/cart"
-                  className="relative px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors flex items-center cursor-pointer"
+                  className="relative px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors flex items-center cursor-pointer"
                 >
                   <ShoppingCart className="h-5 w-5" />
                   {(cartCount + pendingCount) > 0 && (
-                    <span className={`absolute -top-2 -right-2 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center ${pendingCount > 0 ? 'bg-amber-500' : 'bg-red-500'}`}>
+                    <span className={`absolute -top-2 -right-2 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center ${pendingCount > 0 ? 'bg-red-500' : 'bg-red-500'}`}>
                       {(cartCount + pendingCount) > 99 ? '99+' : cartCount + pendingCount}
                     </span>
                   )}
@@ -133,7 +133,7 @@ export default function Header() {
               {isAdmin && (
                 <Link
                   href="/admin"
-                  className="p-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors cursor-pointer"
+                  className="p-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer"
                   aria-label="Admin Portal"
                 >
                   <Shield className="h-5 w-5" />
@@ -143,11 +143,11 @@ export default function Header() {
                 <Link
                   href="/cart"
                   onClick={closeMobileMenu}
-                  className="relative p-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors cursor-pointer"
+                  className="relative p-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer"
                 >
                   <ShoppingCart className="h-5 w-5" />
                   {(cartCount + pendingCount) > 0 && (
-                    <span className={`absolute -top-2 -right-2 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center ${pendingCount > 0 ? 'bg-amber-500' : 'bg-red-500'}`}>
+                    <span className={`absolute -top-2 -right-2 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center ${pendingCount > 0 ? 'bg-red-500' : 'bg-red-500'}`}>
                       {(cartCount + pendingCount) > 99 ? '99+' : cartCount + pendingCount}
                     </span>
                   )}
@@ -155,7 +155,7 @@ export default function Header() {
               )}
               <button
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors cursor-pointer"
+                className="p-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer"
                 aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
               >
                 {mobileMenuOpen ? <X className="h-6 w-6" /> : (isAdmin ? <Menu className="h-6 w-6" /> : <User className="h-5 w-5" />)}
@@ -168,13 +168,13 @@ export default function Header() {
 
       {/* Mobile Menu Full-Page Overlay */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-white">
+        <div className="md:hidden fixed inset-0 z-50 bg-[#FFFFF3]">
           {/* Overlay Header with Close Button */}
-          <div className="flex items-center justify-between p-4 border-b border-border bg-white">
+          <div className="flex items-center justify-between p-4 border-b border-border bg-[#FFFFF3]">
             <span className="text-lg font-semibold">Menu</span>
             <button
               onClick={closeMobileMenu}
-              className="p-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors cursor-pointer"
+              className="p-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer"
               aria-label="Close menu"
             >
               <X className="h-6 w-6" />
@@ -182,19 +182,19 @@ export default function Header() {
           </div>
 
           {/* Menu Content */}
-          <nav className="p-4 overflow-y-auto bg-white" style={{ height: 'calc(100vh - 73px)' }}>
+          <nav className="p-4 overflow-y-auto bg-[#FFFFF3]" style={{ height: 'calc(100vh - 73px)' }}>
             <div className="flex flex-col space-y-2">
               <Link
                 href="/"
                 onClick={closeMobileMenu}
-                className="px-4 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors text-center cursor-pointer"
+                className="px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
               >
                 Home
               </Link>
               <Link
                 href="/shop-info"
                 onClick={closeMobileMenu}
-                className="px-4 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors text-center cursor-pointer"
+                className="px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
               >
                 Shop Info
               </Link>

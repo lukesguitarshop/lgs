@@ -127,13 +127,13 @@ export default function CartPage() {
     return (
       <div className="max-w-2xl mx-auto text-center py-16 px-4">
         <ShoppingCart className="w-24 h-24 mx-auto text-gray-300 mb-6" />
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
+        <h1 className="text-2xl font-bold text-[#020E1C] mb-4">Your cart is empty</h1>
         <p className="text-gray-600 mb-8">
           Looks like you haven&apos;t added anything to your cart yet.
         </p>
         <Link
           href="/"
-          className="inline-block bg-[#df5e15] hover:bg-[#c74d12] text-white font-semibold px-8 py-4 rounded-lg transition-all cursor-pointer"
+          className="inline-block bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-8 py-4 rounded-lg transition-all cursor-pointer"
         >
           Browse Listings
         </Link>
@@ -145,20 +145,20 @@ export default function CartPage() {
     <div className="max-w-4xl mx-auto">
       <Link
         href="/"
-        className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors cursor-pointer"
+        className="inline-flex items-center text-gray-600 hover:text-[#020E1C] mb-6 transition-colors cursor-pointer"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
         Continue Shopping
       </Link>
 
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Shopping Cart</h1>
+      <h1 className="text-3xl font-bold text-[#020E1C] mb-8">Shopping Cart</h1>
 
       {hasLockedItems && (
-        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg flex items-start gap-3">
+          <AlertCircle className="h-5 w-5 text-red-700 flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-amber-800 font-medium">Reserved Items</p>
-            <p className="text-amber-700 text-sm">
+            <p className="text-red-900 font-medium">Reserved Items</p>
+            <p className="text-red-800 text-sm">
               You have items reserved from accepted offers. These items are automatically added and cannot be removed.
             </p>
           </div>
@@ -171,9 +171,9 @@ export default function CartPage() {
           {cartItems.map((item) => (
             <div
               key={item.id}
-              className={`flex gap-4 p-4 bg-white rounded-lg border ${
+              className={`flex gap-4 p-4 bg-[#FFFFF3] rounded-lg border ${
                 item.isLocked
-                  ? 'border-amber-300 ring-1 ring-amber-200'
+                  ? 'border-red-300 ring-1 ring-red-200'
                   : 'border-gray-200'
               }`}
             >
@@ -197,24 +197,24 @@ export default function CartPage() {
               <div className="flex-grow min-w-0">
                 <div className="flex items-center gap-2">
                   <Link href={`/listing/${item.id}`} className="cursor-pointer">
-                    <h3 className="font-medium text-gray-900 hover:text-[#df5e15] transition-colors line-clamp-2">
+                    <h3 className="font-medium text-[#020E1C] hover:text-[#6E0114] transition-colors line-clamp-2">
                       {item.title}
                     </h3>
                   </Link>
                   {item.isLocked && (
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-700 text-xs font-medium rounded-full">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-800 text-xs font-medium rounded-full">
                       <Lock className="h-3 w-3" />
                       Reserved
                     </span>
                   )}
                 </div>
-                <p className="text-lg font-semibold text-gray-900 mt-2">
+                <p className="text-lg font-semibold text-[#020E1C] mt-2">
                   {formatPrice(item.price, item.currency)}
                 </p>
               </div>
               {item.isLocked ? (
                 <div
-                  className="flex-shrink-0 p-2 text-amber-500 cursor-not-allowed"
+                  className="flex-shrink-0 p-2 text-red-700 cursor-not-allowed"
                   title="This item is reserved from an accepted offer and cannot be removed"
                 >
                   <Lock className="h-5 w-5" />
@@ -234,8 +234,8 @@ export default function CartPage() {
 
         {/* Order Summary */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 sticky top-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Summary</h2>
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6 sticky top-8">
+            <h2 className="text-lg font-semibold text-[#020E1C] mb-4">Order Summary</h2>
 
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-gray-600">
@@ -246,14 +246,14 @@ export default function CartPage() {
                 <span>Shipping</span>
                 <span className="text-green-600">Free</span>
               </div>
-              <div className="border-t pt-3 flex justify-between font-semibold text-lg text-gray-900">
+              <div className="border-t pt-3 flex justify-between font-semibold text-lg text-[#020E1C]">
                 <span>Total</span>
                 <span>{formatPrice(total, currency)}</span>
               </div>
             </div>
 
             <Link href="/checkout">
-              <Button className="w-full bg-[#df5e15] hover:bg-[#c54d0a] text-white font-semibold py-6 text-lg">
+              <Button className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold py-6 text-lg">
                 Proceed to Checkout
               </Button>
             </Link>

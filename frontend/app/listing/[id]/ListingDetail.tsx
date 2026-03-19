@@ -397,7 +397,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 )}
                 {/* Image counter */}
                 {images.length > 1 && (
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/70 text-white text-sm px-3 py-1 rounded-full">
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[#020E1C]/70 text-[#FFFFF3] text-sm px-3 py-1 rounded-full">
                     {currentImageIndex + 1} / {images.length}
                   </div>
                 )}
@@ -418,7 +418,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                   onClick={() => setCurrentImageIndex(index)}
                   className={`relative flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 transition-all cursor-pointer ${
                     index === currentImageIndex
-                      ? 'border-[#df5e15] ring-2 ring-[#df5e15]/30'
+                      ? 'border-[#6E0114] ring-2 ring-[#6E0114]/30'
                       : 'border-border hover:border-muted-foreground'
                   }`}
                 >
@@ -438,7 +438,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
         <div className="space-y-6">
           {/* SOLD banner */}
           {listing.disabled && (
-            <div className="bg-[#df5e15] text-white rounded-lg p-4 flex items-center gap-3">
+            <div className="bg-[#6E0114] text-[#FFFFF3] rounded-lg p-4 flex items-center gap-3">
               <span className="text-2xl font-bold">SOLD</span>
               <span className="text-sm opacity-90">This guitar has found a new home</span>
             </div>
@@ -474,12 +474,12 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             {listing.original_price && listing.price < listing.original_price ? (
               <>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="bg-[#df5e15] text-white text-sm font-bold px-2 py-1 rounded">
+                  <span className="bg-[#6E0114] text-[#FFFFF3] text-sm font-bold px-2 py-1 rounded">
                     ON SALE
                   </span>
                 </div>
                 <div className="flex items-baseline gap-3">
-                  <span className="text-3xl font-bold text-[#df5e15]">
+                  <span className="text-3xl font-bold text-[#6E0114]">
                     {formatPrice(listing.price, listing.currency)}
                   </span>
                   <span className="text-xl text-gray-400 line-through">
@@ -502,10 +502,10 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             <Button
               className={`flex-1 font-semibold py-6 text-lg transition-all ${
                 listing.disabled
-                  ? 'bg-gray-400 text-white cursor-not-allowed'
+                  ? 'bg-gray-400 text-[#FFFFF3] cursor-not-allowed'
                   : inCart
-                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                  : 'bg-[#df5e15] hover:bg-[#c54d0a] text-white'
+                  ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
+                  : 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]'
               }`}
               onClick={handleAddToCart}
               disabled={inCart || listing.disabled}
@@ -578,7 +578,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 </Button>
               </div>
               <div
-                className="text-muted-foreground leading-relaxed [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1 [&_p]:my-2 [&_br]:block [&_a]:text-[#df5e15] [&_a]:underline [&_strong]:font-semibold [&_b]:font-semibold"
+                className="text-muted-foreground leading-relaxed [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1 [&_p]:my-2 [&_br]:block [&_a]:text-[#6E0114] [&_a]:underline [&_strong]:font-semibold [&_b]:font-semibold"
                 dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
               />
             </div>

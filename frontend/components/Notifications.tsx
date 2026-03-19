@@ -78,12 +78,12 @@ export default function Notifications() {
     <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
-          className="relative px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors flex items-center"
+          className="relative px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors flex items-center"
           aria-label="Notifications"
         >
           <Bell className="h-5 w-5" />
           {counts.total > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+            <span className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
               {counts.total > 99 ? '99+' : counts.total}
             </span>
           )}
@@ -101,7 +101,7 @@ export default function Notifications() {
           <>
             <div className="px-2 py-2 flex gap-2 flex-wrap">
               {counts.offers > 0 && (
-                <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                <Badge variant="outline" className="bg-red-50 text-red-800 border-red-200">
                   <Tag className="h-3 w-3 mr-1" />
                   {counts.offers} offer{counts.offers !== 1 ? 's' : ''}
                 </Badge>
@@ -191,7 +191,7 @@ function OfferNotificationItem({ notification }: { notification: Notification & 
 
   return (
     <Link href={`/messages/${notification.offerId}`}>
-      <DropdownMenuItem className={`p-3 cursor-pointer ${notification.isNew ? 'bg-orange-50' : ''}`}>
+      <DropdownMenuItem className={`p-3 cursor-pointer ${notification.isNew ? 'bg-red-50' : ''}`}>
         <div className="flex gap-3 w-full">
           {/* Image */}
           <div className="relative w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0">
@@ -215,7 +215,7 @@ function OfferNotificationItem({ notification }: { notification: Notification & 
               {getStatusIcon()}
               <span className="text-xs font-medium text-muted-foreground">Offer</span>
               {notification.isNew && (
-                <Badge className="bg-blue-500 text-white text-[10px] px-1 py-0">NEW</Badge>
+                <Badge className="bg-blue-500 text-[#FFFFF3] text-[10px] px-1 py-0">NEW</Badge>
               )}
             </div>
             <p className="text-sm font-medium truncate">{notification.listingTitle}</p>
@@ -262,7 +262,7 @@ function MessageNotificationItem({ notification }: { notification: Notification 
               <MessageSquare className="h-4 w-4 text-blue-600" />
               <span className="text-xs font-medium text-muted-foreground">Message</span>
               {notification.unreadCount > 0 && (
-                <Badge className="bg-[#df5e15] text-white text-[10px] px-1 py-0">
+                <Badge className="bg-[#6E0114] text-[#FFFFF3] text-[10px] px-1 py-0">
                   {notification.unreadCount}
                 </Badge>
               )}
@@ -318,11 +318,11 @@ export function MobileNotificationButton() {
   return (
     <Link
       href="/messages"
-      className="relative p-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors"
+      className="relative p-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors"
     >
       <Bell className="h-5 w-5" />
       {counts.total > 0 && (
-        <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+        <span className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
           {counts.total > 99 ? '99+' : counts.total}
         </span>
       )}

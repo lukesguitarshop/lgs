@@ -49,7 +49,7 @@ export function ProfileButton() {
 
   if (isLoading) {
     return (
-      <div className="h-9 w-9 rounded-lg bg-[#df5e15]/50 animate-pulse" />
+      <div className="h-9 w-9 rounded-lg bg-[#6E0114]/50 animate-pulse" />
     );
   }
 
@@ -57,7 +57,7 @@ export function ProfileButton() {
     return (
       <Button
         onClick={() => setShowLoginModal(true)}
-        className="px-4 py-2 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors"
+        className="px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors"
       >
         Sign In
       </Button>
@@ -69,17 +69,17 @@ export function ProfileButton() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative h-9 w-9 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] p-0"
+          className="relative h-9 w-9 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] p-0"
         >
           <User className="h-5 w-5" />
           {counts.total > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+            <span className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
               {counts.total > 99 ? '99+' : counts.total}
             </span>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 bg-white">
+      <DropdownMenuContent align="end" className="w-56 bg-[#FFFFF3]">
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user?.fullName}</p>
@@ -99,9 +99,9 @@ export function ProfileButton() {
             {counts.offers > 0 && (
               <DropdownMenuItem asChild>
                 <Link href="/messages?filter=offers" className="cursor-pointer">
-                  <Tag className="mr-2 h-4 w-4 text-orange-500" />
+                  <Tag className="mr-2 h-4 w-4 text-red-700" />
                   <span className="flex-1">Offers</span>
-                  <span className="ml-auto bg-orange-100 text-orange-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                  <span className="ml-auto bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5 rounded-full">
                     {counts.offers} pending
                   </span>
                 </Link>
@@ -217,7 +217,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           setShowLoginModal(true);
           onNavigate?.();
         }}
-        className="w-full px-4 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors text-center cursor-pointer"
+        className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
       >
         Sign In
       </button>
@@ -241,7 +241,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
               <Link
                 href="/messages?filter=offers"
                 onClick={onNavigate}
-                className="flex-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg text-sm font-medium text-center cursor-pointer"
+                className="flex-1 px-3 py-2 bg-red-100 text-red-800 rounded-lg text-sm font-medium text-center cursor-pointer"
               >
                 <Tag className="h-4 w-4 inline mr-1" />
                 {counts.offers} offers
@@ -263,7 +263,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
       <Link
         href="/profile"
         onClick={onNavigate}
-        className="w-full px-4 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+        className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
       >
         <User className="h-4 w-4" />
         Profile
@@ -273,7 +273,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           <Link
             href="/favorites"
             onClick={onNavigate}
-            className="w-full px-4 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
           >
             <Heart className="h-4 w-4" />
             Favorites
@@ -281,7 +281,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           <Link
             href="/messages?filter=offers"
             onClick={onNavigate}
-            className="w-full px-4 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
           >
             <Tag className="h-4 w-4" />
             My Offers
@@ -289,7 +289,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           <Link
             href="/messages"
             onClick={onNavigate}
-            className="w-full px-4 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
           >
             <MessageSquare className="h-4 w-4" />
             Messages
@@ -300,7 +300,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
         <Link
           href="/admin"
           onClick={onNavigate}
-          className="w-full px-4 py-3 rounded-lg bg-[#df5e15] text-white hover:bg-[#c74d12] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
         >
           <Shield className="h-4 w-4" />
           Admin Portal
@@ -311,7 +311,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           logout();
           onNavigate?.();
         }}
-        className="w-full px-4 py-3 rounded-lg bg-red-500 text-white hover:bg-red-600 transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+        className="w-full px-4 py-3 rounded-lg bg-red-500 text-[#FFFFF3] hover:bg-red-600 transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
       >
         <LogOut className="h-4 w-4" />
         Sign Out

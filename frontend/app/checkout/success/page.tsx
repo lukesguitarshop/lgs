@@ -115,7 +115,7 @@ function CheckoutSuccessContent() {
         </svg>
       </div>
 
-      <h1 className="text-4xl font-bold text-gray-900 mb-4">
+      <h1 className="text-4xl font-bold text-[#020E1C] mb-4">
         {orderError ? 'Payment Received' : 'Thank You for Your Order!'}
       </h1>
 
@@ -131,10 +131,10 @@ function CheckoutSuccessContent() {
 
       {/* Create Account Prompt for Guests */}
       {showCreateAccount && (
-        <div className="mb-8 p-6 bg-orange-50 border border-orange-200 rounded-lg">
+        <div className="mb-8 p-6 bg-red-50 border border-red-200 rounded-lg">
           <div className="flex items-center justify-center mb-3">
-            <UserPlus className="h-6 w-6 text-[#df5e15] mr-2" />
-            <h2 className="text-lg font-semibold text-gray-900">Create an Account</h2>
+            <UserPlus className="h-6 w-6 text-[#6E0114] mr-2" />
+            <h2 className="text-lg font-semibold text-[#020E1C]">Create an Account</h2>
           </div>
           <p className="text-gray-600 mb-4">
             Create an account to track your order, save your address for faster checkout,
@@ -142,7 +142,7 @@ function CheckoutSuccessContent() {
           </p>
           <Button
             onClick={handleCreateAccount}
-            className="bg-[#df5e15] hover:bg-[#c74d12] text-white font-semibold px-6 py-2"
+            className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-6 py-2"
           >
             Create Account
           </Button>
@@ -151,7 +151,7 @@ function CheckoutSuccessContent() {
 
       <Link
         href="/"
-        className="inline-block bg-[#df5e15] hover:bg-[#c74d12] text-white text-lg font-semibold px-8 py-4 rounded-lg transition-all"
+        className="inline-block bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] text-lg font-semibold px-8 py-4 rounded-lg transition-all"
       >
         Continue Shopping
       </Link>

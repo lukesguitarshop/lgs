@@ -129,7 +129,7 @@ function MessagesPageContent() {
             </p>
             <Button
               onClick={() => setShowLoginModal(true)}
-              className="bg-[#df5e15] hover:bg-[#c54d0a] text-white"
+              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
             >
               Sign In
             </Button>
@@ -155,7 +155,7 @@ function MessagesPageContent() {
         <div className="flex items-center gap-3">
           <h1 className="text-3xl font-bold">Messages</h1>
           {totalUnread > 0 && (
-            <Badge className="bg-[#df5e15] text-white">
+            <Badge className="bg-[#6E0114] text-[#FFFFF3]">
               {totalUnread} unread
             </Badge>
           )}
@@ -170,7 +170,7 @@ function MessagesPageContent() {
             variant={filter === 'all' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setFilter('all')}
-            className={filter === 'all' ? 'bg-[#df5e15] hover:bg-[#c54d0a]' : ''}
+            className={filter === 'all' ? 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]' : ''}
           >
             <MessageSquare className="h-4 w-4 mr-1" />
             All Messages
@@ -179,7 +179,7 @@ function MessagesPageContent() {
             variant={filter === 'offers' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setFilter('offers')}
-            className={filter === 'offers' ? 'bg-[#df5e15] hover:bg-[#c54d0a]' : ''}
+            className={filter === 'offers' ? 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]' : ''}
           >
             <Tag className="h-4 w-4 mr-1" />
             With Offers
@@ -199,7 +199,7 @@ function MessagesPageContent() {
                 </p>
                 <Button
                   onClick={() => setFilter('all')}
-                  className="bg-[#df5e15] hover:bg-[#c54d0a] text-white"
+                  className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                 >
                   View All Messages
                 </Button>
@@ -212,7 +212,7 @@ function MessagesPageContent() {
                   When you message a seller about a guitar, your conversations will appear here.
                 </p>
                 <Link href="/">
-                  <Button className="bg-[#df5e15] hover:bg-[#c54d0a] text-white">
+                  <Button className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
                     Browse Listings
                   </Button>
                 </Link>
@@ -252,7 +252,7 @@ interface ConversationCardProps {
 function ConversationCard({ conversation }: ConversationCardProps) {
   return (
     <Link href={`/messages/${conversation.id}`}>
-      <Card className={`p-4 hover:shadow-md transition-shadow cursor-pointer ${conversation.unreadCount > 0 ? 'bg-orange-50 border-orange-200' : ''}`}>
+      <Card className={`p-4 hover:shadow-md transition-shadow cursor-pointer ${conversation.unreadCount > 0 ? 'bg-red-50 border-red-200' : ''}`}>
         <div className="flex items-center gap-4">
           {/* Listing Image or Avatar */}
           <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
@@ -275,7 +275,7 @@ function ConversationCard({ conversation }: ConversationCardProps) {
             <div className="flex items-center justify-between gap-2 mb-1">
               <div className="flex items-center gap-2 min-w-0">
                 {conversation.unreadCount > 0 && (
-                  <Circle className="h-2 w-2 fill-[#df5e15] text-[#df5e15] flex-shrink-0" />
+                  <Circle className="h-2 w-2 fill-[#6E0114] text-[#6E0114] flex-shrink-0" />
                 )}
                 <span className={`font-semibold truncate ${conversation.unreadCount > 0 ? 'text-foreground' : 'text-foreground'}`}>
                   {conversation.otherUserName}
@@ -311,7 +311,7 @@ function ConversationCard({ conversation }: ConversationCardProps) {
 
           {/* Unread Badge */}
           {conversation.unreadCount > 0 && (
-            <Badge className="bg-[#df5e15] text-white flex-shrink-0">
+            <Badge className="bg-[#6E0114] text-[#FFFFF3] flex-shrink-0">
               {conversation.unreadCount}
             </Badge>
           )}

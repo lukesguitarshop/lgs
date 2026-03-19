@@ -201,7 +201,7 @@ export function UserEditModal({
                 type="checkbox"
                 checked={isAdmin}
                 onChange={(e) => setIsAdmin(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-[#df5e15] focus:ring-[#df5e15]"
+                className="w-4 h-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114]"
               />
               <span className="text-sm text-gray-700">Admin</span>
             </label>
@@ -212,7 +212,7 @@ export function UserEditModal({
                 type="checkbox"
                 checked={emailVerified}
                 onChange={(e) => setEmailVerified(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-[#df5e15] focus:ring-[#df5e15]"
+                className="w-4 h-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114]"
               />
               <span className="text-sm text-gray-700">Verified</span>
             </label>
@@ -223,7 +223,7 @@ export function UserEditModal({
                 type="checkbox"
                 checked={isGuest}
                 onChange={(e) => setIsGuest(e.target.checked)}
-                className="w-4 h-4 rounded border-gray-300 text-[#df5e15] focus:ring-[#df5e15]"
+                className="w-4 h-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114]"
               />
               <span className="text-sm text-gray-700">Guest</span>
             </label>
@@ -364,7 +364,7 @@ export function UserEditModal({
           <Button
             onClick={handleSave}
             disabled={saving}
-            className="bg-[#df5e15] hover:bg-[#c54d0a] text-white"
+            className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             Save Changes

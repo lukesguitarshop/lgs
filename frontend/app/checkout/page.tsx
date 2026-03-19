@@ -183,14 +183,14 @@ export default function CheckoutPage() {
     return (
       <div className="max-w-2xl mx-auto text-center py-16 px-4">
         <LogIn className="w-24 h-24 mx-auto text-gray-300 mb-6" />
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Sign In Required</h1>
+        <h1 className="text-2xl font-bold text-[#020E1C] mb-4">Sign In Required</h1>
         <p className="text-gray-600 mb-8">
           Please sign in or create an account to proceed with checkout.
         </p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Button
             onClick={() => setShowLoginModal(true)}
-            className="bg-[#df5e15] hover:bg-[#c74d12] text-white font-semibold px-8 py-4"
+            className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-8 py-4"
           >
             Sign In
           </Button>
@@ -204,7 +204,7 @@ export default function CheckoutPage() {
         </div>
         <Link
           href="/cart"
-          className="inline-flex items-center text-gray-600 hover:text-gray-900 mt-8 transition-colors cursor-pointer"
+          className="inline-flex items-center text-gray-600 hover:text-[#020E1C] mt-8 transition-colors cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Cart
@@ -217,11 +217,11 @@ export default function CheckoutPage() {
     return (
       <div className="max-w-2xl mx-auto text-center py-16 px-4">
         <ShoppingCart className="w-24 h-24 mx-auto text-gray-300 mb-6" />
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Your cart is empty</h1>
+        <h1 className="text-2xl font-bold text-[#020E1C] mb-4">Your cart is empty</h1>
         <p className="text-gray-600 mb-8">Add some items to your cart to proceed with checkout.</p>
         <Link
           href="/"
-          className="inline-block bg-[#df5e15] hover:bg-[#c74d12] text-white font-semibold px-8 py-4 rounded-lg transition-all cursor-pointer"
+          className="inline-block bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-8 py-4 rounded-lg transition-all cursor-pointer"
         >
           Browse Listings
         </Link>
@@ -233,31 +233,31 @@ export default function CheckoutPage() {
     <div className="max-w-4xl mx-auto">
       <Link
         href="/cart"
-        className="inline-flex items-center text-gray-600 hover:text-gray-900 mb-6 transition-colors cursor-pointer"
+        className="inline-flex items-center text-gray-600 hover:text-[#020E1C] mb-6 transition-colors cursor-pointer"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to Cart
       </Link>
 
-      <h1 className="text-3xl font-bold text-gray-900 mb-8">Checkout</h1>
+      <h1 className="text-3xl font-bold text-[#020E1C] mb-8">Checkout</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Shipping Address & Order Summary */}
         <div className="lg:col-span-2 space-y-8">
           {/* Shipping Address Section */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Shipping Address</h2>
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
+            <h2 className="text-lg font-semibold text-[#020E1C] mb-4">Shipping Address</h2>
 
             {hasValidAddress && savedAddress ? (
               // Show saved address card
               <div
-                className="p-4 border border-gray-200 rounded-lg hover:border-[#df5e15] hover:bg-orange-50 cursor-pointer transition-all group"
+                className="p-4 border border-gray-200 rounded-lg hover:border-[#6E0114] hover:bg-red-50 cursor-pointer transition-all group"
                 onClick={() => setAddressModalOpen(true)}
               >
                 <div className="flex items-start gap-3">
                   <MapPin className="h-5 w-5 text-gray-400 mt-0.5 flex-shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <p className="font-medium text-gray-900">{savedAddress.fullName}</p>
+                    <p className="font-medium text-[#020E1C]">{savedAddress.fullName}</p>
                     <p className="text-gray-600 text-sm">{savedAddress.line1}</p>
                     {savedAddress.line2 && (
                       <p className="text-gray-600 text-sm">{savedAddress.line2}</p>
@@ -268,7 +268,7 @@ export default function CheckoutPage() {
                     <p className="text-gray-600 text-sm">{savedAddress.country}</p>
                   </div>
                   <button
-                    className="p-2 text-gray-400 hover:text-[#df5e15] group-hover:text-[#df5e15] transition-colors cursor-pointer"
+                    className="p-2 text-gray-400 hover:text-[#6E0114] group-hover:text-[#6E0114] transition-colors cursor-pointer"
                     onClick={(e) => {
                       e.stopPropagation();
                       setAddressModalOpen(true);
@@ -282,7 +282,7 @@ export default function CheckoutPage() {
               // Show add address button
               <button
                 onClick={() => setAddressModalOpen(true)}
-                className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-[#df5e15] hover:bg-orange-50 transition-all flex flex-col items-center gap-2 text-gray-500 hover:text-[#df5e15] cursor-pointer"
+                className="w-full p-6 border-2 border-dashed border-gray-300 rounded-lg hover:border-[#6E0114] hover:bg-red-50 transition-all flex flex-col items-center gap-2 text-gray-500 hover:text-[#6E0114] cursor-pointer"
               >
                 <Plus className="h-8 w-8" />
                 <span className="font-medium">Add Shipping Address</span>
@@ -293,11 +293,11 @@ export default function CheckoutPage() {
 
           {/* Order Summary */}
           <div className="space-y-4">
-            <h2 className="text-lg font-semibold text-gray-900">Order Summary</h2>
+            <h2 className="text-lg font-semibold text-[#020E1C]">Order Summary</h2>
             {cartItems.map((item) => (
               <div
                 key={item.id}
-                className="flex gap-4 p-4 bg-white rounded-lg border border-gray-200"
+                className="flex gap-4 p-4 bg-[#FFFFF3] rounded-lg border border-gray-200"
               >
                 <div className="relative w-20 h-20 flex-shrink-0 rounded overflow-hidden bg-gray-100">
                   {item.image ? (
@@ -314,8 +314,8 @@ export default function CheckoutPage() {
                   )}
                 </div>
                 <div className="flex-grow min-w-0">
-                  <h3 className="font-medium text-gray-900 truncate">{item.title}</h3>
-                  <p className="text-lg font-semibold text-gray-900 mt-1">
+                  <h3 className="font-medium text-[#020E1C] truncate">{item.title}</h3>
+                  <p className="text-lg font-semibold text-[#020E1C] mt-1">
                     {formatPrice(item.price, item.currency)}
                   </p>
                 </div>
@@ -326,8 +326,8 @@ export default function CheckoutPage() {
 
         {/* Payment Summary */}
         <div className="lg:col-span-1">
-          <div className="bg-white rounded-lg border border-gray-200 p-6 sticky top-8">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">Payment Summary</h2>
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6 sticky top-8">
+            <h2 className="text-lg font-semibold text-[#020E1C] mb-4">Payment Summary</h2>
 
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-gray-600">
@@ -344,7 +344,7 @@ export default function CheckoutPage() {
                   <span>{formatPrice(paypalFee, currency)}</span>
                 </div>
               )}
-              <div className="border-t pt-3 flex justify-between font-semibold text-lg text-gray-900">
+              <div className="border-t pt-3 flex justify-between font-semibold text-lg text-[#020E1C]">
                 <span>Total</span>
                 <span>{formatPrice(total, currency)}</span>
               </div>
@@ -357,7 +357,7 @@ export default function CheckoutPage() {
                 <label
                   className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
                     paymentMethod === 'stripe'
-                      ? 'border-[#df5e15] bg-orange-50'
+                      ? 'border-[#6E0114] bg-red-50'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -370,13 +370,13 @@ export default function CheckoutPage() {
                     className="sr-only"
                   />
                   <CreditCard className="h-5 w-5 text-gray-600 mr-3" />
-                  <span className="flex-1 font-medium text-gray-900">Credit Card</span>
+                  <span className="flex-1 font-medium text-[#020E1C]">Credit Card</span>
                   <span className="text-xs text-gray-500">Powered by Stripe</span>
                 </label>
                 <label
                   className={`flex items-center p-3 border rounded-lg cursor-pointer transition-all ${
                     paymentMethod === 'paypal'
-                      ? 'border-[#df5e15] bg-orange-50'
+                      ? 'border-[#6E0114] bg-red-50'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -392,7 +392,7 @@ export default function CheckoutPage() {
                     <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944 3.217a.774.774 0 0 1 .763-.645h6.678c2.213 0 3.987.686 5.277 2.04 1.29 1.355 1.772 3.17 1.433 5.396-.34 2.227-1.404 4.042-3.164 5.393-1.76 1.352-3.91 2.029-6.39 2.029H7.35l-1.274 3.907a.641.641 0 0 1-.001 0z" fill="#003087"/>
                     <path d="M19.152 8.392c-.34 2.227-1.404 4.042-3.164 5.393-1.76 1.352-3.91 2.029-6.39 2.029H7.35l-1.274 3.907a.641.641 0 0 1-.612.456H2.47a.641.641 0 0 1-.633-.74l.35-2.15a.774.774 0 0 1 .763-.645h2.394a.774.774 0 0 0 .763-.645l.937-5.933a.774.774 0 0 1 .763-.645h2.215c2.48 0 4.63-.677 6.39-2.03 1.76-1.35 2.824-3.165 3.164-5.392.339-2.226-.144-4.04-1.434-5.396C16.852 5.201 15.078 4.515 12.865 4.515H6.187a.774.774 0 0 0-.763.645L2.318 22.537a.641.641 0 0 0 .633.74h4.607a.641.641 0 0 0 .612-.457l1.274-3.907h2.191c2.48 0 4.63-.677 6.39-2.029 1.76-1.351 2.824-3.166 3.164-5.393.338-2.226-.144-4.041-1.434-5.396 1.053 1.107 1.467 2.59 1.396 4.297z" fill="#0070E0"/>
                   </svg>
-                  <span className="flex-1 font-medium text-gray-900">PayPal</span>
+                  <span className="flex-1 font-medium text-[#020E1C]">PayPal</span>
                 </label>
               </div>
             </div>
@@ -404,7 +404,7 @@ export default function CheckoutPage() {
             )}
 
             {!hasValidAddress && (
-              <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-700 text-sm">
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-800 text-sm">
                 Please add a shipping address to continue
               </div>
             )}
@@ -414,7 +414,7 @@ export default function CheckoutPage() {
                 <Button
                   onClick={handleCheckout}
                   disabled={checkoutLoading || !hasValidAddress}
-                  className="w-full bg-[#df5e15] hover:bg-[#c54d0a] text-white font-semibold py-6 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold py-6 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {checkoutLoading ? (
                     <>

@@ -506,13 +506,13 @@ export default function AdminPage() {
   if (!isAdmin) {
     return (
       <div className="max-w-md mx-auto mt-16">
-        <div className="bg-white rounded-lg border border-gray-200 p-8">
+        <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-8">
           <div className="flex items-center justify-center mb-6">
             <div className="bg-red-100 p-3 rounded-full">
               <ShieldX className="h-8 w-8 text-red-600" />
             </div>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 text-center mb-2">Access Denied</h1>
+          <h1 className="text-2xl font-bold text-[#020E1C] text-center mb-2">Access Denied</h1>
           <p className="text-gray-600 text-center mb-6">
             {isAuthenticated
               ? "You don't have permission to access the admin portal."
@@ -524,7 +524,7 @@ export default function AdminPage() {
             {!isAuthenticated && (
               <Button
                 onClick={() => setShowLoginModal(true)}
-                className="w-full bg-[#df5e15] hover:bg-[#c54d0a] text-white font-semibold py-3"
+                className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold py-3"
               >
                 Sign In
               </Button>
@@ -549,14 +549,14 @@ export default function AdminPage() {
       <div className="mb-6">
         <Link
           href="/"
-          className="inline-flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+          className="inline-flex items-center text-gray-600 hover:text-[#020E1C] transition-colors"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Home
         </Link>
       </div>
 
-      <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Portal</h1>
+      <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Admin Portal</h1>
       <p className="text-gray-600 mb-6">Manage your guitar listings database</p>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
@@ -573,7 +573,7 @@ export default function AdminPage() {
             <MessageSquare className="h-4 w-4" />
             <span className="hidden sm:inline">Messages</span>
             {conversations.reduce((sum, c) => sum + c.unreadCount, 0) > 0 && (
-              <span className="px-1.5 py-0.5 bg-[#df5e15] text-white rounded-full text-xs">
+              <span className="px-1.5 py-0.5 bg-[#6E0114] text-[#FFFFF3] rounded-full text-xs">
                 {conversations.reduce((sum, c) => sum + c.unreadCount, 0)}
               </span>
             )}
@@ -582,7 +582,7 @@ export default function AdminPage() {
             <Tag className="h-4 w-4" />
             <span className="hidden sm:inline">Offers</span>
             {conversationOffers.filter(o => o.offerStatus === 'active').length > 0 && (
-              <span className="px-1.5 py-0.5 bg-yellow-500 text-white rounded-full text-xs">
+              <span className="px-1.5 py-0.5 bg-yellow-500 text-[#FFFFF3] rounded-full text-xs">
                 {conversationOffers.filter(o => o.offerStatus === 'active').length}
               </span>
             )}
@@ -599,10 +599,10 @@ export default function AdminPage() {
 
         {/* Manage Listings Tab */}
         <TabsContent value="listings">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900">Manage Listings</h2>
+                <h2 className="text-xl font-semibold text-[#020E1C]">Manage Listings</h2>
                 <p className="text-gray-600 text-sm mt-1">Enable or disable listings manually</p>
               </div>
               <Button
@@ -651,18 +651,18 @@ export default function AdminPage() {
                           )}
                         </td>
                         <td className="py-3 px-2">
-                          <span className="font-medium text-gray-900 line-clamp-2">{listing.listing_title}</span>
+                          <span className="font-medium text-[#020E1C] line-clamp-2">{listing.listing_title}</span>
                         </td>
                         <td className="py-3 px-2 text-gray-600">{listing.condition || '-'}</td>
                         <td className="py-3 px-2">
                           {editingPriceId === listing.id ? (
                             <div className="flex items-center gap-1">
-                              <span className="text-gray-900">$</span>
+                              <span className="text-[#020E1C]">$</span>
                               <input
                                 type="number"
                                 value={editPriceValue}
                                 onChange={(e) => setEditPriceValue(e.target.value)}
-                                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#df5e15] focus:border-transparent outline-none"
+                                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
                                 min="0.01"
                                 step="0.01"
                                 autoFocus
@@ -693,7 +693,7 @@ export default function AdminPage() {
                             </div>
                           ) : (
                             <div className="flex items-center gap-2">
-                              <span className="text-gray-900 font-medium">${listing.price.toLocaleString()}</span>
+                              <span className="text-[#020E1C] font-medium">${listing.price.toLocaleString()}</span>
                               <button
                                 onClick={() => startEditPrice(listing)}
                                 className="p-1 text-gray-400 hover:text-gray-600"
@@ -721,7 +721,7 @@ export default function AdminPage() {
                               href={`/listing/${listing.id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-[#020E1C] hover:bg-gray-100 transition-colors"
                             >
                               <ExternalLink className="h-3 w-3" />
                               View
@@ -731,8 +731,8 @@ export default function AdminPage() {
                               disabled={togglingId === listing.id}
                               className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
                                 listing.disabled
-                                  ? 'bg-green-600 hover:bg-green-700 text-white'
-                                  : 'bg-gray-600 hover:bg-gray-700 text-white'
+                                  ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
+                                  : 'bg-gray-600 hover:bg-gray-700 text-[#FFFFF3]'
                               } disabled:opacity-50`}
                             >
                               {togglingId === listing.id ? (
@@ -752,7 +752,7 @@ export default function AdminPage() {
                             <button
                               onClick={() => deleteListing(listing)}
                               disabled={deletingId === listing.id}
-                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-red-600 hover:text-white hover:bg-red-600 transition-colors disabled:opacity-50"
+                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-red-600 hover:text-[#FFFFF3] hover:bg-red-600 transition-colors disabled:opacity-50"
                               title="Delete listing"
                             >
                               {deletingId === listing.id ? (
@@ -772,8 +772,8 @@ export default function AdminPage() {
           </div>
 
           {/* Reverb Scraper - at the bottom of Manage Listings tab */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Reverb Scraper</h2>
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6 mt-6">
+            <h2 className="text-xl font-semibold text-[#020E1C] mb-4">Reverb Scraper</h2>
             <p className="text-gray-600 mb-6">
               Manually trigger the scraper to refresh your listings from Reverb. This will fetch all
               current listings and update the database.
@@ -783,7 +783,7 @@ export default function AdminPage() {
               <Button
                 onClick={runScraper}
                 disabled={loading}
-                className="bg-[#df5e15] hover:bg-[#c54d0a] text-white font-semibold px-6 py-3"
+                className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-6 py-3"
               >
                 {loading ? (
                   <>
@@ -860,8 +860,8 @@ export default function AdminPage() {
           </div>
 
           {/* Review Scraper */}
-          <div className="bg-white rounded-lg border border-gray-200 p-6 mt-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Review Scraper</h2>
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6 mt-6">
+            <h2 className="text-xl font-semibold text-[#020E1C] mb-4">Review Scraper</h2>
             <p className="text-gray-600 mb-6">
               Fetch reviews from your Reverb shop feedback. Only imports new reviews that haven&apos;t been imported yet.
             </p>
@@ -869,7 +869,7 @@ export default function AdminPage() {
             <Button
               onClick={runReviewScraper}
               disabled={reviewScraperLoading}
-              className="bg-[#df5e15] hover:bg-[#c54d0a] text-white font-semibold px-6 py-3"
+              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-6 py-3"
             >
               {reviewScraperLoading ? (
                 <>
@@ -928,10 +928,10 @@ export default function AdminPage() {
 
         {/* Messages Tab */}
         <TabsContent value="messages">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
                   <MessageSquare className="h-5 w-5" />
                   Customer Messages
                 </h2>
@@ -940,7 +940,7 @@ export default function AdminPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <Button
                   onClick={() => setShowNewMessageModal(true)}
-                  className="bg-[#df5e15] hover:bg-[#c54d0a] text-white text-sm"
+                  className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] text-sm"
                 >
                   <Send className="h-4 w-4 mr-2" />
                   New Message
@@ -961,7 +961,7 @@ export default function AdminPage() {
               <span className="text-sm text-gray-500">
                 {conversations.length} conversation{conversations.length !== 1 ? 's' : ''}
                 {conversations.reduce((sum, c) => sum + c.unreadCount, 0) > 0 && (
-                  <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full text-xs">
+                  <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-900 rounded-full text-xs">
                     {conversations.reduce((sum, c) => sum + c.unreadCount, 0)} unread
                   </span>
                 )}
@@ -983,7 +983,7 @@ export default function AdminPage() {
                 {conversations.map(conversation => (
                   <div
                     key={conversation.id}
-                    className={`border rounded-lg p-4 ${conversation.unreadCount > 0 ? 'bg-orange-50 border-orange-200' : 'border-gray-200'}`}
+                    className={`border rounded-lg p-4 ${conversation.unreadCount > 0 ? 'bg-red-50 border-red-200' : 'border-gray-200'}`}
                   >
                     <div className="flex items-start gap-4">
                       {/* Listing Image */}
@@ -1007,13 +1007,13 @@ export default function AdminPage() {
                         <div className="flex items-center justify-between gap-2 mb-1">
                           <div className="flex items-center gap-2 min-w-0">
                             {conversation.unreadCount > 0 && (
-                              <Circle className="h-2 w-2 fill-[#df5e15] text-[#df5e15] flex-shrink-0" />
+                              <Circle className="h-2 w-2 fill-[#6E0114] text-[#6E0114] flex-shrink-0" />
                             )}
-                            <span className="font-semibold text-gray-900 truncate">
+                            <span className="font-semibold text-[#020E1C] truncate">
                               {conversation.otherUserName}
                             </span>
                             {conversation.unreadCount > 0 && (
-                              <span className="px-2 py-0.5 bg-[#df5e15] text-white rounded-full text-xs flex-shrink-0">
+                              <span className="px-2 py-0.5 bg-[#6E0114] text-[#FFFFF3] rounded-full text-xs flex-shrink-0">
                                 {conversation.unreadCount} new
                               </span>
                             )}
@@ -1029,7 +1029,7 @@ export default function AdminPage() {
                           </p>
                         )}
 
-                        <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'font-medium text-gray-900' : 'text-gray-600'}`}>
+                        <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'font-medium text-[#020E1C]' : 'text-gray-600'}`}>
                           {conversation.lastMessage || 'No messages yet'}
                         </p>
 
@@ -1054,7 +1054,7 @@ export default function AdminPage() {
                                 size="sm"
                                 onClick={() => sendReply(conversation)}
                                 disabled={!replyText.trim() || sendingReply}
-                                className="bg-[#df5e15] hover:bg-[#c54d0a] text-white h-8 px-3"
+                                className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] h-8 px-3"
                               >
                                 {sendingReply ? (
                                   <Loader2 className="h-3 w-3 animate-spin" />
@@ -1113,10 +1113,10 @@ export default function AdminPage() {
 
         {/* Offers Tab */}
         <TabsContent value="offers">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
                   <Tag className="h-5 w-5" />
                   Manage Offers
                 </h2>
@@ -1143,7 +1143,7 @@ export default function AdminPage() {
                 <select
                   value={offerStatusFilter}
                   onChange={(e) => setOfferStatusFilter(e.target.value)}
-                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#df5e15] focus:border-transparent outline-none"
+                  className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
                 >
                   <option value="all">All</option>
                   <option value="active">Active</option>
@@ -1169,7 +1169,7 @@ export default function AdminPage() {
               <span className="text-sm text-gray-500">
                 Showing {filteredConversationOffers.length} of {conversationOffers.length} offers
                 {conversationOffers.filter(o => o.offerStatus === 'active').length > 0 && (
-                  <span className="ml-2 px-2 py-0.5 bg-orange-100 text-orange-800 rounded-full text-xs">
+                  <span className="ml-2 px-2 py-0.5 bg-red-100 text-red-900 rounded-full text-xs">
                     {conversationOffers.filter(o => o.offerStatus === 'active').length} active
                   </span>
                 )}
@@ -1203,7 +1203,7 @@ export default function AdminPage() {
               <div className="space-y-3">
                 {filteredConversationOffers.map(offer => (
                   <Link key={offer.id} href={`/messages/${offer.id}?from=admin`}>
-                    <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-[#df5e15] hover:shadow-sm transition-all cursor-pointer">
+                    <div className="flex items-center gap-4 p-4 border border-gray-200 rounded-lg hover:border-[#6E0114] hover:shadow-sm transition-all cursor-pointer">
                       {/* Listing Image */}
                       <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                         {offer.listingImage ? (
@@ -1223,11 +1223,11 @@ export default function AdminPage() {
                       {/* Offer Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className="font-medium text-gray-900 truncate">
+                          <span className="font-medium text-[#020E1C] truncate">
                             {offer.buyerName}
                           </span>
                           <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            offer.offerStatus === 'active' ? 'bg-orange-100 text-orange-800' :
+                            offer.offerStatus === 'active' ? 'bg-red-100 text-red-900' :
                             offer.offerStatus === 'accepted' ? 'bg-green-100 text-green-800' :
                             offer.offerStatus === 'declined' ? 'bg-red-100 text-red-800' :
                             'bg-gray-100 text-gray-600'
@@ -1239,7 +1239,7 @@ export default function AdminPage() {
                           {offer.listingTitle || 'Unknown Listing'}
                         </p>
                         <div className="flex items-center gap-3 text-sm">
-                          <span className="font-semibold text-[#df5e15]">
+                          <span className="font-semibold text-[#6E0114]">
                             {offer.offerStatus === 'accepted'
                               ? `Accepted: $${offer.acceptedAmount?.toLocaleString()}`
                               : offer.activeOfferAmount
@@ -1274,10 +1274,10 @@ export default function AdminPage() {
 
         {/* Orders Tab */}
         <TabsContent value="orders">
-          <div className="bg-white rounded-lg border border-gray-200 p-6">
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+                <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
                   <Receipt className="h-5 w-5" />
                   All Orders
                 </h2>
@@ -1333,7 +1333,7 @@ export default function AdminPage() {
                           <div className="flex items-center gap-1">
                             <Link
                               href={`/order/${order.id}`}
-                              className="font-mono text-xs text-[#df5e15] hover:underline"
+                              className="font-mono text-xs text-[#6E0114] hover:underline"
                               title={order.id}
                             >
                               {order.id.substring(0, 8)}...
@@ -1354,7 +1354,7 @@ export default function AdminPage() {
                         </td>
                         <td className="py-3 px-2">
                           <div>
-                            <p className="font-medium text-gray-900 text-sm">{order.buyerName || 'Guest'}</p>
+                            <p className="font-medium text-[#020E1C] text-sm">{order.buyerName || 'Guest'}</p>
                             <p className="text-xs text-gray-500">{order.buyerEmail}</p>
                           </div>
                         </td>
@@ -1364,7 +1364,7 @@ export default function AdminPage() {
                               <>
                                 {order.items.map((item, idx) => (
                                   <div key={idx} className="text-xs">
-                                    <span className="text-gray-900 break-words">
+                                    <span className="text-[#020E1C] break-words">
                                       {item.listingTitle}
                                     </span>
                                     <span className="text-gray-500 ml-1">
@@ -1374,7 +1374,7 @@ export default function AdminPage() {
                                 ))}
                                 <button
                                   onClick={() => setExpandedOrderItems(null)}
-                                  className="text-xs text-[#df5e15] hover:underline"
+                                  className="text-xs text-[#6E0114] hover:underline"
                                 >
                                   Collapse
                                 </button>
@@ -1383,7 +1383,7 @@ export default function AdminPage() {
                               <>
                                 {order.items.map((item, idx) => (
                                   <div key={idx} className="text-xs">
-                                    <span className="text-gray-900 line-clamp-1" title={item.listingTitle}>
+                                    <span className="text-[#020E1C] line-clamp-1" title={item.listingTitle}>
                                       {item.listingTitle.length > 25 ? item.listingTitle.substring(0, 25) + '...' : item.listingTitle}
                                     </span>
                                     <span className="text-gray-500 ml-1">
@@ -1393,7 +1393,7 @@ export default function AdminPage() {
                                 ))}
                                 <button
                                   onClick={() => setExpandedOrderItems(order.id)}
-                                  className="text-xs text-[#df5e15] hover:underline"
+                                  className="text-xs text-[#6E0114] hover:underline"
                                 >
                                   Expand
                                 </button>
@@ -1402,7 +1402,7 @@ export default function AdminPage() {
                           </div>
                         </td>
                         <td className="py-3 px-2">
-                          <span className="font-semibold text-gray-900">
+                          <span className="font-semibold text-[#020E1C]">
                             ${order.totalAmount.toLocaleString()}
                           </span>
                           <span className="text-gray-500 text-xs ml-1">{order.currency}</span>
@@ -1450,7 +1450,7 @@ export default function AdminPage() {
                                   size="sm"
                                   onClick={() => saveTracking(order.id)}
                                   disabled={savingTracking}
-                                  className="text-xs h-6 px-2 bg-[#df5e15] hover:bg-[#c54d0a]"
+                                  className="text-xs h-6 px-2 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                                 >
                                   {savingTracking ? 'Saving...' : 'Save'}
                                 </Button>
@@ -1467,11 +1467,11 @@ export default function AdminPage() {
                             </div>
                           ) : order.trackingCarrier && order.trackingNumber ? (
                             <div className="space-y-1">
-                              <p className="text-xs font-medium text-gray-900">{order.trackingCarrier}</p>
+                              <p className="text-xs font-medium text-[#020E1C]">{order.trackingCarrier}</p>
                               <p className="text-xs text-gray-600 font-mono">{order.trackingNumber}</p>
                               <button
                                 onClick={() => startEditTracking(order)}
-                                className="text-xs text-[#df5e15] hover:underline"
+                                className="text-xs text-[#6E0114] hover:underline"
                               >
                                 Edit
                               </button>
@@ -1479,7 +1479,7 @@ export default function AdminPage() {
                           ) : (
                             <button
                               onClick={() => startEditTracking(order)}
-                              className="text-xs text-[#df5e15] hover:underline"
+                              className="text-xs text-[#6E0114] hover:underline"
                             >
                               Add tracking
                             </button>
@@ -1488,7 +1488,7 @@ export default function AdminPage() {
                         <td className="py-3 px-2">
                           <button
                             onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
-                            className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-900"
+                            className="flex items-center gap-1 text-xs text-gray-600 hover:text-[#020E1C]"
                           >
                             {expandedOrderId === order.id ? (
                               <>

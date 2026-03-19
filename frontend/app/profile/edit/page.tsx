@@ -209,8 +209,8 @@ export default function EditProfilePage() {
 
               {/* Guest user notice */}
               {user.isGuest && (
-                <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                  <p className="text-sm text-orange-800">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-sm text-red-900">
                     You are currently using a guest account. To set a password and unlock all
                     features, please create a full account.
                   </p>

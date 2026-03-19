@@ -221,7 +221,7 @@ export default function ShippingAddressModal({
             <Button
               onClick={handleSave}
               disabled={saving}
-              className="bg-[#df5e15] hover:bg-[#c54d0a] text-white"
+              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
             >
               {saving ? (
                 <>

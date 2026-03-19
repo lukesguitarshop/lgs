@@ -82,7 +82,7 @@ function ReviewCard({ review }: { review: Review }) {
         <p className="text-sm text-muted-foreground mb-3">
           {review.reviewer_name} • {formatDate(review.review_date)}
         </p>
-        <p className="text-gray-900 leading-relaxed">{review.review_text}</p>
+        <p className="text-[#020E1C] leading-relaxed">{review.review_text}</p>
       </CardContent>
     </Card>
   );
@@ -220,20 +220,20 @@ function ReviewsTab() {
         </div>
         <div className="flex gap-2">
           <Select value={dateFilter} onValueChange={(value: DateFilter) => setDateFilter(value)}>
-            <SelectTrigger className="w-[140px] bg-white">
+            <SelectTrigger className="w-[140px] bg-[#FFFFF3]">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-white">
+            <SelectContent className="bg-[#FFFFF3]">
               {dateFilterOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
-            <SelectTrigger className="w-[140px] bg-white">
+            <SelectTrigger className="w-[140px] bg-[#FFFFF3]">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-white">
+            <SelectContent className="bg-[#FFFFF3]">
               {sortOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
               ))}
@@ -318,7 +318,7 @@ function ContactTab() {
           </svg>
           <h2 className="text-2xl font-bold mb-2">Message Sent!</h2>
           <p className="text-muted-foreground mb-6">We'll get back to you as soon as possible.</p>
-          <Button onClick={() => setSuccess(false)} className="bg-[#df5e15] hover:bg-[#c74d12]">
+          <Button onClick={() => setSuccess(false)} className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
             Send Another Message
           </Button>
         </div>
@@ -348,7 +348,7 @@ function ContactTab() {
             id="name"
             name="name"
             required
-            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#df5e15] focus:border-transparent"
+            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent"
             placeholder="Your name"
           />
         </div>
@@ -362,7 +362,7 @@ function ContactTab() {
             id="email"
             name="email"
             required
-            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#df5e15] focus:border-transparent"
+            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent"
             placeholder="your@email.com"
           />
         </div>
@@ -376,7 +376,7 @@ function ContactTab() {
             id="subject"
             name="subject"
             required
-            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#df5e15] focus:border-transparent"
+            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent"
             placeholder="What's this about?"
           />
         </div>
@@ -390,7 +390,7 @@ function ContactTab() {
             name="message"
             required
             rows={5}
-            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#df5e15] focus:border-transparent resize-none"
+            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent resize-none"
             placeholder="Your message..."
           />
         </div>
@@ -398,7 +398,7 @@ function ContactTab() {
         <Button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-[#df5e15] hover:bg-[#c74d12] text-white py-3"
+          className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] py-3"
         >
           {isLoading ? 'Sending...' : 'Send Message'}
         </Button>
@@ -406,7 +406,7 @@ function ContactTab() {
 
       <p className="text-muted-foreground text-sm mt-6 text-center">
         You can also email us directly at{' '}
-        <a href="mailto:lukesguitarshop@gmail.com" className="text-[#df5e15] hover:text-[#c74d12] underline">
+        <a href="mailto:lukesguitarshop@gmail.com" className="text-[#6E0114] hover:text-[#580110] underline">
           lukesguitarshop@gmail.com
         </a>
       </p>
@@ -418,7 +418,7 @@ export default function ShopInfoPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-6">Luke's Guitar Shop</h1>
+        <h1 className="font-morphine text-5xl mb-6 text-[#6E0114]">Luke's Guitar Shop</h1>
 
         <Tabs defaultValue="about" className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 mb-8">
@@ -465,23 +465,23 @@ export default function ShopInfoPage() {
             <div className="prose prose-lg dark:prose-invert max-w-none">
               <ul className="space-y-4 text-muted-foreground list-none pl-0">
                 <li className="flex items-start gap-3">
-                  <span className="text-[#df5e15] font-bold">1.</span>
+                  <span className="text-[#6E0114] font-bold">1.</span>
                   <span>Item isn't sold until payment clears.</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="text-[#df5e15] font-bold">2.</span>
+                  <span className="text-[#6E0114] font-bold">2.</span>
                   <span>Check all photos carefully before buying. Need more pics? Just ask.</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="text-[#df5e15] font-bold">3.</span>
+                  <span className="text-[#6E0114] font-bold">3.</span>
                   <span>Sold as-is, all sales final. That said, you have 24 hours from delivery to request a return if needed. Approved returns have a 15% restocking fee, must be in original condition with all packaging, and you cover return shipping with full insurance.</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="text-[#df5e15] font-bold">4.</span>
+                  <span className="text-[#6E0114] font-bold">4.</span>
                   <span>You're buying a used guitar, not a fresh setup—plan to adjust it yourself.</span>
                 </li>
                 <li className="flex items-start gap-3">
-                  <span className="text-[#df5e15] font-bold">5.</span>
+                  <span className="text-[#6E0114] font-bold">5.</span>
                   <span>Questions? Message me anytime.</span>
                 </li>
               </ul>

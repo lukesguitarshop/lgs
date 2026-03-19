@@ -50,7 +50,7 @@ const conditionColors: Record<string, string> = {
   'Excellent': 'bg-blue-500',
   'Very Good': 'bg-sky-500',
   'Good': 'bg-yellow-500',
-  'Fair': 'bg-orange-500',
+  'Fair': 'bg-red-500',
   'Poor': 'bg-red-500',
 };
 
@@ -315,7 +315,7 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
         </div>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="text-3xl font-bold mb-2">Listings</h1>
+            <h1 className="font-morphine text-5xl mb-2 text-[#6E0114]">Listings</h1>
             <p className="text-muted-foreground">
               {filteredListings.length} listing{filteredListings.length !== 1 ? 's' : ''}
               {hasActiveFilters && ' (filtered)'}
@@ -324,10 +324,10 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-muted-foreground">Sort:</span>
             <Select value={sortBy} onValueChange={(value: SortOption) => { setSortBy(value); setCurrentPage(1); }}>
-              <SelectTrigger className="w-[180px] bg-white border-border">
+              <SelectTrigger className="w-[180px] bg-[#FFFFF3] border-border">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="bg-white border-border">
+              <SelectContent className="bg-[#FFFFF3] border-border">
                 {sortOptions.map(option => (
                   <SelectItem key={option.value} value={option.value}>
                     {option.label}
@@ -402,13 +402,13 @@ function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps
             </div>
           )}
           {listing.images && listing.images.length > 1 && (
-            <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
+            <div className="absolute bottom-2 right-2 bg-[#020E1C]/70 text-[#FFFFF3] text-xs px-2 py-1 rounded">
               {listing.images.length} photos
             </div>
           )}
           {/* ON SALE badge */}
           {isOnSale && (
-            <div className="absolute top-2 left-2 bg-[#df5e15] text-white text-xs font-bold px-2 py-1 rounded">
+            <div className="absolute top-2 left-2 bg-[#6E0114] text-[#FFFFF3] text-xs font-bold px-2 py-1 rounded">
               ON SALE
             </div>
           )}
@@ -417,8 +417,8 @@ function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps
             onClick={(e) => onToggleFavorite(listing.id, e)}
             className={`absolute top-2 right-2 p-2 rounded-full transition-all cursor-pointer ${
               isFavorite
-                ? 'bg-white text-red-500'
-                : 'bg-white/80 text-gray-400 hover:text-red-500'
+                ? 'bg-[#FFFFF3] text-red-500'
+                : 'bg-[#FFFFF3]/80 text-gray-400 hover:text-red-500'
             }`}
             title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
           >
@@ -433,7 +433,7 @@ function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps
           <div className="mb-1">
             {isOnSale ? (
               <div className="flex items-center gap-2">
-                <p className="text-2xl font-bold text-[#df5e15]">
+                <p className="text-2xl font-bold text-[#6E0114]">
                   {formatPrice(listing.price, listing.currency)}
                 </p>
                 <p className="text-lg text-gray-400 line-through">
@@ -448,7 +448,7 @@ function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps
           </div>
           <p className="text-sm text-green-600 mb-3">+ Free Shipping</p>
           <div className="mt-auto">
-            <Button className="w-full bg-[#df5e15] hover:bg-[#c54d0a] text-white">
+            <Button className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
               View Details
             </Button>
           </div>

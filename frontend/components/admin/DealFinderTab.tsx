@@ -197,10 +197,10 @@ export function DealFinderTab() {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
             <TrendingDown className="h-5 w-5" />
             Deal Finder
           </h2>
@@ -213,7 +213,7 @@ export function DealFinderTab() {
             onClick={handleRunScraper}
             disabled={scraperRunning}
             variant="default"
-            className="text-sm bg-[#df5e15] hover:bg-[#c54d0d]"
+            className="text-sm bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
           >
             {scraperRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             <span className="ml-2">{scraperRunning ? 'Running...' : 'Run Scraper'}</span>
@@ -257,15 +257,15 @@ export function DealFinderTab() {
       {stats && (
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-2xl font-bold text-gray-900">{stats.deals}</p>
+            <p className="text-2xl font-bold text-[#020E1C]">{stats.deals}</p>
             <p className="text-sm text-gray-600">Active Deals</p>
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+            <p className="text-2xl font-bold text-[#020E1C]">{stats.total}</p>
             <p className="text-sm text-gray-600">Total Scanned</p>
           </div>
           <div className="bg-gray-50 rounded-lg p-3">
-            <p className="text-sm font-medium text-gray-900">
+            <p className="text-sm font-medium text-[#020E1C]">
               {stats.lastRunAt ? formatDate(stats.lastRunAt) : 'Never'}
             </p>
             <p className="text-sm text-gray-600">Last Scan</p>
@@ -281,7 +281,7 @@ export function DealFinderTab() {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#df5e15] focus:border-transparent outline-none"
+              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
             >
               <option value="deals">Deals Only</option>
               <option value="no-price-guide">No Price Guide</option>
@@ -294,7 +294,7 @@ export function DealFinderTab() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#df5e15] focus:border-transparent outline-none"
+              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
             >
               <option value="best-deal">Best Deal First</option>
               <option value="price-low">Price: Low to High</option>
@@ -314,7 +314,7 @@ export function DealFinderTab() {
               disabled={loading}
               variant="outline"
               size="sm"
-              className="text-xs text-[#df5e15] hover:text-[#c54d0d] hover:bg-orange-50"
+              className="text-xs text-[#6E0114] hover:text-[#580110] hover:bg-red-50"
             >
               <ExternalLink className="h-3 w-3 mr-1" />
               Open All ({deals.filter(d => d.reverbLink).length})
@@ -324,7 +324,7 @@ export function DealFinderTab() {
               disabled={bulkDismissing !== null || loading}
               variant="outline"
               size="sm"
-              className="text-xs text-gray-600 hover:text-gray-800"
+              className="text-xs text-gray-600 hover:text-[#020E1C]"
             >
               {bulkDismissing === 'page' ? (
                 <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -397,7 +397,7 @@ export function DealFinderTab() {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-gray-900 line-clamp-2">
+                      <h3 className="font-semibold text-[#020E1C] line-clamp-2">
                         {deal.listingTitle}
                       </h3>
                       {deal.discountPercent && deal.discountPercent > 0 && (
@@ -408,7 +408,7 @@ export function DealFinderTab() {
                     </div>
 
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                      <span className="font-bold text-lg text-[#df5e15]">
+                      <span className="font-bold text-lg text-[#6E0114]">
                         {formatPrice(deal.price, deal.currency)}
                       </span>
                       {deal.hasPriceGuide && deal.priceGuideLow && deal.priceGuideHigh && (
@@ -510,7 +510,7 @@ export function DealFinderTab() {
                       key={pageNum}
                       variant={pageNum === currentPage ? 'default' : 'outline'}
                       size="sm"
-                      className={`w-9 ${pageNum === currentPage ? 'bg-[#df5e15] hover:bg-[#c54d0d]' : ''}`}
+                      className={`w-9 ${pageNum === currentPage ? 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]' : ''}`}
                       onClick={() => fetchDeals(pageNum)}
                       disabled={loading}
                     >

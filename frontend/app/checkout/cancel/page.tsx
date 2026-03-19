@@ -21,7 +21,7 @@ export default function CheckoutCancelPage() {
         </svg>
       </div>
 
-      <h1 className="text-4xl font-bold text-gray-900 mb-4">
+      <h1 className="text-4xl font-bold text-[#020E1C] mb-4">
         Checkout Cancelled
       </h1>
 
@@ -32,13 +32,13 @@ export default function CheckoutCancelPage() {
       <div className="flex flex-col sm:flex-row gap-4 justify-center">
         <Link
           href="/cart"
-          className="inline-block bg-[#df5e15] hover:bg-[#c74d12] text-white text-lg font-semibold px-8 py-4 rounded-lg transition-all"
+          className="inline-block bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] text-lg font-semibold px-8 py-4 rounded-lg transition-all"
         >
           Return to Cart
         </Link>
         <Link
           href="/"
-          className="inline-block bg-gray-200 hover:bg-gray-300 text-gray-800 text-lg font-semibold px-8 py-4 rounded-lg transition-all"
+          className="inline-block bg-gray-200 hover:bg-gray-300 text-[#020E1C] text-lg font-semibold px-8 py-4 rounded-lg transition-all"
         >
           Continue Shopping
         </Link>

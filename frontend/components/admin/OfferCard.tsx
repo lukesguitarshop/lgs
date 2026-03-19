@@ -62,7 +62,7 @@ function getStatusBadge(status: string) {
     case 'rejected':
       return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>;
     default:
-      return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{status}</span>;
+      return <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-[#020E1C]">{status}</span>;
   }
 }
 
@@ -143,7 +143,7 @@ export function OfferCard({ offer, onUpdate }: OfferCardProps) {
   };
 
   return (
-    <div className={`border rounded-lg p-4 ${offer.listingDisabled ? 'bg-gray-50 opacity-75' : 'bg-white'}`}>
+    <div className={`border rounded-lg p-4 ${offer.listingDisabled ? 'bg-gray-50 opacity-75' : 'bg-[#FFFFF3]'}`}>
       {/* Header with listing info */}
       <div className="flex gap-4">
         {offer.listingImage ? (
@@ -158,7 +158,7 @@ export function OfferCard({ offer, onUpdate }: OfferCardProps) {
           <div className="w-20 h-20 bg-gray-200 rounded flex-shrink-0" />
         )}
         <div className="flex-1 min-w-0">
-          <h3 className="font-medium text-gray-900 line-clamp-2 text-sm">{offer.listingTitle}</h3>
+          <h3 className="font-medium text-[#020E1C] line-clamp-2 text-sm">{offer.listingTitle}</h3>
           <p className="text-sm text-gray-500">
             Listed: {formatPrice(offer.listingPrice, offer.listingCurrency)}
           </p>
@@ -178,7 +178,7 @@ export function OfferCard({ offer, onUpdate }: OfferCardProps) {
         <div className="flex items-center justify-between text-sm">
           <div>
             <span className="text-gray-500">From:</span>{' '}
-            <span className="font-medium text-gray-900">{offer.buyerName}</span>
+            <span className="font-medium text-[#020E1C]">{offer.buyerName}</span>
             {offer.buyerEmail && (
               <span className="text-gray-400 ml-1">({offer.buyerEmail})</span>
             )}
@@ -191,7 +191,7 @@ export function OfferCard({ offer, onUpdate }: OfferCardProps) {
         <div className="mt-3 grid grid-cols-2 gap-4">
           <div className="bg-gray-50 rounded p-3">
             <div className="text-xs text-gray-500 mb-1">Buyer&apos;s Offer</div>
-            <div className="font-semibold text-lg text-gray-900">
+            <div className="font-semibold text-lg text-[#020E1C]">
               {formatPrice(offer.currentOfferAmount, offer.listingCurrency)}
             </div>
             {offer.initialOfferAmount !== offer.currentOfferAmount && (

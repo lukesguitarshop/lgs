@@ -79,7 +79,7 @@ export function RegisterModal() {
       <Dialog open={showRegisterModal} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-[425px]">
           <div className="text-center space-y-4 py-4">
-            <Mail className="h-16 w-16 text-[#df5e15] mx-auto" />
+            <Mail className="h-16 w-16 text-[#6E0114] mx-auto" />
             <h2 className="text-xl font-semibold">Check Your Email</h2>
             <p className="text-muted-foreground">
               We&apos;ve sent a verification link to <strong>{successEmail}</strong>. Please check your inbox and click the link to verify your account.
@@ -90,7 +90,7 @@ export function RegisterModal() {
             <div className="space-y-2 pt-2">
               <Button
                 onClick={switchToLogin}
-                className="w-full bg-[#df5e15] hover:bg-[#c74d12]"
+                className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
               >
                 Go to Sign In
               </Button>
@@ -197,7 +197,7 @@ export function RegisterModal() {
           </div>
           <Button
             type="submit"
-            className="w-full bg-[#df5e15] hover:bg-[#c74d12]"
+            className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
             disabled={isLoading}
           >
             {isLoading ? 'Creating account...' : 'Create Account'}
@@ -207,7 +207,7 @@ export function RegisterModal() {
             <button
               type="button"
               onClick={switchToLogin}
-              className="text-[#df5e15] hover:underline font-medium"
+              className="text-[#6E0114] hover:underline font-medium"
             >
               Sign in
             </button>

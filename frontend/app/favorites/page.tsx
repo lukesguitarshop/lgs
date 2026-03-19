@@ -112,7 +112,7 @@ export default function FavoritesPage() {
             </p>
             <Button
               onClick={() => setShowLoginModal(true)}
-              className="bg-[#df5e15] hover:bg-[#c54d0a] text-white"
+              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
             >
               Sign In
             </Button>
@@ -148,7 +148,7 @@ export default function FavoritesPage() {
               Browse listings and click the heart icon to save your favorites.
             </p>
             <Link href="/">
-              <Button className="bg-[#df5e15] hover:bg-[#c54d0a] text-white">
+              <Button className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
                 Browse Listings
               </Button>
             </Link>
@@ -233,7 +233,7 @@ function FavoriteCard({ favorite, onRemove, isRemoving }: FavoriteCardProps) {
           <p className="text-sm text-muted-foreground mb-1">Used - {listing.condition}</p>
         )}
         <Link href={`/listing/${listing.id}`}>
-          <h3 className="font-semibold text-lg mb-2 line-clamp-2 hover:text-[#df5e15] transition-colors">
+          <h3 className="font-semibold text-lg mb-2 line-clamp-2 hover:text-[#6E0114] transition-colors">
             {listing.listingTitle}
           </h3>
         </Link>
@@ -243,7 +243,7 @@ function FavoriteCard({ favorite, onRemove, isRemoving }: FavoriteCardProps) {
         <p className="text-sm text-green-600 mb-3">+ Free Shipping</p>
         <div className="mt-auto space-y-2">
           <Link href={`/listing/${listing.id}`} className="block">
-            <Button className="w-full bg-[#df5e15] hover:bg-[#c54d0a] text-white">
+            <Button className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
               View Details
             </Button>
           </Link>

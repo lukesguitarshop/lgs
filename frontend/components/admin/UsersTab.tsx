@@ -124,11 +124,11 @@ export function UsersTab() {
   };
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 p-6">
+    <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
             <Users className="h-5 w-5" />
             User Management
           </h2>
@@ -184,7 +184,7 @@ export function UsersTab() {
             <select
               value={adminFilter}
               onChange={(e) => setAdminFilter(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#df5e15] focus:border-transparent outline-none"
+              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
             >
               <option value="all">All</option>
               <option value="admins">Admins Only</option>
@@ -197,7 +197,7 @@ export function UsersTab() {
             <select
               value={guestFilter}
               onChange={(e) => setGuestFilter(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#df5e15] focus:border-transparent outline-none"
+              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
             >
               <option value="all">All</option>
               <option value="registered">Registered</option>
@@ -210,7 +210,7 @@ export function UsersTab() {
             <select
               value={verifiedFilter}
               onChange={(e) => setVerifiedFilter(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#df5e15] focus:border-transparent outline-none"
+              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
             >
               <option value="all">All</option>
               <option value="verified">Verified</option>
@@ -272,7 +272,7 @@ export function UsersTab() {
                     {/* User Info */}
                     <td className="py-3 px-4">
                       <div>
-                        <p className="font-medium text-gray-900">
+                        <p className="font-medium text-[#020E1C]">
                           {user.fullName}
                         </p>
                         <p className="text-sm text-gray-500">
@@ -289,7 +289,7 @@ export function UsersTab() {
                     <td className="py-3 px-4">
                       <div className="flex flex-wrap gap-1">
                         {user.isAdmin && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-medium">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-xs font-medium">
                             <ShieldCheck className="h-3 w-3" />
                             Admin
                           </span>
@@ -377,7 +377,7 @@ export function UsersTab() {
                       size="sm"
                       className={`w-9 ${
                         pageNum === currentPage
-                          ? 'bg-[#df5e15] hover:bg-[#c54d0d]'
+                          ? 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]'
                           : ''
                       }`}
                       onClick={() => fetchUsers(pageNum)}

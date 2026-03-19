@@ -72,7 +72,7 @@ function VerifyEmailContent() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
-                <Loader2 className="h-16 w-16 text-[#df5e15] mx-auto animate-spin" />
+                <Loader2 className="h-16 w-16 text-[#6E0114] mx-auto animate-spin" />
                 <h2 className="text-xl font-semibold">Verifying your email...</h2>
                 <p className="text-muted-foreground">
                   Please wait while we verify your email address.
@@ -100,7 +100,7 @@ function VerifyEmailContent() {
                 </p>
                 <Button
                   onClick={() => router.push('/')}
-                  className="w-full bg-[#df5e15] hover:bg-[#c74d12]"
+                  className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                 >
                   Go to Home and Sign In
                 </Button>
@@ -158,7 +158,7 @@ function VerifyEmailContent() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
-                <Mail className="h-16 w-16 text-[#df5e15] mx-auto" />
+                <Mail className="h-16 w-16 text-[#6E0114] mx-auto" />
                 <h2 className="text-xl font-semibold">Check Your Email</h2>
                 <p className="text-muted-foreground">
                   If an account exists with <strong>{email}</strong>, we&apos;ve sent a verification link. Please check your inbox and spam folder.
@@ -231,7 +231,7 @@ function VerifyEmailContent() {
 
               <Button
                 type="submit"
-                className="w-full bg-[#df5e15] hover:bg-[#c74d12]"
+                className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                 disabled={isResending}
               >
                 {isResending ? (
