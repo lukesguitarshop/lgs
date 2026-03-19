@@ -256,15 +256,15 @@ export function DealFinderTab() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-gray-50 rounded-lg p-3">
+          <div className="bg-[#FFFFF3] border border-[#020E1C] rounded-lg p-3">
             <p className="text-2xl font-bold text-[#020E1C]">{stats.deals}</p>
             <p className="text-sm text-gray-600">Active Deals</p>
           </div>
-          <div className="bg-gray-50 rounded-lg p-3">
+          <div className="bg-[#FFFFF3] border border-[#020E1C] rounded-lg p-3">
             <p className="text-2xl font-bold text-[#020E1C]">{stats.total}</p>
             <p className="text-sm text-gray-600">Total Scanned</p>
           </div>
-          <div className="bg-gray-50 rounded-lg p-3">
+          <div className="bg-[#FFFFF3] border border-[#020E1C] rounded-lg p-3">
             <p className="text-sm font-medium text-[#020E1C]">
               {stats.lastRunAt ? formatDate(stats.lastRunAt) : 'Never'}
             </p>

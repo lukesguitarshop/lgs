@@ -217,7 +217,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           setShowLoginModal(true);
           onNavigate?.();
         }}
-        className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
+        className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
       >
         Sign In
       </button>
@@ -263,7 +263,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
       <Link
         href="/profile"
         onClick={onNavigate}
-        className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+        className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
       >
         <User className="h-4 w-4" />
         Profile
@@ -273,7 +273,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           <Link
             href="/favorites"
             onClick={onNavigate}
-            className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+            className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
           >
             <Heart className="h-4 w-4" />
             Favorites
@@ -281,7 +281,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           <Link
             href="/messages?filter=offers"
             onClick={onNavigate}
-            className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+            className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
           >
             <Tag className="h-4 w-4" />
             My Offers
@@ -289,7 +289,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           <Link
             href="/messages"
             onClick={onNavigate}
-            className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+            className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
           >
             <MessageSquare className="h-4 w-4" />
             Messages
@@ -300,7 +300,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
         <Link
           href="/admin"
           onClick={onNavigate}
-          className="w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+          className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
         >
           <Shield className="h-4 w-4" />
           Admin Portal
@@ -311,7 +311,7 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           logout();
           onNavigate?.();
         }}
-        className="w-full px-4 py-3 rounded-lg bg-red-500 text-[#FFFFF3] hover:bg-red-600 transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+        className="font-nav w-full px-4 py-3 rounded-lg bg-[#020E1C] text-[#FFFFF3] hover:bg-[#020E1C]/80 transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
       >
         <LogOut className="h-4 w-4" />
         Sign Out

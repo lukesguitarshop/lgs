@@ -239,7 +239,7 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
             <div className="flex items-center gap-2">
-              <SlidersHorizontal className="h-5 w-5 text-blue-600" />
+              <SlidersHorizontal className="h-5 w-5 text-[#6E0114]" />
               <h2 className="text-lg font-semibold">Filters</h2>
             </div>
           </CardHeader>
@@ -287,7 +287,7 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
                       type="checkbox"
                       checked={selectedConditions.includes(condition)}
                       onChange={() => toggleCondition(condition)}
-                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114]"
                     />
                     <span className="text-sm">{condition}</span>
                   </label>
@@ -315,7 +315,7 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
         </div>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
-            <h1 className="font-morphine text-5xl mb-2 text-[#6E0114]">Listings</h1>
+            <h1 className="font-heading text-5xl mb-2 text-[#6E0114]">Listings</h1>
             <p className="text-muted-foreground">
               {filteredListings.length} listing{filteredListings.length !== 1 ? 's' : ''}
               {hasActiveFilters && ' (filtered)'}
@@ -427,9 +427,9 @@ function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps
         </div>
         <CardContent className="flex flex-col flex-1 p-4">
           {listing.condition && (
-            <p className="text-sm text-muted-foreground mb-1">Used - {listing.condition}</p>
+            <p className="text-sm font-body text-[#B8B0A4] mb-1">Used - {listing.condition}</p>
           )}
-          <h3 className="font-semibold text-lg mb-2 line-clamp-2">{listing.listing_title}</h3>
+          <h3 className="font-body font-semibold text-lg mb-2 line-clamp-2 text-[#020E1C]">{listing.listing_title}</h3>
           <div className="mb-1">
             {isOnSale ? (
               <div className="flex items-center gap-2">

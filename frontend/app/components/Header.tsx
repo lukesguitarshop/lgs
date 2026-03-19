@@ -70,6 +70,8 @@ export default function Header() {
   // Close mobile menu when route changes
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
+  const navLinkClass = "font-nav px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer";
+
   return (
     <>
       {isAdmin && (
@@ -92,22 +94,16 @@ export default function Header() {
 
             {/* Desktop Navigation */}
             <nav className="hidden md:flex items-center space-x-4">
-              <Link
-                href="/"
-                className="px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer"
-              >
+              <Link href="/" className={navLinkClass}>
                 Listings
               </Link>
-              <Link
-                href="/shop-info"
-                className="px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer"
-              >
+              <Link href="/shop-info" className={navLinkClass}>
                 Shop Info
               </Link>
               {isAdmin ? (
                 <Link
                   href="/admin"
-                  className="px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors flex items-center gap-2 cursor-pointer"
+                  className={`${navLinkClass} flex items-center gap-2`}
                 >
                   <Shield className="h-5 w-5" />
                   Admin Portal
@@ -115,11 +111,11 @@ export default function Header() {
               ) : (
                 <Link
                   href="/cart"
-                  className="relative px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors flex items-center cursor-pointer"
+                  className="relative font-nav px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors flex items-center cursor-pointer"
                 >
                   <ShoppingCart className="h-5 w-5" />
                   {(cartCount + pendingCount) > 0 && (
-                    <span className={`absolute -top-2 -right-2 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center ${pendingCount > 0 ? 'bg-red-500' : 'bg-red-500'}`}>
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                       {(cartCount + pendingCount) > 99 ? '99+' : cartCount + pendingCount}
                     </span>
                   )}
@@ -147,7 +143,7 @@ export default function Header() {
                 >
                   <ShoppingCart className="h-5 w-5" />
                   {(cartCount + pendingCount) > 0 && (
-                    <span className={`absolute -top-2 -right-2 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center ${pendingCount > 0 ? 'bg-red-500' : 'bg-red-500'}`}>
+                    <span className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
                       {(cartCount + pendingCount) > 99 ? '99+' : cartCount + pendingCount}
                     </span>
                   )}
@@ -171,7 +167,7 @@ export default function Header() {
         <div className="md:hidden fixed inset-0 z-50 bg-[#FFFFF3]">
           {/* Overlay Header with Close Button */}
           <div className="flex items-center justify-between p-4 border-b border-border bg-[#FFFFF3]">
-            <span className="text-lg font-semibold">Menu</span>
+            <span className="font-nav text-lg">Menu</span>
             <button
               onClick={closeMobileMenu}
               className="p-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors cursor-pointer"
@@ -187,14 +183,14 @@ export default function Header() {
               <Link
                 href="/"
                 onClick={closeMobileMenu}
-                className="px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
+                className="font-nav px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
               >
                 Home
               </Link>
               <Link
                 href="/shop-info"
                 onClick={closeMobileMenu}
-                className="px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
+                className="font-nav px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
               >
                 Shop Info
               </Link>

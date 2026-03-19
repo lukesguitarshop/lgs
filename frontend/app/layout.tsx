@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Playfair_Display, Lato } from "next/font/google";
 import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -13,14 +13,16 @@ import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const playfairDisplay = Playfair_Display({
+  variable: "--font-playfair",
   subsets: ["latin"],
+  weight: ["700"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const lato = Lato({
+  variable: "--font-lato",
   subsets: ["latin"],
+  weight: ["300", "400", "700"],
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://lukesguitarshop.com";
@@ -178,7 +180,7 @@ export default function RootLayout({
         <LocalBusinessJsonLd />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased flex flex-col min-h-screen bg-background text-foreground`}
+        className={`${playfairDisplay.variable} ${lato.variable} antialiased flex flex-col min-h-screen bg-background text-foreground`}
       >
         <Suspense fallback={null}>
           <GoogleAnalytics />
