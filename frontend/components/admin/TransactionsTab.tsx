@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
-import { Plus, Upload, Trash2, Loader2, Package } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, Loader2, Package } from 'lucide-react';
 
 const PLATFORMS = ['Reverb', 'Cash', 'PayPal', 'eBay', 'Venmo', 'Zelle', 'lukesguitarshop.com', 'Gear Exchange', 'Insurance', 'Restocking Fee'];
 const CARRIERS = ['UPS', 'USPS', 'FedEx'];
@@ -450,12 +450,13 @@ export default function TransactionsTab() {
         </div>
         <div className="flex gap-2">
           <Button
-            onClick={() => setImportDialogOpen(true)}
+            onClick={fetchTransactions}
             variant="outline"
             className="text-sm"
+            disabled={loading}
           >
-            <Upload className="h-4 w-4 mr-2" />
-            Import CSV
+            {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh
           </Button>
           <Button
             onClick={openAddDialog}

@@ -281,6 +281,18 @@ public class ScraperService
         {
             // Insert new
             await _mongoDbService.CreateMyListingAsync(listing);
+
+            // Auto-create a "for_sale" transaction so it shows in the finance tracker
+            var transaction = new Transaction
+            {
+                Date = DateTime.UtcNow,
+                GuitarName = listing.ListingTitle,
+                PurchasePrice = listing.Price,
+                TransactionType = "for_sale",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _mongoDbService.CreateTransactionAsync(transaction);
         }
     }
 
