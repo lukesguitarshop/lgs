@@ -11,100 +11,86 @@ function formatCurrency(amount: number): string {
   return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-interface TradeNode {
+// Trade graph node — supports both branching (1→many) and convergence (many→1)
+interface TradeGraphNode {
   name: string;
-  children: TradeNode[];
-  soldFor: number | null; // revenue if this guitar was sold
+  parents: string[];   // guitars that traded INTO this one
+  children: string[];  // guitars this was traded FOR
+  soldFor: number | null;
   status: 'sold' | 'traded' | 'for_sale' | 'unsold';
 }
 
-interface TradeChain {
-  root: TradeNode;
-  totalRevenue: number;
+interface TradeGroup {
+  nodes: Map<string, TradeGraphNode>;
+  roots: string[];     // entry points (no parents)
+  leaves: string[];    // exit points (no children)
 }
 
-function buildTradeChains(transactions: Transaction[]): TradeChain[] {
+function buildTradeGroups(transactions: Transaction[]): TradeGroup[] {
   const traded = transactions.filter(t => t.transactionType === 'traded');
   const sold = transactions.filter(t => t.transactionType === 'sold');
   const forSale = transactions.filter(t => t.transactionType === 'for_sale');
 
-  // Build map: guitarName -> array of what it was traded for
-  const tradeMap = new Map<string, string[]>();
-  for (const t of traded) {
-    if (t.tradeFor && t.tradeFor.length > 0) {
-      tradeMap.set(t.guitarName, t.tradeFor);
-    }
-  }
-
-  // Build sold lookup
   const soldMap = new Map<string, number>();
   for (const s of sold) {
     if (s.revenue !== null) soldMap.set(s.guitarName, s.revenue);
   }
   const forSaleSet = new Set(forSale.map(f => f.guitarName));
 
-  // Find all trade targets (guitars that appear as someone's tradeFor)
-  const allTradeTargets = new Set<string>();
-  for (const targets of tradeMap.values()) {
-    for (const t of targets) allTradeTargets.add(t);
+  // Build the full graph
+  const allNodes = new Map<string, TradeGraphNode>();
+
+  function getOrCreate(name: string): TradeGraphNode {
+    if (!allNodes.has(name)) {
+      let status: TradeGraphNode['status'] = 'unsold';
+      let soldFor: number | null = null;
+      if (soldMap.has(name)) { status = 'sold'; soldFor = soldMap.get(name)!; }
+      else if (forSaleSet.has(name)) { status = 'for_sale'; }
+      allNodes.set(name, { name, parents: [], children: [], soldFor, status });
+    }
+    return allNodes.get(name)!;
   }
 
-  // Chain starts: traded guitars NOT targeted by another trade
-  const chainStarts = traded
-    .filter(t => !allTradeTargets.has(t.guitarName))
-    .map(t => t.guitarName);
+  for (const t of traded) {
+    const node = getOrCreate(t.guitarName);
+    node.status = node.status === 'sold' || node.status === 'for_sale' ? node.status : 'traded';
+    if (t.tradeFor && t.tradeFor.length > 0) {
+      for (const childName of t.tradeFor) {
+        if (!node.children.includes(childName)) node.children.push(childName);
+        const child = getOrCreate(childName);
+        if (!child.parents.includes(t.guitarName)) child.parents.push(t.guitarName);
+      }
+    }
+  }
 
+  // Find connected components using BFS
   const visited = new Set<string>();
+  const groups: TradeGroup[] = [];
 
-  function buildNode(name: string): TradeNode {
+  for (const name of allNodes.keys()) {
+    if (visited.has(name)) continue;
+    const component = new Map<string, TradeGraphNode>();
+    const queue = [name];
     visited.add(name);
-    const children: TradeNode[] = [];
 
-    if (tradeMap.has(name)) {
-      for (const childName of tradeMap.get(name)!) {
-        if (!visited.has(childName)) {
-          children.push(buildNode(childName));
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      const node = allNodes.get(current)!;
+      component.set(current, node);
+      for (const neighbor of [...node.parents, ...node.children]) {
+        if (!visited.has(neighbor) && allNodes.has(neighbor)) {
+          visited.add(neighbor);
+          queue.push(neighbor);
         }
       }
     }
 
-    let status: TradeNode['status'] = 'unsold';
-    let soldFor: number | null = null;
-    if (soldMap.has(name)) {
-      status = 'sold';
-      soldFor = soldMap.get(name)!;
-    } else if (forSaleSet.has(name)) {
-      status = 'for_sale';
-    } else if (tradeMap.has(name)) {
-      status = 'traded';
-    }
-
-    return { name, children, soldFor, status };
+    const roots = Array.from(component.values()).filter(n => n.parents.length === 0).map(n => n.name);
+    const leaves = Array.from(component.values()).filter(n => n.children.length === 0).map(n => n.name);
+    groups.push({ nodes: component, roots, leaves });
   }
 
-  function sumRevenue(node: TradeNode): number {
-    let total = node.soldFor ?? 0;
-    for (const child of node.children) total += sumRevenue(child);
-    return total;
-  }
-
-  const chains: TradeChain[] = [];
-
-  for (const start of chainStarts) {
-    if (visited.has(start)) continue;
-    const root = buildNode(start);
-    chains.push({ root, totalRevenue: sumRevenue(root) });
-  }
-
-  // Include any unvisited traded items
-  for (const t of traded) {
-    if (!visited.has(t.guitarName)) {
-      const root = buildNode(t.guitarName);
-      chains.push({ root, totalRevenue: sumRevenue(root) });
-    }
-  }
-
-  return chains;
+  return groups;
 }
 
 export default function DashboardTab() {
@@ -160,7 +146,7 @@ export default function DashboardTab() {
     ? transactions.reduce((worst, t) => (t.profit ?? 0) < (worst.profit ?? 0) ? t : worst)
     : null;
 
-  const tradeChains = buildTradeChains(transactions);
+  const tradeGroups = buildTradeGroups(transactions);
 
   // Prepare platform chart data
   const chartData = summary.platformStats.map(p => ({
@@ -252,13 +238,13 @@ export default function DashboardTab() {
       </div>
 
       {/* Trade Chains */}
-      {tradeChains.length > 0 && (
+      {tradeGroups.length > 0 && (
         <div className="bg-[#FFFFF3] border border-gray-200 rounded-lg p-6">
           <h3 className="text-lg font-semibold text-[#020E1C] mb-4">Trade Chains</h3>
           <div className="space-y-3">
-            {tradeChains.map((chain, i) => (
+            {tradeGroups.map((group, i) => (
               <div key={i} className="py-2 px-3 bg-white rounded border border-gray-100">
-                <TradeNodeView node={chain.root} />
+                <TradeGroupView group={group} />
               </div>
             ))}
           </div>
@@ -268,57 +254,147 @@ export default function DashboardTab() {
   );
 }
 
-function TradeNodeView({ node, depth = 0 }: { node: TradeNode; depth?: number }) {
-  const statusBadge = () => {
-    switch (node.status) {
-      case 'sold':
-        return <span className="text-sm font-semibold text-green-700">Sold for {formatCurrency(node.soldFor!)}</span>;
-      case 'for_sale':
-        return <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">For Sale</span>;
-      case 'traded':
-        return null; // arrow will indicate traded
-      default:
-        return <span className="text-xs text-gray-400">(not yet sold)</span>;
+function StatusBadge({ node }: { node: TradeGraphNode }) {
+  switch (node.status) {
+    case 'sold':
+      return <span className="text-sm font-semibold text-green-700">Sold for {formatCurrency(node.soldFor!)}</span>;
+    case 'for_sale':
+      return <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">For Sale</span>;
+    case 'traded':
+      return null;
+    default:
+      return <span className="text-xs text-gray-400">(not yet sold)</span>;
+  }
+}
+
+function TradeGroupView({ group }: { group: TradeGroup }) {
+  const rendered = new Set<string>();
+
+  // Render a node and follow its children recursively
+  function renderFlow(name: string): React.ReactNode {
+    if (rendered.has(name)) return null;
+    rendered.add(name);
+    const node = group.nodes.get(name);
+    if (!node) return null;
+
+    // Check if this node has convergence (multiple parents)
+    const hasConvergence = node.parents.length > 1;
+
+    // Leaf node
+    if (node.children.length === 0) {
+      return (
+        <span className="flex items-center gap-2">
+          <span className="text-sm font-medium text-[#020E1C]">{node.name}</span>
+          <StatusBadge node={node} />
+        </span>
+      );
     }
-  };
 
-  if (node.children.length === 0) {
-    // Leaf node — sold, for sale, or unsold
+    // Single child — inline
+    if (node.children.length === 1) {
+      return (
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-[#020E1C]">{node.name}</span>
+          <ArrowRight className="h-4 w-4 text-[#6E0114] shrink-0" />
+          {renderFlow(node.children[0])}
+        </span>
+      );
+    }
+
+    // Multiple children — branch
     return (
-      <span className="flex items-center gap-2">
-        <span className="text-sm font-medium text-[#020E1C]">{node.name}</span>
-        {statusBadge()}
-      </span>
+      <div>
+        <span className="flex items-center gap-2 mb-1">
+          <span className="text-sm font-medium text-[#020E1C]">{node.name}</span>
+          <ArrowRight className="h-4 w-4 text-[#6E0114]" />
+          <span className="text-xs text-gray-500">({node.children.length} guitars)</span>
+        </span>
+        <div className="ml-6 border-l-2 border-[#6E0114]/30 pl-3 space-y-1">
+          {node.children.map((childName, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="text-[#6E0114] mt-0.5">&#8627;</span>
+              <div>{renderFlow(childName)}</div>
+            </div>
+          ))}
+        </div>
+      </div>
     );
   }
 
-  if (node.children.length === 1) {
-    // Linear chain — render inline
-    return (
-      <span className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-[#020E1C]">{node.name}</span>
-        <ArrowRight className="h-4 w-4 text-[#6E0114] shrink-0" />
-        <TradeNodeView node={node.children[0]} depth={depth + 1} />
-      </span>
-    );
-  }
+  // Check for convergence: multiple roots leading to the same node
+  // Find nodes with multiple parents
+  const convergencePoints = Array.from(group.nodes.values()).filter(n => n.parents.length > 1);
 
-  // Branch — one guitar traded for multiple
-  return (
-    <div>
-      <span className="flex items-center gap-2 mb-1">
-        <span className="text-sm font-medium text-[#020E1C]">{node.name}</span>
-        <ArrowRight className="h-4 w-4 text-[#6E0114]" />
-        <span className="text-xs text-gray-500">({node.children.length} guitars)</span>
-      </span>
-      <div className="ml-6 border-l-2 border-[#6E0114]/30 pl-3 space-y-1">
-        {node.children.map((child, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="text-[#6E0114]">&#8627;</span>
-            <TradeNodeView node={child} depth={depth + 1} />
-          </div>
+  if (convergencePoints.length > 0) {
+    // Render convergence: show all roots merging, then continue from merge point
+    return (
+      <div className="space-y-1">
+        {convergencePoints.map((mergeNode, ci) => {
+          // Render each parent chain leading to the merge point
+          const parentChains = mergeNode.parents.map(parentName => {
+            // Walk back up from parent to find the root of each chain
+            const chain: string[] = [];
+            let current = parentName;
+            const localVisited = new Set<string>();
+            while (current && !localVisited.has(current)) {
+              localVisited.add(current);
+              chain.unshift(current);
+              const node = group.nodes.get(current);
+              if (node && node.parents.length === 1) {
+                current = node.parents[0];
+              } else {
+                break;
+              }
+            }
+            return chain;
+          });
+
+          // Mark parent chains as rendered
+          for (const chain of parentChains) {
+            for (const name of chain) rendered.add(name);
+          }
+
+          return (
+            <div key={ci}>
+              {/* Converging parents */}
+              <div className="border-l-2 border-blue-300 pl-3 space-y-1 mb-1">
+                {parentChains.map((chain, pi) => (
+                  <div key={pi} className="flex flex-wrap items-center gap-2">
+                    {chain.map((name, j) => {
+                      const n = group.nodes.get(name);
+                      return (
+                        <span key={j} className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-[#020E1C]">{name}</span>
+                          {j < chain.length - 1 && <ArrowRight className="h-4 w-4 text-[#6E0114] shrink-0" />}
+                        </span>
+                      );
+                    })}
+                    <span className="text-blue-500">&#8600;</span>
+                  </div>
+                ))}
+              </div>
+              {/* Merge point and continuation */}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-blue-500 mr-1">&#8594;</span>
+                {renderFlow(mergeNode.name)}
+              </div>
+            </div>
+          );
+        })}
+        {/* Render any remaining roots not part of a convergence */}
+        {group.roots.filter(r => !rendered.has(r)).map((root, i) => (
+          <div key={'r' + i}>{renderFlow(root)}</div>
         ))}
       </div>
+    );
+  }
+
+  // No convergence — render from roots
+  return (
+    <div className="space-y-1">
+      {group.roots.map((root, i) => (
+        <div key={i}>{renderFlow(root)}</div>
+      ))}
     </div>
   );
 }
