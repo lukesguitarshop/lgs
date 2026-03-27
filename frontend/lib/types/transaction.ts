@@ -5,7 +5,7 @@ export interface Transaction {
   purchasePrice: number | null;
   transactionType: 'sold' | 'traded' | 'for_sale';
   soldVia: string | null;
-  tradeFor: string | null;
+  tradeFor: string[] | null;
   revenue: number | null;
   shippingCost: number | null;
   profit: number | null;
@@ -21,7 +21,7 @@ export interface CreateTransactionRequest {
   purchasePrice: number | null;
   transactionType: 'sold' | 'traded' | 'for_sale';
   soldVia: string | null;
-  tradeFor: string | null;
+  tradeFor: string[] | null;
   revenue: number | null;
   shippingCost: number | null;
   profit: number | null;

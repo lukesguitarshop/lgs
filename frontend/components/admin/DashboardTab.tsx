@@ -11,60 +11,96 @@ function formatCurrency(amount: number): string {
   return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+interface TradeNode {
+  name: string;
+  children: TradeNode[];
+  soldFor: number | null; // revenue if this guitar was sold
+  status: 'sold' | 'traded' | 'for_sale' | 'unsold';
+}
+
 interface TradeChain {
-  guitars: string[];
-  finalSalePrice: number | null;
+  root: TradeNode;
+  totalRevenue: number;
 }
 
 function buildTradeChains(transactions: Transaction[]): TradeChain[] {
   const traded = transactions.filter(t => t.transactionType === 'traded');
   const sold = transactions.filter(t => t.transactionType === 'sold');
+  const forSale = transactions.filter(t => t.transactionType === 'for_sale');
 
-  // Build a map: guitarName -> what it was traded for
-  const tradeMap = new Map<string, string>();
+  // Build map: guitarName -> array of what it was traded for
+  const tradeMap = new Map<string, string[]>();
   for (const t of traded) {
-    if (t.tradeFor) {
+    if (t.tradeFor && t.tradeFor.length > 0) {
       tradeMap.set(t.guitarName, t.tradeFor);
     }
   }
 
-  // Find chain starts: guitars that were traded but are NOT the tradeFor target of another trade
-  const tradeTargets = new Set(traded.map(t => t.tradeFor).filter(Boolean));
+  // Build sold lookup
+  const soldMap = new Map<string, number>();
+  for (const s of sold) {
+    if (s.revenue !== null) soldMap.set(s.guitarName, s.revenue);
+  }
+  const forSaleSet = new Set(forSale.map(f => f.guitarName));
+
+  // Find all trade targets (guitars that appear as someone's tradeFor)
+  const allTradeTargets = new Set<string>();
+  for (const targets of tradeMap.values()) {
+    for (const t of targets) allTradeTargets.add(t);
+  }
+
+  // Chain starts: traded guitars NOT targeted by another trade
   const chainStarts = traded
-    .filter(t => !tradeTargets.has(t.guitarName))
+    .filter(t => !allTradeTargets.has(t.guitarName))
     .map(t => t.guitarName);
 
-  const chains: TradeChain[] = [];
   const visited = new Set<string>();
+
+  function buildNode(name: string): TradeNode {
+    visited.add(name);
+    const children: TradeNode[] = [];
+
+    if (tradeMap.has(name)) {
+      for (const childName of tradeMap.get(name)!) {
+        if (!visited.has(childName)) {
+          children.push(buildNode(childName));
+        }
+      }
+    }
+
+    let status: TradeNode['status'] = 'unsold';
+    let soldFor: number | null = null;
+    if (soldMap.has(name)) {
+      status = 'sold';
+      soldFor = soldMap.get(name)!;
+    } else if (forSaleSet.has(name)) {
+      status = 'for_sale';
+    } else if (tradeMap.has(name)) {
+      status = 'traded';
+    }
+
+    return { name, children, soldFor, status };
+  }
+
+  function sumRevenue(node: TradeNode): number {
+    let total = node.soldFor ?? 0;
+    for (const child of node.children) total += sumRevenue(child);
+    return total;
+  }
+
+  const chains: TradeChain[] = [];
 
   for (const start of chainStarts) {
     if (visited.has(start)) continue;
-    const chain: string[] = [start];
-    visited.add(start);
-    let current = start;
-
-    while (tradeMap.has(current)) {
-      const next = tradeMap.get(current)!;
-      chain.push(next);
-      visited.add(next);
-      current = next;
-    }
-
-    // Check if the last item in chain was sold
-    const lastGuitarSale = sold.find(s => s.guitarName === current);
-    chains.push({
-      guitars: chain,
-      finalSalePrice: lastGuitarSale?.revenue ?? null,
-    });
+    const root = buildNode(start);
+    chains.push({ root, totalRevenue: sumRevenue(root) });
   }
 
-  // Also include single traded items not in any chain
+  // Include any unvisited traded items
   for (const t of traded) {
     if (!visited.has(t.guitarName)) {
-      chains.push({
-        guitars: [t.guitarName],
-        finalSalePrice: null,
-      });
+      const root = buildNode(t.guitarName);
+      chains.push({ root, totalRevenue: sumRevenue(root) });
     }
   }
 
@@ -221,34 +257,68 @@ export default function DashboardTab() {
           <h3 className="text-lg font-semibold text-[#020E1C] mb-4">Trade Chains</h3>
           <div className="space-y-3">
             {tradeChains.map((chain, i) => (
-              <div
-                key={i}
-                className="flex flex-wrap items-center gap-2 py-2 px-3 bg-white rounded border border-gray-100"
-              >
-                {chain.guitars.map((guitar, j) => (
-                  <span key={j} className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-[#020E1C]">{guitar}</span>
-                    {j < chain.guitars.length - 1 && (
-                      <ArrowRight className="h-4 w-4 text-[#6E0114]" />
-                    )}
-                  </span>
-                ))}
-                {chain.finalSalePrice !== null && (
-                  <>
-                    <ArrowRight className="h-4 w-4 text-[#6E0114]" />
-                    <span className="text-sm font-semibold text-green-700">
-                      Sold for {formatCurrency(chain.finalSalePrice)}
-                    </span>
-                  </>
-                )}
-                {chain.finalSalePrice === null && (
-                  <span className="text-xs text-gray-400 ml-2">(not yet sold)</span>
-                )}
+              <div key={i} className="py-2 px-3 bg-white rounded border border-gray-100">
+                <TradeNodeView node={chain.root} />
               </div>
             ))}
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TradeNodeView({ node, depth = 0 }: { node: TradeNode; depth?: number }) {
+  const statusBadge = () => {
+    switch (node.status) {
+      case 'sold':
+        return <span className="text-sm font-semibold text-green-700">Sold for {formatCurrency(node.soldFor!)}</span>;
+      case 'for_sale':
+        return <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full">For Sale</span>;
+      case 'traded':
+        return null; // arrow will indicate traded
+      default:
+        return <span className="text-xs text-gray-400">(not yet sold)</span>;
+    }
+  };
+
+  if (node.children.length === 0) {
+    // Leaf node — sold, for sale, or unsold
+    return (
+      <span className="flex items-center gap-2">
+        <span className="text-sm font-medium text-[#020E1C]">{node.name}</span>
+        {statusBadge()}
+      </span>
+    );
+  }
+
+  if (node.children.length === 1) {
+    // Linear chain — render inline
+    return (
+      <span className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-[#020E1C]">{node.name}</span>
+        <ArrowRight className="h-4 w-4 text-[#6E0114] shrink-0" />
+        <TradeNodeView node={node.children[0]} depth={depth + 1} />
+      </span>
+    );
+  }
+
+  // Branch — one guitar traded for multiple
+  return (
+    <div>
+      <span className="flex items-center gap-2 mb-1">
+        <span className="text-sm font-medium text-[#020E1C]">{node.name}</span>
+        <ArrowRight className="h-4 w-4 text-[#6E0114]" />
+        <span className="text-xs text-gray-500">({node.children.length} guitars)</span>
+      </span>
+      <div className="ml-6 border-l-2 border-[#6E0114]/30 pl-3 space-y-1">
+        {node.children.map((child, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="text-[#6E0114]">&#8627;</span>
+            <TradeNodeView node={child} depth={depth + 1} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

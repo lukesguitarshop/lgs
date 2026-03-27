@@ -32,7 +32,7 @@ interface TransactionFormData {
   transactionType: 'sold' | 'traded';
   purchasePrice: string;
   soldVia: string;
-  tradeFor: string;
+  tradeFor: string[];
   revenue: string;
   shippingCost: string;
   profit: string;
@@ -46,7 +46,7 @@ const emptyForm: TransactionFormData = {
   transactionType: 'sold',
   purchasePrice: '',
   soldVia: '',
-  tradeFor: '',
+  tradeFor: [''],
   revenue: '',
   shippingCost: '',
   profit: '',
@@ -180,7 +180,7 @@ export default function TransactionsTab() {
         case 'guitarName': aVal = a.guitarName.toLowerCase(); bVal = b.guitarName.toLowerCase(); break;
         case 'purchasePrice': aVal = a.purchasePrice ?? 0; bVal = b.purchasePrice ?? 0; break;
         case 'transactionType': aVal = a.transactionType; bVal = b.transactionType; break;
-        case 'soldVia': aVal = a.soldVia ?? a.tradeFor ?? ''; bVal = b.soldVia ?? b.tradeFor ?? ''; break;
+        case 'soldVia': aVal = a.soldVia ?? (a.tradeFor ? a.tradeFor.join(', ') : ''); bVal = b.soldVia ?? (b.tradeFor ? b.tradeFor.join(', ') : ''); break;
         case 'revenue': aVal = a.revenue ?? 0; bVal = b.revenue ?? 0; break;
         case 'shippingCost': aVal = a.shippingCost ?? 0; bVal = b.shippingCost ?? 0; break;
         case 'profit': aVal = a.profit ?? 0; bVal = b.profit ?? 0; break;
@@ -252,7 +252,7 @@ export default function TransactionsTab() {
           // Clear fields when switching type
           ...(value === 'traded'
             ? { soldVia: '', revenue: '', shippingCost: '', profit: '' }
-            : { tradeFor: '' }),
+            : { tradeFor: [''] }),
         },
         form
       );
@@ -276,7 +276,7 @@ export default function TransactionsTab() {
       transactionType: txn.transactionType,
       purchasePrice: txn.purchasePrice !== null ? String(txn.purchasePrice) : '',
       soldVia: txn.soldVia || '',
-      tradeFor: txn.tradeFor || '',
+      tradeFor: txn.tradeFor && txn.tradeFor.length > 0 ? txn.tradeFor : [''],
       revenue: txn.revenue !== null ? String(txn.revenue) : '',
       shippingCost: txn.shippingCost !== null ? String(txn.shippingCost) : '',
       profit: txn.profit !== null ? String(txn.profit) : '',
@@ -300,7 +300,7 @@ export default function TransactionsTab() {
         transactionType: form.transactionType,
         purchasePrice: form.purchasePrice ? parseFloat(form.purchasePrice) : null,
         soldVia: form.transactionType === 'sold' && form.soldVia ? form.soldVia : null,
-        tradeFor: form.transactionType === 'traded' && form.tradeFor ? form.tradeFor.trim() : null,
+        tradeFor: form.transactionType === 'traded' ? form.tradeFor.map(s => s.trim()).filter(s => s.length > 0) : null,
         revenue: form.revenue ? parseFloat(form.revenue) : null,
         shippingCost: form.shippingCost ? parseFloat(form.shippingCost) : null,
         profit: form.profit ? parseFloat(form.profit) : null,
@@ -392,7 +392,7 @@ export default function TransactionsTab() {
           purchasePrice,
           transactionType: isTraded ? 'traded' : 'sold',
           soldVia,
-          tradeFor: isTraded ? tradeFor : null,
+          tradeFor: isTraded && tradeFor ? [tradeFor] : null,
           revenue,
           shippingCost,
           profit,
@@ -576,7 +576,7 @@ export default function TransactionsTab() {
                   </td>
                   <td className="py-3 px-3 text-sm text-gray-700">
                     {txn.transactionType === 'traded'
-                      ? txn.tradeFor || '—'
+                      ? (txn.tradeFor && txn.tradeFor.length > 0 ? txn.tradeFor.join(', ') : '—')
                       : txn.soldVia || '—'}
                   </td>
                   <td className="py-3 px-3 text-sm text-gray-700 text-right">
@@ -750,13 +750,43 @@ export default function TransactionsTab() {
             {/* Traded fields */}
             {form.transactionType === 'traded' && (
               <div className="space-y-1">
-                <Label htmlFor="txn-tradefor">Trade For</Label>
-                <Input
-                  id="txn-tradefor"
-                  value={form.tradeFor}
-                  onChange={(e) => handleFormChange('tradeFor', e.target.value)}
-                  placeholder="What was it traded for?"
-                />
+                <Label>Trade For</Label>
+                {form.tradeFor.map((item, idx) => (
+                  <div key={idx} className="flex gap-2 items-center">
+                    <Input
+                      value={item}
+                      onChange={(e) => {
+                        const updated = [...form.tradeFor];
+                        updated[idx] = e.target.value;
+                        setForm(prev => ({ ...prev, tradeFor: updated }));
+                      }}
+                      placeholder={`Guitar ${idx + 1}`}
+                    />
+                    {form.tradeFor.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="px-2 text-red-600 hover:text-red-800 shrink-0"
+                        onClick={() => {
+                          const updated = form.tradeFor.filter((_, i) => i !== idx);
+                          setForm(prev => ({ ...prev, tradeFor: updated }));
+                        }}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="text-xs mt-1"
+                  onClick={() => setForm(prev => ({ ...prev, tradeFor: [...prev.tradeFor, ''] }))}
+                >
+                  <Plus className="h-3 w-3 mr-1" /> Add another guitar
+                </Button>
               </div>
             )}
 

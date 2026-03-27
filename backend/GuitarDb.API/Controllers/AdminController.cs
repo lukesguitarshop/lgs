@@ -1694,7 +1694,7 @@ public class CreateTransactionRequest
     public decimal? PurchasePrice { get; set; }
     public string TransactionType { get; set; } = string.Empty;
     public string? SoldVia { get; set; }
-    public string? TradeFor { get; set; }
+    public List<string>? TradeFor { get; set; }
     public decimal? Revenue { get; set; }
     public decimal? ShippingCost { get; set; }
     public decimal? Profit { get; set; }

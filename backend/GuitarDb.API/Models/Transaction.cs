@@ -29,7 +29,7 @@ public class Transaction
 
     [BsonElement("trade_for")]
     [BsonIgnoreIfNull]
-    public string? TradeFor { get; set; }
+    public List<string>? TradeFor { get; set; }
 
     [BsonElement("revenue")]
     [BsonIgnoreIfNull]
