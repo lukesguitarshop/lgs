@@ -29,7 +29,7 @@ const CARRIERS = ['UPS', 'USPS', 'FedEx'];
 interface TransactionFormData {
   date: string;
   guitarName: string;
-  transactionType: 'sold' | 'traded';
+  transactionType: 'sold' | 'traded' | 'for_sale';
   purchasePrice: string;
   soldVia: string;
   tradeFor: string[];
