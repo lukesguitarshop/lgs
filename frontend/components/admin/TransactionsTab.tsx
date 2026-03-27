@@ -132,6 +132,11 @@ export default function TransactionsTab() {
   const [csvPreview, setCsvPreview] = useState<string[][]>([]);
   const [importing, setImporting] = useState(false);
 
+  // Filters
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterPlatform, setFilterPlatform] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Sorting & pagination state
   const [sortColumn, setSortColumn] = useState<string>('date');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
@@ -148,8 +153,27 @@ export default function TransactionsTab() {
     setCurrentPage(1);
   };
 
+  // Get unique platforms for filter dropdown
+  const availablePlatforms = useMemo(() => {
+    const platforms = new Set<string>();
+    for (const t of transactions) {
+      if (t.soldVia) platforms.add(t.soldVia);
+    }
+    return Array.from(platforms).sort();
+  }, [transactions]);
+
+  // Apply filters
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      if (filterType !== 'all' && t.transactionType !== filterType) return false;
+      if (filterPlatform !== 'all' && t.soldVia !== filterPlatform) return false;
+      if (searchQuery && !t.guitarName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      return true;
+    });
+  }, [transactions, filterType, filterPlatform, searchQuery]);
+
   const sortedTransactions = useMemo(() => {
-    const sorted = [...transactions].sort((a, b) => {
+    const sorted = [...filteredTransactions].sort((a, b) => {
       let aVal: any, bVal: any;
       switch (sortColumn) {
         case 'date': aVal = a.date; bVal = b.date; break;
@@ -167,7 +191,7 @@ export default function TransactionsTab() {
       return 0;
     });
     return sorted;
-  }, [transactions, sortColumn, sortDirection]);
+  }, [filteredTransactions, sortColumn, sortDirection]);
 
   const totalPages = Math.ceil(sortedTransactions.length / PAGE_SIZE);
   const paginatedTransactions = sortedTransactions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -441,6 +465,51 @@ export default function TransactionsTab() {
             Add Transaction
           </Button>
         </div>
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <Input
+          placeholder="Search guitars..."
+          value={searchQuery}
+          onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+          className="w-48 h-9 text-sm"
+        />
+        <Select value={filterType} onValueChange={(val) => { setFilterType(val); setCurrentPage(1); }}>
+          <SelectTrigger className="w-36 h-9 text-sm">
+            <SelectValue placeholder="All Types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="sold">Sold</SelectItem>
+            <SelectItem value="traded">Traded</SelectItem>
+            <SelectItem value="for_sale">For Sale</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filterPlatform} onValueChange={(val) => { setFilterPlatform(val); setCurrentPage(1); }}>
+          <SelectTrigger className="w-44 h-9 text-sm">
+            <SelectValue placeholder="All Platforms" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Platforms</SelectItem>
+            {availablePlatforms.map(p => (
+              <SelectItem key={p} value={p}>{p}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(filterType !== 'all' || filterPlatform !== 'all' || searchQuery) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => { setFilterType('all'); setFilterPlatform('all'); setSearchQuery(''); setCurrentPage(1); }}
+            className="text-xs h-9"
+          >
+            Clear Filters
+          </Button>
+        )}
+        <span className="text-sm text-gray-500 ml-auto">
+          {filteredTransactions.length} of {transactions.length} transactions
+        </span>
       </div>
 
       {/* Table */}
