@@ -597,9 +597,21 @@ export default function TransactionsTab() {
                   >
                     {formatCurrency(txn.profit)}
                   </td>
-                  <td className="py-3 px-3 text-sm text-gray-700">
+                  <td className="py-3 px-3 text-sm text-gray-700" onClick={(e) => e.stopPropagation()}>
                     {txn.trackingCarrier && txn.trackingNumber
-                      ? `${txn.trackingCarrier}: ${txn.trackingNumber}`
+                      ? (() => {
+                          const urls: Record<string, string> = {
+                            'UPS': `https://www.ups.com/track?tracknum=${txn.trackingNumber}`,
+                            'USPS': `https://tools.usps.com/go/TrackConfirmAction?tLabels=${txn.trackingNumber}`,
+                            'FedEx': `https://www.fedex.com/fedextrack/?trknbr=${txn.trackingNumber}`,
+                          };
+                          const url = urls[txn.trackingCarrier!];
+                          return url ? (
+                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-[#6E0114] hover:underline">
+                              {txn.trackingCarrier}: {txn.trackingNumber}
+                            </a>
+                          ) : `${txn.trackingCarrier}: ${txn.trackingNumber}`;
+                        })()
                       : '—'}
                   </td>
                   <td
