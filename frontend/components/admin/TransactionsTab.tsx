@@ -495,6 +495,10 @@ export default function TransactionsTab() {
                       <span className="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
                         Traded
                       </span>
+                    ) : txn.transactionType === 'for_sale' ? (
+                      <span className="inline-flex items-center px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
+                        For Sale
+                      </span>
                     ) : (
                       <span className="inline-flex items-center px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
                         Sold
@@ -620,6 +624,7 @@ export default function TransactionsTab() {
                 <SelectContent>
                   <SelectItem value="sold">Sold</SelectItem>
                   <SelectItem value="traded">Traded</SelectItem>
+                  <SelectItem value="for_sale">For Sale</SelectItem>
                 </SelectContent>
               </Select>
             </div>

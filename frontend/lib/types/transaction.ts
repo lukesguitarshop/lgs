@@ -3,7 +3,7 @@ export interface Transaction {
   date: string;
   guitarName: string;
   purchasePrice: number | null;
-  transactionType: 'sold' | 'traded';
+  transactionType: 'sold' | 'traded' | 'for_sale';
   soldVia: string | null;
   tradeFor: string | null;
   revenue: number | null;
@@ -19,7 +19,7 @@ export interface CreateTransactionRequest {
   date: string;
   guitarName: string;
   purchasePrice: number | null;
-  transactionType: 'sold' | 'traded';
+  transactionType: 'sold' | 'traded' | 'for_sale';
   soldVia: string | null;
   tradeFor: string | null;
   revenue: number | null;
