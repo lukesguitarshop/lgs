@@ -1352,4 +1352,366 @@ public class AdminController : ControllerBase
         public AdminUserShippingAddressDto? ShippingAddress { get; set; }
         public bool? ClearShippingAddress { get; set; }
     }
+
+    // === Transactions ===
+
+    [HttpGet("transactions")]
+    public async Task<IActionResult> GetTransactions([FromQuery] int? year, [FromQuery] int? month)
+    {
+        try
+        {
+            var transactions = await _mongoDbService.GetTransactionsAsync(year, month);
+            return Ok(transactions.Select(t => new
+            {
+                id = t.Id,
+                date = t.Date,
+                guitarName = t.GuitarName,
+                purchasePrice = t.PurchasePrice,
+                transactionType = t.TransactionType,
+                soldVia = t.SoldVia,
+                tradeFor = t.TradeFor,
+                revenue = t.Revenue,
+                shippingCost = t.ShippingCost,
+                profit = t.Profit,
+                trackingCarrier = t.TrackingCarrier,
+                trackingNumber = t.TrackingNumber,
+                createdAt = t.CreatedAt,
+                updatedAt = t.UpdatedAt
+            }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch transactions");
+            return StatusCode(500, new { error = "Failed to fetch transactions" });
+        }
+    }
+
+    [HttpPost("transactions")]
+    public async Task<IActionResult> CreateTransaction([FromBody] CreateTransactionRequest request)
+    {
+        try
+        {
+            var transaction = new Transaction
+            {
+                Date = request.Date.ToUniversalTime(),
+                GuitarName = request.GuitarName,
+                PurchasePrice = request.PurchasePrice,
+                TransactionType = request.TransactionType,
+                SoldVia = request.SoldVia,
+                TradeFor = request.TradeFor,
+                Revenue = request.Revenue,
+                ShippingCost = request.ShippingCost,
+                Profit = request.Profit,
+                TrackingCarrier = request.TrackingCarrier,
+                TrackingNumber = request.TrackingNumber,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            await _mongoDbService.CreateTransactionAsync(transaction);
+            return Ok(new { id = transaction.Id, message = "Transaction created" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create transaction");
+            return StatusCode(500, new { error = "Failed to create transaction" });
+        }
+    }
+
+    [HttpPut("transactions/{id}")]
+    public async Task<IActionResult> UpdateTransaction(string id, [FromBody] CreateTransactionRequest request)
+    {
+        try
+        {
+            var existing = await _mongoDbService.GetTransactionByIdAsync(id);
+            if (existing == null) return NotFound(new { error = "Transaction not found" });
+
+            existing.Date = request.Date.ToUniversalTime();
+            existing.GuitarName = request.GuitarName;
+            existing.PurchasePrice = request.PurchasePrice;
+            existing.TransactionType = request.TransactionType;
+            existing.SoldVia = request.SoldVia;
+            existing.TradeFor = request.TradeFor;
+            existing.Revenue = request.Revenue;
+            existing.ShippingCost = request.ShippingCost;
+            existing.Profit = request.Profit;
+            existing.TrackingCarrier = request.TrackingCarrier;
+            existing.TrackingNumber = request.TrackingNumber;
+
+            await _mongoDbService.UpdateTransactionAsync(id, existing);
+            return Ok(new { message = "Transaction updated" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update transaction");
+            return StatusCode(500, new { error = "Failed to update transaction" });
+        }
+    }
+
+    [HttpDelete("transactions/{id}")]
+    public async Task<IActionResult> DeleteTransaction(string id)
+    {
+        try
+        {
+            var existing = await _mongoDbService.GetTransactionByIdAsync(id);
+            if (existing == null) return NotFound(new { error = "Transaction not found" });
+
+            await _mongoDbService.DeleteTransactionAsync(id);
+            return Ok(new { message = "Transaction deleted" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete transaction");
+            return StatusCode(500, new { error = "Failed to delete transaction" });
+        }
+    }
+
+    [HttpPost("transactions/import")]
+    public async Task<IActionResult> ImportTransactions([FromBody] List<CreateTransactionRequest> requests)
+    {
+        try
+        {
+            var transactions = requests.Select(r => new Transaction
+            {
+                Date = r.Date.ToUniversalTime(),
+                GuitarName = r.GuitarName,
+                PurchasePrice = r.PurchasePrice,
+                TransactionType = r.TransactionType,
+                SoldVia = r.SoldVia,
+                TradeFor = r.TradeFor,
+                Revenue = r.Revenue,
+                ShippingCost = r.ShippingCost,
+                Profit = r.Profit,
+                TrackingCarrier = r.TrackingCarrier,
+                TrackingNumber = r.TrackingNumber,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            }).ToList();
+
+            await _mongoDbService.CreateTransactionsManyAsync(transactions);
+            return Ok(new { message = $"Imported {transactions.Count} transactions" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to import transactions");
+            return StatusCode(500, new { error = "Failed to import transactions" });
+        }
+    }
+
+    // === Extra Expenses ===
+
+    [HttpGet("extra-expenses")]
+    public async Task<IActionResult> GetExtraExpenses()
+    {
+        try
+        {
+            var expenses = await _mongoDbService.GetExtraExpensesAsync();
+            return Ok(expenses.Select(e => new
+            {
+                id = e.Id,
+                date = e.Date,
+                category = e.Category,
+                cost = e.Cost,
+                createdAt = e.CreatedAt
+            }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch extra expenses");
+            return StatusCode(500, new { error = "Failed to fetch extra expenses" });
+        }
+    }
+
+    [HttpPost("extra-expenses")]
+    public async Task<IActionResult> CreateExtraExpense([FromBody] CreateExtraExpenseRequest request)
+    {
+        try
+        {
+            var expense = new ExtraExpense
+            {
+                Date = request.Date.ToUniversalTime(),
+                Category = request.Category,
+                Cost = request.Cost,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _mongoDbService.CreateExtraExpenseAsync(expense);
+            return Ok(new { id = expense.Id, message = "Expense created" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create extra expense");
+            return StatusCode(500, new { error = "Failed to create extra expense" });
+        }
+    }
+
+    [HttpPut("extra-expenses/{id}")]
+    public async Task<IActionResult> UpdateExtraExpense(string id, [FromBody] CreateExtraExpenseRequest request)
+    {
+        try
+        {
+            var existing = await _mongoDbService.GetExtraExpenseByIdAsync(id);
+            if (existing == null) return NotFound(new { error = "Expense not found" });
+
+            existing.Date = request.Date.ToUniversalTime();
+            existing.Category = request.Category;
+            existing.Cost = request.Cost;
+
+            await _mongoDbService.UpdateExtraExpenseAsync(id, existing);
+            return Ok(new { message = "Expense updated" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to update extra expense");
+            return StatusCode(500, new { error = "Failed to update extra expense" });
+        }
+    }
+
+    [HttpDelete("extra-expenses/{id}")]
+    public async Task<IActionResult> DeleteExtraExpense(string id)
+    {
+        try
+        {
+            var existing = await _mongoDbService.GetExtraExpenseByIdAsync(id);
+            if (existing == null) return NotFound(new { error = "Expense not found" });
+
+            await _mongoDbService.DeleteExtraExpenseAsync(id);
+            return Ok(new { message = "Expense deleted" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to delete extra expense");
+            return StatusCode(500, new { error = "Failed to delete extra expense" });
+        }
+    }
+
+    // === Monthly Snapshots ===
+
+    [HttpGet("monthly-snapshots")]
+    public async Task<IActionResult> GetMonthlySnapshots()
+    {
+        try
+        {
+            var snapshots = await _mongoDbService.GetMonthlySnapshotsAsync();
+            return Ok(snapshots.Select(s => new
+            {
+                id = s.Id,
+                year = s.Year,
+                month = s.Month,
+                cumulativeProfit = s.CumulativeProfit
+            }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch monthly snapshots");
+            return StatusCode(500, new { error = "Failed to fetch monthly snapshots" });
+        }
+    }
+
+    [HttpPost("monthly-snapshots/import")]
+    public async Task<IActionResult> ImportMonthlySnapshots([FromBody] List<MonthlySnapshotRequest> requests)
+    {
+        try
+        {
+            var snapshots = requests.Select(r => new MonthlySnapshot
+            {
+                Year = r.Year,
+                Month = r.Month,
+                CumulativeProfit = r.CumulativeProfit,
+                CreatedAt = DateTime.UtcNow
+            }).ToList();
+
+            await _mongoDbService.ImportMonthlySnapshotsAsync(snapshots);
+            return Ok(new { message = $"Imported {snapshots.Count} monthly snapshots" });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to import monthly snapshots");
+            return StatusCode(500, new { error = "Failed to import monthly snapshots" });
+        }
+    }
+
+    // === Finance Summary ===
+
+    [HttpGet("finance-summary")]
+    public async Task<IActionResult> GetFinanceSummary()
+    {
+        try
+        {
+            var (totalRevenue, totalExpenses, totalProfit, platformStats) =
+                await _mongoDbService.GetFinanceSummaryAsync();
+
+            // Monthly breakdown
+            var transactions = await _mongoDbService.GetTransactionsAsync();
+            var monthlyData = transactions
+                .Where(t => t.Profit.HasValue)
+                .GroupBy(t => new { t.Date.Year, t.Date.Month })
+                .Select(g => new
+                {
+                    year = g.Key.Year,
+                    month = g.Key.Month,
+                    profit = g.Sum(t => t.Profit!.Value),
+                    revenue = g.Where(t => t.Revenue.HasValue).Sum(t => t.Revenue!.Value),
+                    count = g.Count()
+                })
+                .OrderBy(m => m.year).ThenBy(m => m.month)
+                .ToList();
+
+            var snapshots = await _mongoDbService.GetMonthlySnapshotsAsync();
+
+            return Ok(new
+            {
+                totalRevenue,
+                totalExpenses,
+                totalProfit = totalProfit - totalExpenses,
+                grossProfit = totalProfit,
+                platformStats = platformStats.Select(p => new
+                {
+                    platform = p.Platform,
+                    count = p.Count,
+                    totalProfit = p.TotalProfit,
+                    totalRevenue = p.TotalRevenue
+                }),
+                monthlyBreakdown = monthlyData,
+                monthlySnapshots = snapshots.Select(s => new
+                {
+                    year = s.Year,
+                    month = s.Month,
+                    cumulativeProfit = s.CumulativeProfit
+                })
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get finance summary");
+            return StatusCode(500, new { error = "Failed to get finance summary" });
+        }
+    }
+}
+
+public class CreateTransactionRequest
+{
+    public DateTime Date { get; set; }
+    public string GuitarName { get; set; } = string.Empty;
+    public decimal? PurchasePrice { get; set; }
+    public string TransactionType { get; set; } = string.Empty;
+    public string? SoldVia { get; set; }
+    public string? TradeFor { get; set; }
+    public decimal? Revenue { get; set; }
+    public decimal? ShippingCost { get; set; }
+    public decimal? Profit { get; set; }
+    public string? TrackingCarrier { get; set; }
+    public string? TrackingNumber { get; set; }
+}
+
+public class CreateExtraExpenseRequest
+{
+    public DateTime Date { get; set; }
+    public string Category { get; set; } = string.Empty;
+    public decimal Cost { get; set; }
+}
+
+public class MonthlySnapshotRequest
+{
+    public int Year { get; set; }
+    public int Month { get; set; }
+    public decimal CumulativeProfit { get; set; }
 }

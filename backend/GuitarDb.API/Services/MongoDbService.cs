@@ -18,6 +18,9 @@ public class MongoDbService
     private readonly IMongoCollection<PasswordResetToken> _passwordResetTokensCollection;
     private readonly IMongoCollection<EmailVerificationToken> _emailVerificationTokensCollection;
     private readonly IMongoCollection<PotentialBuy> _potentialBuysCollection;
+    private readonly IMongoCollection<Transaction> _transactionsCollection;
+    private readonly IMongoCollection<ExtraExpense> _extraExpensesCollection;
+    private readonly IMongoCollection<MonthlySnapshot> _monthlySnapshotsCollection;
     private readonly ILogger<MongoDbService> _logger;
 
     public MongoDbService(IConfiguration configuration, ILogger<MongoDbService> logger)
@@ -44,6 +47,9 @@ public class MongoDbService
         _passwordResetTokensCollection = database.GetCollection<PasswordResetToken>("password_reset_tokens");
         _emailVerificationTokensCollection = database.GetCollection<EmailVerificationToken>("email_verification_tokens");
         _potentialBuysCollection = database.GetCollection<PotentialBuy>("potential_buys");
+        _transactionsCollection = database.GetCollection<Transaction>("transactions");
+        _extraExpensesCollection = database.GetCollection<ExtraExpense>("extra_expenses");
+        _monthlySnapshotsCollection = database.GetCollection<MonthlySnapshot>("monthly_snapshots");
 
         CreateIndexesAsync().GetAwaiter().GetResult();
     }
@@ -203,6 +209,30 @@ public class MongoDbService
                     ExpireAfter = TimeSpan.Zero // TTL index - documents expire at ExpiresAt time
                 })
             );
+
+            // Transaction indexes
+            var transactionDateIndex = Builders<Transaction>.IndexKeys.Descending(t => t.Date);
+            await _transactionsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<Transaction>(transactionDateIndex, new CreateIndexOptions { Name = "date_desc" })
+            );
+
+            var transactionCreatedAtIndex = Builders<Transaction>.IndexKeys.Descending(t => t.CreatedAt);
+            await _transactionsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<Transaction>(transactionCreatedAtIndex, new CreateIndexOptions { Name = "created_at_desc" })
+            );
+
+            // ExtraExpense indexes
+            var extraExpenseDateIndex = Builders<ExtraExpense>.IndexKeys.Descending(e => e.Date);
+            await _extraExpensesCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<ExtraExpense>(extraExpenseDateIndex, new CreateIndexOptions { Name = "date_desc" })
+            );
+
+            _monthlySnapshotsCollection.Indexes.CreateMany(new[]
+            {
+                new CreateIndexModel<MonthlySnapshot>(
+                    Builders<MonthlySnapshot>.IndexKeys.Ascending(s => s.Year).Ascending(s => s.Month),
+                    new CreateIndexOptions { Name = "year_month_asc", Unique = true })
+            });
 
             _logger.LogInformation("MongoDB indexes created successfully");
         }
@@ -1652,4 +1682,126 @@ public class MongoDbService
             messagesResult.DeletedCount, conversationsResult.DeletedCount);
     }
 
+    // === Transactions ===
+
+    public async Task<List<Transaction>> GetTransactionsAsync(int? year = null, int? month = null)
+    {
+        var filter = Builders<Transaction>.Filter.Empty;
+        if (year.HasValue)
+        {
+            var start = new DateTime(year.Value, month ?? 1, 1, 0, 0, 0, DateTimeKind.Utc);
+            var end = month.HasValue
+                ? start.AddMonths(1)
+                : start.AddYears(1);
+            filter = Builders<Transaction>.Filter.And(
+                Builders<Transaction>.Filter.Gte(t => t.Date, start),
+                Builders<Transaction>.Filter.Lt(t => t.Date, end));
+        }
+        return await _transactionsCollection
+            .Find(filter)
+            .SortByDescending(t => t.Date)
+            .ToListAsync();
+    }
+
+    public async Task<Transaction?> GetTransactionByIdAsync(string id) =>
+        await _transactionsCollection.Find(t => t.Id == id).FirstOrDefaultAsync();
+
+    public async Task CreateTransactionAsync(Transaction transaction) =>
+        await _transactionsCollection.InsertOneAsync(transaction);
+
+    public async Task CreateTransactionsManyAsync(List<Transaction> transactions) =>
+        await _transactionsCollection.InsertManyAsync(transactions);
+
+    public async Task UpdateTransactionAsync(string id, Transaction transaction)
+    {
+        transaction.UpdatedAt = DateTime.UtcNow;
+        await _transactionsCollection.ReplaceOneAsync(t => t.Id == id, transaction);
+    }
+
+    public async Task DeleteTransactionAsync(string id) =>
+        await _transactionsCollection.DeleteOneAsync(t => t.Id == id);
+
+    public async Task<(decimal totalRevenue, decimal totalExpenses, decimal totalProfit, List<PlatformStat> platformStats)> GetFinanceSummaryAsync()
+    {
+        var transactions = await _transactionsCollection.Find(_ => true).ToListAsync();
+        var expenses = await _extraExpensesCollection.Find(_ => true).ToListAsync();
+
+        var totalRevenue = transactions.Where(t => t.Revenue.HasValue).Sum(t => t.Revenue!.Value);
+        var totalExpenses = expenses.Sum(e => e.Cost);
+        var totalProfit = transactions.Where(t => t.Profit.HasValue).Sum(t => t.Profit!.Value);
+
+        var platformStats = transactions
+            .Where(t => t.TransactionType == "sold" && t.SoldVia != null)
+            .GroupBy(t => t.SoldVia!)
+            .Select(g => new PlatformStat
+            {
+                Platform = g.Key,
+                Count = g.Count(),
+                TotalProfit = g.Where(t => t.Profit.HasValue).Sum(t => t.Profit!.Value),
+                TotalRevenue = g.Where(t => t.Revenue.HasValue).Sum(t => t.Revenue!.Value)
+            })
+            .OrderByDescending(p => p.TotalProfit)
+            .ToList();
+
+        return (totalRevenue, totalExpenses, totalProfit, platformStats);
+    }
+
+    // === Extra Expenses ===
+
+    public async Task<List<ExtraExpense>> GetExtraExpensesAsync() =>
+        await _extraExpensesCollection
+            .Find(_ => true)
+            .SortByDescending(e => e.Date)
+            .ToListAsync();
+
+    public async Task<ExtraExpense?> GetExtraExpenseByIdAsync(string id) =>
+        await _extraExpensesCollection.Find(e => e.Id == id).FirstOrDefaultAsync();
+
+    public async Task CreateExtraExpenseAsync(ExtraExpense expense) =>
+        await _extraExpensesCollection.InsertOneAsync(expense);
+
+    public async Task UpdateExtraExpenseAsync(string id, ExtraExpense expense) =>
+        await _extraExpensesCollection.ReplaceOneAsync(e => e.Id == id, expense);
+
+    public async Task DeleteExtraExpenseAsync(string id) =>
+        await _extraExpensesCollection.DeleteOneAsync(e => e.Id == id);
+
+    // === Monthly Snapshots ===
+
+    public async Task<List<MonthlySnapshot>> GetMonthlySnapshotsAsync() =>
+        await _monthlySnapshotsCollection
+            .Find(_ => true)
+            .SortBy(s => s.Year).ThenBy(s => s.Month)
+            .ToListAsync();
+
+    public async Task UpsertMonthlySnapshotAsync(MonthlySnapshot snapshot)
+    {
+        var filter = Builders<MonthlySnapshot>.Filter.And(
+            Builders<MonthlySnapshot>.Filter.Eq(s => s.Year, snapshot.Year),
+            Builders<MonthlySnapshot>.Filter.Eq(s => s.Month, snapshot.Month));
+        var update = Builders<MonthlySnapshot>.Update
+            .Set(s => s.Year, snapshot.Year)
+            .Set(s => s.Month, snapshot.Month)
+            .Set(s => s.CumulativeProfit, snapshot.CumulativeProfit)
+            .Set(s => s.CreatedAt, snapshot.CreatedAt);
+        var options = new UpdateOptions { IsUpsert = true };
+        await _monthlySnapshotsCollection.UpdateOneAsync(filter, update, options);
+    }
+
+    public async Task ImportMonthlySnapshotsAsync(List<MonthlySnapshot> snapshots)
+    {
+        foreach (var snapshot in snapshots)
+        {
+            await UpsertMonthlySnapshotAsync(snapshot);
+        }
+    }
+
+}
+
+public class PlatformStat
+{
+    public string Platform { get; set; } = string.Empty;
+    public int Count { get; set; }
+    public decimal TotalProfit { get; set; }
+    public decimal TotalRevenue { get; set; }
 }
