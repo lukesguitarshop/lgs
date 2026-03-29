@@ -24,7 +24,7 @@ function calcListPrice(purchasePrice: number, targetProfit: number, shippingCost
 export default function FlipCalculatorTab() {
   const [purchasePrice, setPurchasePrice] = useState<string>('');
   const [targetProfit, setTargetProfit] = useState<string>('200');
-  const [shippingCost, setShippingCost] = useState<string>('0');
+  const [shippingCost, setShippingCost] = useState<string>('50');
   const [otherCosts, setOtherCosts] = useState<string>('0');
 
   // Reverb: 9.1% of total sale, no fixed fee
@@ -38,6 +38,14 @@ export default function FlipCalculatorTab() {
   // PayPal: 3.49% + $0.49
   const [paypalFeePercent, setPaypalFeePercent] = useState<string>('3.49');
   const [paypalFixedFee, setPaypalFixedFee] = useState<string>('0.49');
+
+  // Sweetwater: 0% (direct sale, no marketplace fees)
+  const [sweetwaterFeePercent, setSweetwaterFeePercent] = useState<string>('7.5');
+  const [sweetwaterFixedFee, setSweetwaterFixedFee] = useState<string>('0');
+
+  // eBay: 13.25% + $0.30
+  const [ebayFeePercent, setEbayFeePercent] = useState<string>('6.7');
+  const [ebayFixedFee, setEbayFixedFee] = useState<string>('0.30');
 
   const purchase = parseFloat(purchasePrice) || 0;
   const profit = parseFloat(targetProfit) || 0;
@@ -71,6 +79,24 @@ export default function FlipCalculatorTab() {
       fixedFeeStr: paypalFixedFee,
       setFeePercent: setPaypalFeePercent,
       setFixedFee: setPaypalFixedFee,
+    },
+    {
+      label: 'Sweetwater',
+      feePercent: parseFloat(sweetwaterFeePercent) || 0,
+      fixedFee: parseFloat(sweetwaterFixedFee) || 0,
+      feePercentStr: sweetwaterFeePercent,
+      fixedFeeStr: sweetwaterFixedFee,
+      setFeePercent: setSweetwaterFeePercent,
+      setFixedFee: setSweetwaterFixedFee,
+    },
+    {
+      label: 'eBay',
+      feePercent: parseFloat(ebayFeePercent) || 0,
+      fixedFee: parseFloat(ebayFixedFee) || 0,
+      feePercentStr: ebayFeePercent,
+      fixedFeeStr: ebayFixedFee,
+      setFeePercent: setEbayFeePercent,
+      setFixedFee: setEbayFixedFee,
     },
   ];
 
