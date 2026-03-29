@@ -7,7 +7,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users, Trash2, Settings, DollarSign, ArrowLeftRight, BarChart3, Calendar } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users, Trash2, Settings, DollarSign, ArrowLeftRight, BarChart3, Calendar, Calculator } from 'lucide-react';
 import { DealFinderTab } from '@/components/admin/DealFinderTab';
 import { UsersTab } from '@/components/admin/UsersTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
@@ -17,6 +17,7 @@ import TransactionsTab from '@/components/admin/TransactionsTab';
 import DashboardTab from '@/components/admin/DashboardTab';
 import MonthlyBreakdownTab from '@/components/admin/MonthlyBreakdownTab';
 import ExtraExpensesTab from '@/components/admin/ExtraExpensesTab';
+import FlipCalculatorTab from '@/components/admin/FlipCalculatorTab';
 
 interface ScraperResponse {
   success: boolean;
@@ -1575,7 +1576,7 @@ function FinancesSection() {
 
   useEffect(() => {
     const saved = localStorage.getItem('adminFinanceTab');
-    if (saved && ['transactions', 'dashboard', 'monthly', 'expenses'].includes(saved)) {
+    if (saved && ['transactions', 'dashboard', 'monthly', 'expenses', 'flip-calc'].includes(saved)) {
       setFinanceTab(saved);
     }
   }, []);
@@ -1587,7 +1588,7 @@ function FinancesSection() {
 
   return (
     <Tabs value={financeTab} onValueChange={handleFinanceTabChange} className="w-full">
-      <TabsList className="grid w-full grid-cols-4 mb-6">
+      <TabsList className="grid w-full grid-cols-5 mb-6">
         <TabsTrigger value="transactions" className="flex items-center gap-2">
           <ArrowLeftRight className="h-4 w-4" />
           <span className="hidden sm:inline">Transactions</span>
@@ -1604,6 +1605,10 @@ function FinancesSection() {
           <Receipt className="h-4 w-4" />
           <span className="hidden sm:inline">Expenses</span>
         </TabsTrigger>
+        <TabsTrigger value="flip-calc" className="flex items-center gap-2">
+          <Calculator className="h-4 w-4" />
+          <span className="hidden sm:inline">Flip Calc</span>
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="transactions">
@@ -1617,6 +1622,9 @@ function FinancesSection() {
       </TabsContent>
       <TabsContent value="expenses">
         <ExtraExpensesTab />
+      </TabsContent>
+      <TabsContent value="flip-calc">
+        <FlipCalculatorTab />
       </TabsContent>
     </Tabs>
   );
