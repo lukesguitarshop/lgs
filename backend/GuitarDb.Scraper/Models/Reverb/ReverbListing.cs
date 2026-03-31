@@ -61,7 +61,7 @@ public class ReverbListing
 
     [JsonIgnore]
     public List<string> AllImageUrls => Photos
-        .Select(p => p.Links?.Large?.Href ?? p.Links?.Small?.Href)
+        .Select(p => p.Links?.Full?.Href ?? p.Links?.Large?.Href ?? p.Links?.Small?.Href)
         .Where(url => !string.IsNullOrEmpty(url))
         .Cast<string>()
         .ToList();
@@ -142,6 +142,9 @@ public class ReverbPhoto
 
 public class ReverbPhotoLinks
 {
+    [JsonPropertyName("full")]
+    public ReverbPhotoLink? Full { get; set; }
+
     [JsonPropertyName("large_crop")]
     public ReverbPhotoLink? Large { get; set; }
 

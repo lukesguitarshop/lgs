@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Copy, Heart, Tag, MessageSquare, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Copy, Heart, Tag, MessageSquare, AlertTriangle, X } from 'lucide-react';
 import JSZip from 'jszip';
 import DOMPurify from 'dompurify';
 import { addToCart, isInCart, CartItem } from '@/lib/cart';
@@ -47,6 +47,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   const router = useRouter();
   const { isAuthenticated, setShowLoginModal } = useAuth();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [isFullscreen, setIsFullscreen] = useState(false);
   const [inCart, setInCart] = useState(false);
   const [justAdded, setJustAdded] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -207,13 +208,24 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
     }
   }, [currentImageIndex, images.length]);
 
-  const goToPrevious = () => {
+  const goToPrevious = useCallback(() => {
     setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
-  };
+  }, [images.length]);
 
-  const goToNext = () => {
+  const goToNext = useCallback(() => {
     setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
-  };
+  }, [images.length]);
+
+  useEffect(() => {
+    if (!isFullscreen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsFullscreen(false);
+      if (e.key === 'ArrowLeft') goToPrevious();
+      if (e.key === 'ArrowRight') goToNext();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen, goToPrevious, goToNext]);
 
   const handleAddToCart = () => {
     const cartItem: CartItem = {
@@ -373,8 +385,9 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                   src={images[currentImageIndex]}
                   alt={`${listing.listing_title} - Image ${currentImageIndex + 1}`}
                   fill
-                  className="object-contain"
+                  className="object-contain cursor-zoom-in"
                   priority
+                  onClick={() => setIsFullscreen(true)}
                 />
                 {/* Navigation arrows */}
                 {images.length > 1 && (
@@ -607,6 +620,59 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
       {/* Reviews Carousel */}
       <ReviewsCarousel />
+
+      {/* Fullscreen image overlay */}
+      {isFullscreen && images.length > 0 && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          onClick={() => setIsFullscreen(false)}
+        >
+          {/* Close button */}
+          <button
+            className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/80 rounded-full p-2 transition-colors cursor-pointer"
+            onClick={() => setIsFullscreen(false)}
+            aria-label="Close fullscreen"
+          >
+            <X className="h-6 w-6" />
+          </button>
+
+          {/* Image */}
+          <div
+            className="relative w-[90vw] h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Image
+              src={images[currentImageIndex]}
+              alt={`${listing.listing_title} - Image ${currentImageIndex + 1}`}
+              fill
+              className="object-contain"
+            />
+          </div>
+
+          {/* Prev/Next arrows */}
+          {images.length > 1 && (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); goToPrevious(); }}
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 rounded-full p-3 text-white transition-colors cursor-pointer"
+                aria-label="Previous image"
+              >
+                <ChevronLeft className="h-7 w-7" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); goToNext(); }}
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 rounded-full p-3 text-white transition-colors cursor-pointer"
+                aria-label="Next image"
+              >
+                <ChevronRight className="h-7 w-7" />
+              </button>
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white text-sm px-3 py-1 rounded-full">
+                {currentImageIndex + 1} / {images.length}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Make Offer Modal */}
       <MakeOfferModal
