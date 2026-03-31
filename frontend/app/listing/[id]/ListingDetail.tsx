@@ -251,6 +251,19 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
     }, 2000);
   };
 
+  const getFullQualityUrl = (url: string): string => {
+    // For Reverb's Cloudinary CDN, remove size/quality constraints to get original
+    if (url.includes('rvb-img.reverb.com')) {
+      // Cloudinary URL format: .../upload/s--HASH--/TRANSFORMATIONS/v123/file.jpg
+      // Strip the transformation segment entirely, keeping only upload/vVERSION/file
+      return url.replace(
+        /(\/image\/upload\/)(?:[^/]+\/)*?(v\d+\/)/,
+        '$1$2'
+      );
+    }
+    return url;
+  };
+
   const handleDownloadPhotos = async () => {
     if (images.length === 0) return;
 
@@ -262,7 +275,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
       // Fetch all images and add to zip
       const fetchPromises = images.map(async (imageUrl, index) => {
         try {
-          const response = await fetch(imageUrl);
+          const response = await fetch(getFullQualityUrl(imageUrl));
           const blob = await response.blob();
 
           // Get file extension from URL or default to jpg
