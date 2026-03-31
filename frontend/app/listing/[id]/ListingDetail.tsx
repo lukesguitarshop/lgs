@@ -252,14 +252,10 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   };
 
   const getFullQualityUrl = (url: string): string => {
-    // For Reverb's Cloudinary CDN, remove size/quality constraints to get original
+    // Reverb URL format: https://rvb-img.reverb.com/i/s--HASH--/quality=medium-low,height=800,.../UUID.jpeg
+    // Strip the transformation segment (path segment containing '=') to get the original
     if (url.includes('rvb-img.reverb.com')) {
-      // Cloudinary URL format: .../upload/s--HASH--/TRANSFORMATIONS/v123/file.jpg
-      // Strip the transformation segment entirely, keeping only upload/vVERSION/file
-      return url.replace(
-        /(\/image\/upload\/)(?:[^/]+\/)*?(v\d+\/)/,
-        '$1$2'
-      );
+      return url.replace(/\/[^/]*=[^/]*/g, '');
     }
     return url;
   };
@@ -395,7 +391,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             {images.length > 0 ? (
               <>
                 <Image
-                  src={images[currentImageIndex]}
+                  src={getFullQualityUrl(images[currentImageIndex])}
                   alt={`${listing.listing_title} - Image ${currentImageIndex + 1}`}
                   fill
                   className="object-contain cursor-zoom-in"
@@ -656,7 +652,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             onClick={(e) => e.stopPropagation()}
           >
             <Image
-              src={images[currentImageIndex]}
+              src={getFullQualityUrl(images[currentImageIndex])}
               alt={`${listing.listing_title} - Image ${currentImageIndex + 1}`}
               fill
               className="object-contain"
