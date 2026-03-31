@@ -387,6 +387,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                   fill
                   className="object-contain cursor-zoom-in"
                   priority
+                  quality={100}
                   onClick={() => setIsFullscreen(true)}
                 />
                 {/* Navigation arrows */}
@@ -646,6 +647,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
               alt={`${listing.listing_title} - Image ${currentImageIndex + 1}`}
               fill
               className="object-contain"
+              quality={100}
             />
           </div>
 
