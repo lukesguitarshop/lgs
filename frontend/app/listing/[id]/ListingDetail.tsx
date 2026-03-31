@@ -390,20 +390,20 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
           <div className="relative aspect-square bg-card rounded-lg overflow-hidden border border-border shadow-sm">
             {images.length > 0 ? (
               <>
-                {/* Preload adjacent images */}
-                {images.length > 1 && [
-                  (currentImageIndex + 1) % images.length,
-                  (currentImageIndex - 1 + images.length) % images.length,
-                ].map((i) => (
-                  <Image
-                    key={i}
-                    src={getFullQualityUrl(images[i])}
-                    alt=""
-                    fill
-                    className="object-contain invisible absolute"
-                    quality={100}
-                  />
-                ))}
+                {/* Preload next 3 images */}
+                {images.length > 1 && [1, 2, 3].map((offset) => {
+                  const i = (currentImageIndex + offset) % images.length;
+                  return (
+                    <Image
+                      key={i}
+                      src={getFullQualityUrl(images[i])}
+                      alt=""
+                      fill
+                      className="object-contain invisible absolute"
+                      quality={100}
+                    />
+                  );
+                })}
                 <Image
                   src={getFullQualityUrl(images[currentImageIndex])}
                   alt={`${listing.listing_title} - Image ${currentImageIndex + 1}`}

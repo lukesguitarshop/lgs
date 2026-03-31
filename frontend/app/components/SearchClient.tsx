@@ -352,12 +352,13 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
         {paginatedListings.length > 0 && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-              {paginatedListings.map(listing => (
+              {paginatedListings.map((listing, index) => (
                 <ListingCard
                   key={listing.id}
                   listing={listing}
                   isFavorite={favoriteIds.has(listing.id)}
                   onToggleFavorite={handleToggleFavorite}
+                  priority={index < 6}
                 />
               ))}
             </div>
@@ -385,9 +386,10 @@ interface ListingCardProps {
   listing: Listing;
   isFavorite: boolean;
   onToggleFavorite: (listingId: string, e: React.MouseEvent) => void;
+  priority?: boolean;
 }
 
-function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps) {
+function ListingCard({ listing, isFavorite, onToggleFavorite, priority = false }: ListingCardProps) {
   const isOnSale = listing.original_price && listing.price < listing.original_price;
 
   return (
@@ -395,7 +397,7 @@ function ListingCard({ listing, isFavorite, onToggleFavorite }: ListingCardProps
       <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col cursor-pointer">
         <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50">
           {listing.images && listing.images.length > 0 ? (
-            <Image src={listing.images[0]} alt={listing.listing_title} fill className="object-cover" />
+            <Image src={listing.images[0]} alt={listing.listing_title} fill className="object-cover" priority={priority} />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground">
               <span className="text-6xl">🎸</span>
