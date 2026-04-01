@@ -432,6 +432,7 @@ export default function TransactionsTab() {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+      timeZone: 'UTC',
     });
   };
 
