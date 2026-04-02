@@ -1636,7 +1636,7 @@ public class AdminController : ControllerBase
     {
         try
         {
-            var (totalRevenue, totalExpenses, totalProfit, platformStats) =
+            var (totalRevenue, totalExpenses, totalProfit, platformStats, allExpenses) =
                 await _mongoDbService.GetFinanceSummaryAsync();
 
             // Monthly breakdown
@@ -1655,6 +1655,11 @@ public class AdminController : ControllerBase
                 .OrderBy(m => m.year).ThenBy(m => m.month)
                 .ToList();
 
+            // Group expenses by year/month
+            var expensesByMonth = allExpenses
+                .GroupBy(e => new { e.Date.Year, e.Date.Month })
+                .ToDictionary(g => (g.Key.Year, g.Key.Month), g => g.Sum(e => e.Cost));
+
             var snapshots = await _mongoDbService.GetMonthlySnapshotsAsync();
 
             return Ok(new
@@ -1670,7 +1675,15 @@ public class AdminController : ControllerBase
                     totalProfit = p.TotalProfit,
                     totalRevenue = p.TotalRevenue
                 }),
-                monthlyBreakdown = monthlyData,
+                monthlyBreakdown = monthlyData.Select(m => new
+                {
+                    m.year,
+                    m.month,
+                    m.profit,
+                    m.revenue,
+                    m.count,
+                    expenses = expensesByMonth.TryGetValue((m.year, m.month), out var exp) ? exp : 0m
+                }),
                 monthlySnapshots = snapshots.Select(s => new
                 {
                     year = s.Year,

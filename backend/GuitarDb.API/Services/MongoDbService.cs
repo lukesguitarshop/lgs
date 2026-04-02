@@ -1721,7 +1721,7 @@ public class MongoDbService
     public async Task DeleteTransactionAsync(string id) =>
         await _transactionsCollection.DeleteOneAsync(t => t.Id == id);
 
-    public async Task<(decimal totalRevenue, decimal totalExpenses, decimal totalProfit, List<PlatformStat> platformStats)> GetFinanceSummaryAsync()
+    public async Task<(decimal totalRevenue, decimal totalExpenses, decimal totalProfit, List<PlatformStat> platformStats, List<ExtraExpense> expenses)> GetFinanceSummaryAsync()
     {
         var transactions = await _transactionsCollection.Find(_ => true).ToListAsync();
         var expenses = await _extraExpensesCollection.Find(_ => true).ToListAsync();
@@ -1743,7 +1743,7 @@ public class MongoDbService
             .OrderByDescending(p => p.TotalProfit)
             .ToList();
 
-        return (totalRevenue, totalExpenses, totalProfit, platformStats);
+        return (totalRevenue, totalExpenses, totalProfit, platformStats, expenses);
     }
 
     // === Extra Expenses ===

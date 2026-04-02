@@ -89,11 +89,8 @@ export default function MonthlyBreakdownTab() {
     for (const entry of summary.monthlyBreakdown) {
       const key = `${entry.year}-${entry.month}`;
       yearSet.add(entry.year);
-      // Only use calculated data if no snapshot exists for this month
       if (!cumulative.has(key)) {
-        monthly.set(key, entry.profit);
-        // For cumulative in calculated months, we'd need to add to the last snapshot cumulative
-        // For simplicity, just store the monthly profit
+        monthly.set(key, entry.profit - entry.expenses);
       }
     }
 
@@ -108,16 +105,16 @@ export default function MonthlyBreakdownTab() {
       // For non-snapshot months, compute running sum from monthly values
       const values = new Map<string, number>();
       for (const year of years) {
+        // Seed runningSum from the last computed value of the previous year
+        // so live months continue from the last snapshot rather than restarting at 0
         let runningSum = 0;
-        // Get the cumulative at the end of the previous year from snapshots
         const prevYearIdx = years.indexOf(year) - 1;
         if (prevYearIdx >= 0) {
           const prevYear = years[prevYearIdx];
-          // Find last month with data in prev year
           for (let m = 12; m >= 1; m--) {
             const prevKey = `${prevYear}-${m}`;
-            if (cumulativeValues.has(prevKey)) {
-              // Don't carry over - cumulative shown is per-year or all-time based on snapshot
+            if (values.has(prevKey)) {
+              runningSum = values.get(prevKey)!;
               break;
             }
           }
@@ -126,8 +123,10 @@ export default function MonthlyBreakdownTab() {
         for (let month = 1; month <= 12; month++) {
           const key = `${year}-${month}`;
           if (cumulativeValues.has(key)) {
-            // Use snapshot cumulative directly
-            values.set(key, cumulativeValues.get(key)!);
+            // Use snapshot value and keep runningSum in sync so the first
+            // non-snapshot month continues from here rather than zero
+            runningSum = cumulativeValues.get(key)!;
+            values.set(key, runningSum);
           } else if (monthlyValues.has(key)) {
             runningSum += monthlyValues.get(key)!;
             values.set(key, runningSum);

@@ -11,6 +11,7 @@ export interface MonthlyBreakdown {
   profit: number;
   revenue: number;
   count: number;
+  expenses: number;
 }
 
 export interface MonthlySnapshot {
