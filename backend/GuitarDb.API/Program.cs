@@ -56,10 +56,17 @@ builder.Services.AddSingleton<PriceGuideCache>();
 builder.Services.AddSingleton<DealFinderService>();
 
 // Register Sweetwater Deal Finder services
-builder.Services.AddHttpClient<SweetwaterScraperClient>(client =>
+builder.Services.AddSingleton(sp =>
 {
-    client.Timeout = TimeSpan.FromMinutes(10);
+    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+    var httpClient = httpClientFactory.CreateClient("SweetwaterScraper");
+    httpClient.Timeout = TimeSpan.FromMinutes(10);
+    return new SweetwaterScraperClient(
+        httpClient,
+        sp.GetRequiredService<Microsoft.Extensions.Configuration.IConfiguration>(),
+        sp.GetRequiredService<ILogger<SweetwaterScraperClient>>());
 });
+builder.Services.AddHttpClient("SweetwaterScraper");
 builder.Services.AddSingleton<SweetwaterDealFinderService>();
 
 // Register UPS tracking service
