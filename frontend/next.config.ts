@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
         hostname: 'rvb-img.reverb.com',
         pathname: '/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'media.sweetwater.com',
+        pathname: '/**',
+      },
     ],
   },
   async rewrites() {

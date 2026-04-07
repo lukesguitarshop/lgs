@@ -230,6 +230,56 @@ export async function getDealFinderStatus(): Promise<DealFinderStatus> {
   return api.authGet<DealFinderStatus>('/admin/deal-finder/status');
 }
 
+// Sweetwater Deal Finder API
+import type { SweetwaterPotentialBuy, SweetwaterPotentialBuyStats, PaginatedSweetwaterPotentialBuys } from './types/sweetwater-potential-buy';
+
+export async function getSweetwaterPotentialBuys(
+  status?: string,
+  sort?: string,
+  page = 1,
+  perPage = 20
+): Promise<PaginatedSweetwaterPotentialBuys> {
+  const params = new URLSearchParams();
+  if (status) params.set('status', status);
+  if (sort) params.set('sort', sort);
+  params.set('page', String(page));
+  params.set('perPage', String(perPage));
+
+  return api.authGet<PaginatedSweetwaterPotentialBuys>(`/admin/sweetwater-potential-buys?${params}`);
+}
+
+export async function getSweetwaterPotentialBuyStats(): Promise<SweetwaterPotentialBuyStats> {
+  return api.authGet<SweetwaterPotentialBuyStats>('/admin/sweetwater-potential-buys/stats');
+}
+
+export async function dismissSweetwaterPotentialBuy(id: string): Promise<{ message: string }> {
+  return api.authPatch<{ message: string }>(`/admin/sweetwater-potential-buys/${id}/dismiss`);
+}
+
+export async function dismissSweetwaterPotentialBuysBulk(ids: string[]): Promise<{ message: string; dismissed: number }> {
+  return api.authPost<{ message: string; dismissed: number }>('/admin/sweetwater-potential-buys/dismiss-bulk', { ids });
+}
+
+export async function dismissAllSweetwaterPotentialBuys(): Promise<{ message: string; dismissed: number }> {
+  return api.authPost<{ message: string; dismissed: number }>('/admin/sweetwater-potential-buys/dismiss-all');
+}
+
+export async function markSweetwaterPotentialBuyPurchased(id: string): Promise<{ message: string }> {
+  return api.authPatch<{ message: string }>(`/admin/sweetwater-potential-buys/${id}/purchased`);
+}
+
+export async function deleteAllSweetwaterPotentialBuys(): Promise<{ success: boolean; message: string; deleted: number }> {
+  return api.authPost<{ success: boolean; message: string; deleted: number }>('/admin/sweetwater-potential-buys/cleanup?deleteAll=true');
+}
+
+export async function runSweetwaterDealFinder(): Promise<DealFinderResult> {
+  return api.authPost<DealFinderResult>('/admin/run-sweetwater-deal-finder');
+}
+
+export async function getSweetwaterDealFinderStatus(): Promise<DealFinderStatus> {
+  return api.authGet<DealFinderStatus>('/admin/sweetwater-deal-finder/status');
+}
+
 // User Management API
 import type { AdminUser, PaginatedUsers, UpdateUserRequest } from './types/admin-user';
 

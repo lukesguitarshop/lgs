@@ -55,6 +55,13 @@ builder.Services.AddHttpClient<ReverbDealFinderClient>(client =>
 builder.Services.AddSingleton<PriceGuideCache>();
 builder.Services.AddSingleton<DealFinderService>();
 
+// Register Sweetwater Deal Finder services
+builder.Services.AddHttpClient<SweetwaterScraperClient>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(10);
+});
+builder.Services.AddSingleton<SweetwaterDealFinderService>();
+
 // Register UPS tracking service
 builder.Services.AddHttpClient<UpsTrackingService>();
 builder.Services.AddSingleton<UpsTrackingService>();

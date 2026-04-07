@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users, Trash2, Settings, DollarSign, ArrowLeftRight, BarChart3, Calendar, Calculator } from 'lucide-react';
 import { DealFinderTab } from '@/components/admin/DealFinderTab';
+import { SweetwaterDealFinderTab } from '@/components/admin/SweetwaterDealFinderTab';
 import { UsersTab } from '@/components/admin/UsersTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
 import { useAuth } from '@/contexts/AuthContext';
@@ -957,6 +958,9 @@ export default function AdminPage() {
         {/* Deals Tab */}
         <TabsContent value="deals">
           <DealFinderTab />
+          <div className="mt-6">
+            <SweetwaterDealFinderTab />
+          </div>
         </TabsContent>
 
         {/* Messages Tab */}
@@ -1026,6 +1030,7 @@ export default function AdminPage() {
                             src={conversation.listingImage}
                             alt={conversation.listingTitle || 'Listing'}
                             fill
+                            sizes="64px"
                             className="object-cover"
                           />
                         ) : (
@@ -1244,6 +1249,7 @@ export default function AdminPage() {
                             src={offer.listingImage}
                             alt={offer.listingTitle || 'Listing'}
                             fill
+                            sizes="64px"
                             className="object-cover"
                           />
                         ) : (

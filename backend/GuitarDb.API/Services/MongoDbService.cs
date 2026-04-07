@@ -18,6 +18,7 @@ public class MongoDbService
     private readonly IMongoCollection<PasswordResetToken> _passwordResetTokensCollection;
     private readonly IMongoCollection<EmailVerificationToken> _emailVerificationTokensCollection;
     private readonly IMongoCollection<PotentialBuy> _potentialBuysCollection;
+    private readonly IMongoCollection<SweetwaterPotentialBuy> _sweetwaterPotentialBuysCollection;
     private readonly IMongoCollection<Transaction> _transactionsCollection;
     private readonly IMongoCollection<ExtraExpense> _extraExpensesCollection;
     private readonly IMongoCollection<MonthlySnapshot> _monthlySnapshotsCollection;
@@ -47,6 +48,7 @@ public class MongoDbService
         _passwordResetTokensCollection = database.GetCollection<PasswordResetToken>("password_reset_tokens");
         _emailVerificationTokensCollection = database.GetCollection<EmailVerificationToken>("email_verification_tokens");
         _potentialBuysCollection = database.GetCollection<PotentialBuy>("potential_buys");
+        _sweetwaterPotentialBuysCollection = database.GetCollection<SweetwaterPotentialBuy>("sweetwater_potential_buys");
         _transactionsCollection = database.GetCollection<Transaction>("transactions");
         _extraExpensesCollection = database.GetCollection<ExtraExpense>("extra_expenses");
         _monthlySnapshotsCollection = database.GetCollection<MonthlySnapshot>("monthly_snapshots");
@@ -233,6 +235,12 @@ public class MongoDbService
                     Builders<MonthlySnapshot>.IndexKeys.Ascending(s => s.Year).Ascending(s => s.Month),
                     new CreateIndexOptions { Name = "year_month_asc", Unique = true })
             });
+
+            // Sweetwater potential buys indexes
+            var swListingIdIndex = Builders<SweetwaterPotentialBuy>.IndexKeys.Ascending(x => x.SweetwaterListingId);
+            await _sweetwaterPotentialBuysCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<SweetwaterPotentialBuy>(swListingIdIndex, new CreateIndexOptions { Name = "sweetwater_listing_id_idx", Unique = true })
+            );
 
             _logger.LogInformation("MongoDB indexes created successfully");
         }
@@ -1573,6 +1581,169 @@ public class MongoDbService
     public async Task<long> GetPotentialBuysTotalCountAsync(CancellationToken ct = default)
     {
         return await _potentialBuysCollection.CountDocumentsAsync(_ => true, cancellationToken: ct);
+    }
+
+    // Sweetwater Potential Buys operations
+
+    public async Task<(List<SweetwaterPotentialBuy> Items, long TotalCount)> GetSweetwaterPotentialBuysAsync(
+        string? status = null,
+        string? sort = null,
+        int page = 1,
+        int perPage = 20,
+        CancellationToken ct = default)
+    {
+        var filter = Builders<SweetwaterPotentialBuy>.Filter.Empty;
+
+        switch (status?.ToLower())
+        {
+            case "deals":
+                filter = Builders<SweetwaterPotentialBuy>.Filter.And(
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.IsDeal, true),
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, false),
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, false));
+                break;
+            case "no-price-guide":
+                filter = Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.HasPriceGuide, false);
+                break;
+            case "dismissed":
+                filter = Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, true);
+                break;
+            case "purchased":
+                filter = Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, true);
+                break;
+        }
+
+        var sortDef = sort?.ToLower() switch
+        {
+            "best-deal" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.DiscountPercent),
+            "price-low" => Builders<SweetwaterPotentialBuy>.Sort.Ascending(x => x.Price),
+            "price-high" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.Price),
+            _ => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.FirstSeenAt)
+        };
+
+        var totalCount = await _sweetwaterPotentialBuysCollection.CountDocumentsAsync(filter, cancellationToken: ct);
+
+        var items = await _sweetwaterPotentialBuysCollection
+            .Find(filter)
+            .Sort(sortDef)
+            .Skip((page - 1) * perPage)
+            .Limit(perPage)
+            .ToListAsync(ct);
+
+        return (items, totalCount);
+    }
+
+    public async Task<SweetwaterPotentialBuyStats> GetSweetwaterPotentialBuyStatsAsync(CancellationToken ct = default)
+    {
+        var total = await _sweetwaterPotentialBuysCollection.CountDocumentsAsync(_ => true, cancellationToken: ct);
+        var deals = await _sweetwaterPotentialBuysCollection.CountDocumentsAsync(
+            x => x.IsDeal && !x.Dismissed && !x.Purchased, cancellationToken: ct);
+        var lastChecked = await _sweetwaterPotentialBuysCollection
+            .Find(_ => true)
+            .SortByDescending(x => x.LastCheckedAt)
+            .Limit(1)
+            .FirstOrDefaultAsync(ct);
+
+        return new SweetwaterPotentialBuyStats
+        {
+            Total = (int)total,
+            Deals = (int)deals,
+            LastRunAt = lastChecked?.LastCheckedAt
+        };
+    }
+
+    public async Task<bool> UpdateSweetwaterPotentialBuyDismissedAsync(string id, bool dismissed, CancellationToken ct = default)
+    {
+        var update = Builders<SweetwaterPotentialBuy>.Update.Set(x => x.Dismissed, dismissed);
+        var result = await _sweetwaterPotentialBuysCollection.UpdateOneAsync(
+            x => x.Id == id, update, cancellationToken: ct);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<bool> UpdateSweetwaterPotentialBuyPurchasedAsync(string id, bool purchased, CancellationToken ct = default)
+    {
+        var update = Builders<SweetwaterPotentialBuy>.Update.Set(x => x.Purchased, purchased);
+        var result = await _sweetwaterPotentialBuysCollection.UpdateOneAsync(
+            x => x.Id == id, update, cancellationToken: ct);
+        return result.ModifiedCount > 0;
+    }
+
+    public async Task<long> DismissSweetwaterPotentialBuysByIdsAsync(List<string> ids, CancellationToken ct = default)
+    {
+        var filter = Builders<SweetwaterPotentialBuy>.Filter.In(x => x.Id, ids);
+        var update = Builders<SweetwaterPotentialBuy>.Update.Set(x => x.Dismissed, true);
+        var result = await _sweetwaterPotentialBuysCollection.UpdateManyAsync(filter, update, cancellationToken: ct);
+        return result.ModifiedCount;
+    }
+
+    public async Task<long> DismissAllActiveSweetwaterDealsAsync(CancellationToken ct = default)
+    {
+        var filter = Builders<SweetwaterPotentialBuy>.Filter.And(
+            Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.IsDeal, true),
+            Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, false),
+            Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, false)
+        );
+        var update = Builders<SweetwaterPotentialBuy>.Update.Set(x => x.Dismissed, true);
+        var result = await _sweetwaterPotentialBuysCollection.UpdateManyAsync(filter, update, cancellationToken: ct);
+        return result.ModifiedCount;
+    }
+
+    public async Task<long> DeleteAllSweetwaterPotentialBuysAsync(CancellationToken ct = default)
+    {
+        var result = await _sweetwaterPotentialBuysCollection.DeleteManyAsync(_ => true, ct);
+        return result.DeletedCount;
+    }
+
+    public async Task UpsertSweetwaterPotentialBuyAsync(SweetwaterPotentialBuy potentialBuy, CancellationToken ct = default)
+    {
+        var existing = await _sweetwaterPotentialBuysCollection
+            .Find(x => x.SweetwaterListingId == potentialBuy.SweetwaterListingId)
+            .FirstOrDefaultAsync(ct);
+
+        if (existing != null)
+        {
+            potentialBuy.Id = existing.Id;
+            potentialBuy.FirstSeenAt = existing.FirstSeenAt;
+            potentialBuy.Dismissed = existing.Dismissed;
+            potentialBuy.Purchased = existing.Purchased;
+        }
+
+        var filter = Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.SweetwaterListingId, potentialBuy.SweetwaterListingId);
+        var options = new ReplaceOptions { IsUpsert = true };
+        await _sweetwaterPotentialBuysCollection.ReplaceOneAsync(filter, potentialBuy, options, ct);
+    }
+
+    public async Task<long> DeleteStaleSweetwaterPotentialBuysAsync(DateTime scraperRunStartTime, CancellationToken ct = default)
+    {
+        var filter = Builders<SweetwaterPotentialBuy>.Filter.And(
+            Builders<SweetwaterPotentialBuy>.Filter.Lt(x => x.LastCheckedAt, scraperRunStartTime),
+            Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, false),
+            Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, false)
+        );
+
+        var result = await _sweetwaterPotentialBuysCollection.DeleteManyAsync(filter, ct);
+        return result.DeletedCount;
+    }
+
+    public async Task<long> DeleteOldResolvedSweetwaterPotentialBuysAsync(int olderThanDays, CancellationToken ct = default)
+    {
+        var cutoffDate = DateTime.UtcNow.AddDays(-olderThanDays);
+
+        var filter = Builders<SweetwaterPotentialBuy>.Filter.And(
+            Builders<SweetwaterPotentialBuy>.Filter.Lt(x => x.LastCheckedAt, cutoffDate),
+            Builders<SweetwaterPotentialBuy>.Filter.Or(
+                Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, true),
+                Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, true)
+            )
+        );
+
+        var result = await _sweetwaterPotentialBuysCollection.DeleteManyAsync(filter, ct);
+        return result.DeletedCount;
+    }
+
+    public async Task<long> GetSweetwaterPotentialBuysTotalCountAsync(CancellationToken ct = default)
+    {
+        return await _sweetwaterPotentialBuysCollection.CountDocumentsAsync(_ => true, cancellationToken: ct);
     }
 
     // Admin User Management operations

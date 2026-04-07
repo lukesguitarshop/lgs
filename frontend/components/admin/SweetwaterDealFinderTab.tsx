@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Loader2, ExternalLink, X, Check, TrendingDown, RefreshCw, Play, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
-import { getPotentialBuys, getPotentialBuyStats, dismissPotentialBuy, dismissPotentialBuysBulk, dismissAllPotentialBuys, deleteAllPotentialBuys, markPotentialBuyPurchased, runDealFinder, getDealFinderStatus } from '@/lib/api';
-import type { PotentialBuy, PotentialBuyStats } from '@/lib/types/potential-buy';
+import { getSweetwaterPotentialBuys, getSweetwaterPotentialBuyStats, dismissSweetwaterPotentialBuy, dismissSweetwaterPotentialBuysBulk, dismissAllSweetwaterPotentialBuys, deleteAllSweetwaterPotentialBuys, markSweetwaterPotentialBuyPurchased, runSweetwaterDealFinder, getSweetwaterDealFinderStatus } from '@/lib/api';
+import type { SweetwaterPotentialBuy, SweetwaterPotentialBuyStats } from '@/lib/types/sweetwater-potential-buy';
 
-export function DealFinderTab() {
-  const [deals, setDeals] = useState<PotentialBuy[]>([]);
-  const [stats, setStats] = useState<PotentialBuyStats | null>(null);
+export function SweetwaterDealFinderTab() {
+  const [deals, setDeals] = useState<SweetwaterPotentialBuy[]>([]);
+  const [stats, setStats] = useState<SweetwaterPotentialBuyStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('deals');
   const [sortBy, setSortBy] = useState<string>('best-deal');
@@ -29,8 +29,8 @@ export function DealFinderTab() {
     setFetchError(null);
     try {
       const [dealsData, statsData] = await Promise.all([
-        getPotentialBuys(statusFilter, sortBy, page, perPage),
-        getPotentialBuyStats()
+        getSweetwaterPotentialBuys(statusFilter, sortBy, page, perPage),
+        getSweetwaterPotentialBuyStats()
       ]);
       setDeals(dealsData.items);
       setTotalPages(dealsData.totalPages);
@@ -41,7 +41,7 @@ export function DealFinderTab() {
       const errorMessage = err instanceof Error
         ? err.message
         : (err as { message?: string })?.message || 'Failed to load deals';
-      console.error('Failed to fetch deals:', errorMessage);
+      console.error('Failed to fetch Sweetwater deals:', errorMessage);
       setFetchError(errorMessage);
     } finally {
       setLoading(false);
@@ -53,14 +53,13 @@ export function DealFinderTab() {
     fetchDeals(1);
   }, [statusFilter, sortBy]);
 
-  // Check scraper status on mount
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const status = await getDealFinderStatus();
+        const status = await getSweetwaterDealFinderStatus();
         setScraperRunning(status.isRunning);
       } catch (err) {
-        console.error('Failed to check scraper status:', err);
+        console.error('Failed to check Sweetwater scraper status:', err);
       }
     };
     checkStatus();
@@ -70,14 +69,13 @@ export function DealFinderTab() {
     setScraperRunning(true);
     setScraperResult(null);
     try {
-      const result = await runDealFinder();
+      const result = await runSweetwaterDealFinder();
       setScraperResult({
         success: result.success,
         message: result.success
           ? `Found ${result.dealsFound} deals from ${result.listingsChecked} listings (${result.duration})`
           : result.message
       });
-      // Refresh the deals list after scraper completes
       if (result.success) {
         await fetchDeals();
       }
@@ -94,7 +92,7 @@ export function DealFinderTab() {
   const handleDismiss = async (id: string) => {
     setActionLoading(id);
     try {
-      await dismissPotentialBuy(id);
+      await dismissSweetwaterPotentialBuy(id);
       setDeals(prev => prev.filter(d => d.id !== id));
       if (stats) {
         setStats({ ...stats, deals: stats.deals - 1 });
@@ -109,7 +107,7 @@ export function DealFinderTab() {
   const handleMarkPurchased = async (id: string) => {
     setActionLoading(id);
     try {
-      await markPotentialBuyPurchased(id);
+      await markSweetwaterPotentialBuyPurchased(id);
       setDeals(prev => prev.filter(d => d.id !== id));
       if (stats) {
         setStats({ ...stats, deals: stats.deals - 1 });
@@ -128,12 +126,11 @@ export function DealFinderTab() {
     setBulkDismissing('page');
     try {
       const ids = deals.map(d => d.id);
-      const result = await dismissPotentialBuysBulk(ids);
+      const result = await dismissSweetwaterPotentialBuysBulk(ids);
       setDeals([]);
       if (stats) {
         setStats({ ...stats, deals: Math.max(0, stats.deals - result.dismissed) });
       }
-      // Refresh to get next page of results
       await fetchDeals(1);
     } catch (err) {
       console.error('Failed to dismiss page:', err);
@@ -148,7 +145,7 @@ export function DealFinderTab() {
 
     setBulkDismissing('all');
     try {
-      await dismissAllPotentialBuys();
+      await dismissAllSweetwaterPotentialBuys();
       setDeals([]);
       if (stats) {
         setStats({ ...stats, deals: 0 });
@@ -161,11 +158,11 @@ export function DealFinderTab() {
   };
 
   const handleDeleteAll = async () => {
-    if (!confirm('DELETE ALL scanned listings from the database? This permanently removes all data and cannot be undone.')) return;
+    if (!confirm('DELETE ALL scanned Sweetwater listings from the database? This permanently removes all data and cannot be undone.')) return;
 
     setDeleting(true);
     try {
-      await deleteAllPotentialBuys();
+      await deleteAllSweetwaterPotentialBuys();
       setDeals([]);
       setStats({ total: 0, deals: 0, lastRunAt: undefined });
       setTotalItems(0);
@@ -202,10 +199,10 @@ export function DealFinderTab() {
         <div>
           <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
             <TrendingDown className="h-5 w-5" />
-            Reverb Deal Finder
+            Sweetwater Deal Finder
           </h2>
           <p className="text-gray-600 text-sm mt-1">
-            Reverb guitars priced below their Price Guide value
+            Sweetwater Gear Exchange guitars priced below Reverb Price Guide value
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -239,21 +236,18 @@ export function DealFinderTab() {
         </div>
       </div>
 
-      {/* Scraper Result Message */}
       {scraperResult && (
         <div className={`mb-4 p-3 rounded-lg ${scraperResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
           {scraperResult.message}
         </div>
       )}
 
-      {/* Fetch Error Message */}
       {fetchError && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200">
           <strong>Error loading deals:</strong> {fetchError}
         </div>
       )}
 
-      {/* Stats */}
       {stats && (
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-[#FFFFF3] border border-[#020E1C] rounded-lg p-3">
@@ -273,7 +267,6 @@ export function DealFinderTab() {
         </div>
       )}
 
-      {/* Filters */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-100">
         <div className="flex flex-wrap gap-4">
           <div className="flex items-center gap-2">
@@ -303,12 +296,11 @@ export function DealFinderTab() {
           </div>
         </div>
 
-        {/* Bulk Action Buttons - only show on deals filter */}
         {statusFilter === 'deals' && deals.length > 0 && (
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => {
-                const links = deals.filter(d => d.reverbLink).map(d => d.reverbLink!);
+                const links = deals.filter(d => d.sweetwaterLink).map(d => d.sweetwaterLink!);
                 links.forEach(link => window.open(link, '_blank'));
               }}
               disabled={loading}
@@ -317,7 +309,7 @@ export function DealFinderTab() {
               className="text-xs text-[#6E0114] hover:text-[#580110] hover:bg-red-50"
             >
               <ExternalLink className="h-3 w-3 mr-1" />
-              Open All ({deals.filter(d => d.reverbLink).length})
+              Open All ({deals.filter(d => d.sweetwaterLink).length})
             </Button>
             <Button
               onClick={handleDismissPage}
@@ -351,14 +343,12 @@ export function DealFinderTab() {
         )}
       </div>
 
-      {/* Results count */}
       <div className="mb-4">
         <span className="text-sm text-gray-500">
           Showing {deals?.length ?? 0} of {totalItems} results (Page {currentPage} of {totalPages})
         </span>
       </div>
 
-      {/* Deals List */}
       {loading && deals.length === 0 ? (
         <div className="flex justify-center py-8">
           <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
@@ -366,7 +356,7 @@ export function DealFinderTab() {
       ) : deals.length === 0 ? (
         <div className="text-center py-8">
           <TrendingDown className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">No deals found</p>
+          <p className="text-gray-500">No Sweetwater deals found</p>
           <p className="text-gray-400 text-sm">Run the deal finder scraper to find new deals</p>
         </div>
       ) : (
@@ -378,7 +368,6 @@ export function DealFinderTab() {
                 className="border rounded-lg p-4 hover:border-gray-300 transition-colors"
               >
                 <div className="flex gap-4">
-                  {/* Image */}
                   <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                     {deal.images?.[0] ? (
                       <Image
@@ -386,6 +375,7 @@ export function DealFinderTab() {
                         alt={deal.listingTitle}
                         fill
                         className="object-cover"
+                        unoptimized
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-3xl">
@@ -394,7 +384,6 @@ export function DealFinderTab() {
                     )}
                   </div>
 
-                  {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="font-semibold text-[#020E1C] line-clamp-2">
@@ -421,23 +410,27 @@ export function DealFinderTab() {
                           {deal.condition}
                         </span>
                       )}
+                      {deal.shipping && (
+                        <span className="text-gray-500">
+                          {deal.shipping}
+                        </span>
+                      )}
                     </div>
 
                     <p className="mt-1 text-xs text-gray-400">
                       Found: {formatDate(deal.firstSeenAt)}
                     </p>
 
-                    {/* Actions */}
                     <div className="mt-3 flex flex-wrap gap-2">
-                      {deal.reverbLink && (
+                      {deal.sweetwaterLink && (
                         <a
-                          href={deal.reverbLink}
+                          href={deal.sweetwaterLink}
                           target="_blank"
                           rel="noopener noreferrer"
                         >
                           <Button size="sm" variant="outline" className="text-xs h-8">
                             <ExternalLink className="h-3 w-3 mr-1" />
-                            View on Reverb
+                            View on Sweetwater
                           </Button>
                         </a>
                       )}
@@ -480,7 +473,6 @@ export function DealFinderTab() {
             ))}
           </div>
 
-          {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-center gap-2 mt-6 pt-4 border-t border-gray-100">
               <Button

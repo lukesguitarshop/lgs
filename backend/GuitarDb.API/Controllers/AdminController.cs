@@ -19,6 +19,7 @@ public class AdminController : ControllerBase
     private readonly ReviewScraperService _reviewScraperService;
     private readonly EmailService _emailService;
     private readonly DealFinderService _dealFinderService;
+    private readonly SweetwaterDealFinderService _sweetwaterDealFinderService;
 
     public AdminController(
         ILogger<AdminController> logger,
@@ -27,7 +28,8 @@ public class AdminController : ControllerBase
         ScraperService scraperService,
         ReviewScraperService reviewScraperService,
         EmailService emailService,
-        DealFinderService dealFinderService)
+        DealFinderService dealFinderService,
+        SweetwaterDealFinderService sweetwaterDealFinderService)
     {
         _logger = logger;
         _configuration = configuration;
@@ -36,6 +38,7 @@ public class AdminController : ControllerBase
         _reviewScraperService = reviewScraperService;
         _emailService = emailService;
         _dealFinderService = dealFinderService;
+        _sweetwaterDealFinderService = sweetwaterDealFinderService;
     }
 
     /// <summary>
@@ -1030,6 +1033,162 @@ public class AdminController : ControllerBase
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to cleanup potential buys");
+            return StatusCode(500, new { error = "Failed to cleanup", details = ex.Message });
+        }
+    }
+
+    // Sweetwater Deal Finder endpoints
+
+    [HttpGet("sweetwater-potential-buys")]
+    public async Task<IActionResult> GetSweetwaterPotentialBuys(
+        [FromQuery] string? status,
+        [FromQuery] string? sort,
+        [FromQuery] int page = 1,
+        [FromQuery] int perPage = 20,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            var (potentialBuys, totalCount) = await _mongoDbService.GetSweetwaterPotentialBuysAsync(status, sort, page, perPage, ct);
+            return Ok(new
+            {
+                items = potentialBuys,
+                total = totalCount,
+                page,
+                perPage,
+                totalPages = (int)Math.Ceiling((double)totalCount / perPage)
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get Sweetwater potential buys");
+            return StatusCode(500, new { error = "Failed to load Sweetwater deals", details = ex.Message });
+        }
+    }
+
+    [HttpGet("sweetwater-potential-buys/stats")]
+    public async Task<IActionResult> GetSweetwaterPotentialBuyStats(CancellationToken ct = default)
+    {
+        try
+        {
+            var stats = await _mongoDbService.GetSweetwaterPotentialBuyStatsAsync(ct);
+            return Ok(stats);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to get Sweetwater potential buy stats");
+            return StatusCode(500, new { error = "Failed to load stats", details = ex.Message });
+        }
+    }
+
+    [HttpPatch("sweetwater-potential-buys/{id}/dismiss")]
+    public async Task<IActionResult> DismissSweetwaterPotentialBuy(string id, CancellationToken ct = default)
+    {
+        var success = await _mongoDbService.UpdateSweetwaterPotentialBuyDismissedAsync(id, true, ct);
+        if (!success) return NotFound();
+        return Ok(new { message = "Dismissed" });
+    }
+
+    [HttpPost("sweetwater-potential-buys/dismiss-bulk")]
+    public async Task<IActionResult> DismissSweetwaterPotentialBuysBulk([FromBody] DismissBulkRequest request, CancellationToken ct = default)
+    {
+        if (request.Ids == null || request.Ids.Count == 0)
+            return BadRequest(new { error = "No IDs provided" });
+
+        var count = await _mongoDbService.DismissSweetwaterPotentialBuysByIdsAsync(request.Ids, ct);
+        return Ok(new { message = $"Dismissed {count} deals", dismissed = count });
+    }
+
+    [HttpPost("sweetwater-potential-buys/dismiss-all")]
+    public async Task<IActionResult> DismissAllSweetwaterPotentialBuys(CancellationToken ct = default)
+    {
+        var count = await _mongoDbService.DismissAllActiveSweetwaterDealsAsync(ct);
+        return Ok(new { message = $"Dismissed {count} deals", dismissed = count });
+    }
+
+    [HttpPatch("sweetwater-potential-buys/{id}/purchased")]
+    public async Task<IActionResult> MarkSweetwaterPotentialBuyPurchased(string id, CancellationToken ct = default)
+    {
+        var success = await _mongoDbService.UpdateSweetwaterPotentialBuyPurchasedAsync(id, true, ct);
+        if (!success) return NotFound();
+        return Ok(new { message = "Marked as purchased" });
+    }
+
+    [HttpPost("run-sweetwater-deal-finder")]
+    public async Task<IActionResult> RunSweetwaterDealFinder(CancellationToken ct = default)
+    {
+        _logger.LogInformation("Sweetwater deal finder requested");
+
+        if (_sweetwaterDealFinderService.IsRunning)
+        {
+            return Conflict(new
+            {
+                success = false,
+                message = "Sweetwater deal finder is already running"
+            });
+        }
+
+        try
+        {
+            var result = await _sweetwaterDealFinderService.RunAsync(ct);
+
+            if (result.Success)
+            {
+                return Ok(new
+                {
+                    success = true,
+                    message = result.Message,
+                    listingsChecked = result.ListingsChecked,
+                    dealsFound = result.DealsFound,
+                    duration = result.Duration.ToString()
+                });
+            }
+            else
+            {
+                return StatusCode(500, new
+                {
+                    success = false,
+                    message = result.Message,
+                    error = result.Error
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to run Sweetwater deal finder");
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Failed to run Sweetwater deal finder",
+                error = ex.Message
+            });
+        }
+    }
+
+    [HttpGet("sweetwater-deal-finder/status")]
+    public IActionResult GetSweetwaterDealFinderStatus()
+    {
+        return Ok(new { isRunning = _sweetwaterDealFinderService.IsRunning });
+    }
+
+    [HttpPost("sweetwater-potential-buys/cleanup")]
+    public async Task<IActionResult> CleanupSweetwaterPotentialBuys(
+        [FromQuery] bool deleteAll = false,
+        CancellationToken ct = default)
+    {
+        try
+        {
+            if (deleteAll)
+            {
+                var deletedCount = await _mongoDbService.DeleteAllSweetwaterPotentialBuysAsync(ct);
+                return Ok(new { success = true, message = $"Deleted all {deletedCount} Sweetwater potential buys", deleted = deletedCount });
+            }
+
+            return Ok(new { success = true, message = "No action taken", deleted = 0 });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to cleanup Sweetwater potential buys");
             return StatusCode(500, new { error = "Failed to cleanup", details = ex.Message });
         }
     }
