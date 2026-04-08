@@ -189,6 +189,19 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
     }
   };
 
+  // Preload adjacent carousel images using native browser preloading (avoids Vercel Image Optimization)
+  useEffect(() => {
+    if (images.length <= 1) return;
+    const preloadIndexes = [
+      (currentImageIndex + 1) % images.length,
+      (currentImageIndex - 1 + images.length) % images.length,
+    ];
+    preloadIndexes.forEach((i) => {
+      const img = new window.Image();
+      img.src = images[i];
+    });
+  }, [currentImageIndex, images]);
+
   // Auto-scroll thumbnail strip to keep active thumbnail visible
   useEffect(() => {
     if (thumbnailContainerRef.current && images.length > 1) {
@@ -390,24 +403,14 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
           <div className="relative aspect-square bg-card rounded-lg overflow-hidden border border-border shadow-sm">
             {images.length > 0 ? (
               <>
-                {/* Preload all other images in background */}
-                {images.map((img, i) => i !== currentImageIndex && (
-                  <Image
-                    key={i}
-                    src={getFullQualityUrl(img)}
-                    alt=""
-                    fill
-                    className="object-contain invisible absolute"
-                    quality={100}
-                  />
-                ))}
                 <Image
-                  src={getFullQualityUrl(images[currentImageIndex])}
+                  src={images[currentImageIndex]}
                   alt={`${listing.listing_title} - Image ${currentImageIndex + 1}`}
                   fill
+                  sizes="(max-width: 1024px) 100vw, 50vw"
                   className="object-contain cursor-zoom-in"
                   priority
-                  quality={100}
+                  quality={85}
                   onClick={() => setIsFullscreen(true)}
                 />
                 {/* Navigation arrows */}
@@ -460,6 +463,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                     src={image}
                     alt={`Thumbnail ${index + 1}`}
                     fill
+                    sizes="80px"
                     className="object-cover"
                   />
                 </button>
@@ -575,7 +579,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
           {/* Make Offer and Message Seller buttons */}
           {!listing.disabled && (
-            <div className="flex gap-3">
+            <div className="flex flex-col sm:flex-row gap-3">
               <Button
                 variant="outline"
                 className="flex-1 py-6 text-lg"
@@ -666,6 +670,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
               src={getFullQualityUrl(images[currentImageIndex])}
               alt={`${listing.listing_title} - Image ${currentImageIndex + 1}`}
               fill
+              sizes="90vw"
               className="object-contain"
               quality={100}
             />
