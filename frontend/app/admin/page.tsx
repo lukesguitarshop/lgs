@@ -157,6 +157,7 @@ export default function AdminPage() {
   const [adminSection, setAdminSection] = useState<'operations' | 'finances'>('operations');
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [showDisabledListings, setShowDisabledListings] = useState(false);
   const [reviewScraperLoading, setReviewScraperLoading] = useState(false);
   const [reviewScraperResult, setReviewScraperResult] = useState<ScraperResponse | null>(null);
   const [initPricesLoading, setInitPricesLoading] = useState(false);
@@ -655,154 +656,200 @@ export default function AdminPage() {
               </div>
             ) : listings.length === 0 ? (
               <p className="text-gray-500 text-center py-8">No listings found</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Image</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Title</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Condition</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Price</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Status</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {listings.map((listing) => (
-                      <tr key={listing.id} className={`border-b border-gray-100 ${listing.disabled ? 'bg-gray-50 opacity-60' : ''}`}>
-                        <td className="py-3 px-2">
-                          {listing.images?.[0] ? (
-                            <Image
-                              src={listing.images[0]}
-                              alt={listing.listing_title}
-                              width={48}
-                              height={48}
-                              className="rounded object-cover"
-                            />
+            ) : (() => {
+              const activeListings = listings.filter(l => !l.disabled);
+              const disabledListings = listings.filter(l => l.disabled);
+
+              const renderListingRow = (listing: AdminListing) => (
+                <tr key={listing.id} className={`border-b border-gray-100 ${listing.disabled ? 'bg-gray-50 opacity-60' : ''}`}>
+                  <td className="py-3 px-2">
+                    {listing.images?.[0] ? (
+                      <Image
+                        src={listing.images[0]}
+                        alt={listing.listing_title}
+                        width={48}
+                        height={48}
+                        className="rounded object-cover"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-gray-200 rounded" />
+                    )}
+                  </td>
+                  <td className="py-3 px-2">
+                    <span className="font-medium text-[#020E1C] line-clamp-2">{listing.listing_title}</span>
+                  </td>
+                  <td className="py-3 px-2 text-gray-600">{listing.condition || '-'}</td>
+                  <td className="py-3 px-2">
+                    {editingPriceId === listing.id ? (
+                      <div className="flex items-center gap-1">
+                        <span className="text-[#020E1C]">$</span>
+                        <input
+                          type="number"
+                          value={editPriceValue}
+                          onChange={(e) => setEditPriceValue(e.target.value)}
+                          className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
+                          min="0.01"
+                          step="0.01"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') savePrice(listing.id);
+                            if (e.key === 'Escape') cancelEditPrice();
+                          }}
+                        />
+                        <button
+                          onClick={() => savePrice(listing.id)}
+                          disabled={savingPriceId === listing.id}
+                          className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
+                          title="Save"
+                        >
+                          {savingPriceId === listing.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
                           ) : (
-                            <div className="w-12 h-12 bg-gray-200 rounded" />
+                            <Check className="h-4 w-4" />
                           )}
-                        </td>
-                        <td className="py-3 px-2">
-                          <span className="font-medium text-[#020E1C] line-clamp-2">{listing.listing_title}</span>
-                        </td>
-                        <td className="py-3 px-2 text-gray-600">{listing.condition || '-'}</td>
-                        <td className="py-3 px-2">
-                          {editingPriceId === listing.id ? (
-                            <div className="flex items-center gap-1">
-                              <span className="text-[#020E1C]">$</span>
-                              <input
-                                type="number"
-                                value={editPriceValue}
-                                onChange={(e) => setEditPriceValue(e.target.value)}
-                                className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
-                                min="0.01"
-                                step="0.01"
-                                autoFocus
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') savePrice(listing.id);
-                                  if (e.key === 'Escape') cancelEditPrice();
-                                }}
-                              />
-                              <button
-                                onClick={() => savePrice(listing.id)}
-                                disabled={savingPriceId === listing.id}
-                                className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
-                                title="Save"
-                              >
-                                {savingPriceId === listing.id ? (
-                                  <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : (
-                                  <Check className="h-4 w-4" />
-                                )}
-                              </button>
-                              <button
-                                onClick={cancelEditPrice}
-                                className="p-1 text-gray-500 hover:text-gray-700"
-                                title="Cancel"
-                              >
-                                <X className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              <span className="text-[#020E1C] font-medium">${listing.price.toLocaleString()}</span>
-                              <button
-                                onClick={() => startEditPrice(listing)}
-                                className="p-1 text-gray-400 hover:text-gray-600"
-                                title="Edit price"
-                              >
-                                <Pencil className="h-3.5 w-3.5" />
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3 px-2">
-                          {listing.disabled ? (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                              Disabled
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                              Active
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="flex items-center gap-2">
-                            <a
-                              href={`/listing/${listing.id}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-[#020E1C] hover:bg-gray-100 transition-colors"
-                            >
-                              <ExternalLink className="h-3 w-3" />
-                              View
-                            </a>
-                            <button
-                              onClick={() => toggleListing(listing.id)}
-                              disabled={togglingId === listing.id}
-                              className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                                listing.disabled
-                                  ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
-                                  : 'bg-gray-600 hover:bg-gray-700 text-[#FFFFF3]'
-                              } disabled:opacity-50`}
-                            >
-                              {togglingId === listing.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : listing.disabled ? (
-                                <>
-                                  <ToggleRight className="h-3 w-3" />
-                                  Enable
-                                </>
-                              ) : (
-                                <>
-                                  <ToggleLeft className="h-3 w-3" />
-                                  Disable
-                                </>
-                              )}
-                            </button>
-                            <button
-                              onClick={() => deleteListing(listing)}
-                              disabled={deletingId === listing.id}
-                              className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-red-600 hover:text-[#FFFFF3] hover:bg-red-600 transition-colors disabled:opacity-50"
-                              title="Delete listing"
-                            >
-                              {deletingId === listing.id ? (
-                                <Loader2 className="h-3 w-3 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-3 w-3" />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                        </button>
+                        <button
+                          onClick={cancelEditPrice}
+                          className="p-1 text-gray-500 hover:text-gray-700"
+                          title="Cancel"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#020E1C] font-medium">${listing.price.toLocaleString()}</span>
+                        <button
+                          onClick={() => startEditPrice(listing)}
+                          className="p-1 text-gray-400 hover:text-gray-600"
+                          title="Edit price"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-3 px-2">
+                    {listing.disabled ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                        Disabled
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                        Active
+                      </span>
+                    )}
+                  </td>
+                  <td className="py-3 px-2">
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={`/listing/${listing.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-[#020E1C] hover:bg-gray-100 transition-colors"
+                      >
+                        <ExternalLink className="h-3 w-3" />
+                        View
+                      </a>
+                      <button
+                        onClick={() => toggleListing(listing.id)}
+                        disabled={togglingId === listing.id}
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                          listing.disabled
+                            ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
+                            : 'bg-gray-600 hover:bg-gray-700 text-[#FFFFF3]'
+                        } disabled:opacity-50`}
+                      >
+                        {togglingId === listing.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : listing.disabled ? (
+                          <>
+                            <ToggleRight className="h-3 w-3" />
+                            Enable
+                          </>
+                        ) : (
+                          <>
+                            <ToggleLeft className="h-3 w-3" />
+                            Disable
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => deleteListing(listing)}
+                        disabled={deletingId === listing.id}
+                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-red-600 hover:text-[#FFFFF3] hover:bg-red-600 transition-colors disabled:opacity-50"
+                        title="Delete listing"
+                      >
+                        {deletingId === listing.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3" />
+                        )}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+
+              const tableHeader = (
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-2 font-medium text-gray-700">Image</th>
+                    <th className="text-left py-3 px-2 font-medium text-gray-700">Title</th>
+                    <th className="text-left py-3 px-2 font-medium text-gray-700">Condition</th>
+                    <th className="text-left py-3 px-2 font-medium text-gray-700">Price</th>
+                    <th className="text-left py-3 px-2 font-medium text-gray-700">Status</th>
+                    <th className="text-left py-3 px-2 font-medium text-gray-700">Action</th>
+                  </tr>
+                </thead>
+              );
+
+              return (
+                <div>
+                  {/* Active Listings */}
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      {tableHeader}
+                      <tbody>
+                        {activeListings.map(renderListingRow)}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Disabled Listings Accordion */}
+                  {disabledListings.length > 0 && (
+                    <div className="mt-4 border border-gray-200 rounded-lg">
+                      <button
+                        onClick={() => setShowDisabledListings(!showDisabledListings)}
+                        className="w-full flex items-center justify-between px-4 py-3 text-sm font-medium text-gray-600 hover:bg-gray-50 transition-colors rounded-lg"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                            {disabledListings.length}
+                          </span>
+                          <span>Disabled Listings (Sold)</span>
+                        </div>
+                        {showDisabledListings ? (
+                          <ChevronUp className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </button>
+                      {showDisabledListings && (
+                        <div className="overflow-x-auto border-t border-gray-200">
+                          <table className="w-full text-sm">
+                            {tableHeader}
+                            <tbody>
+                              {disabledListings.map(renderListingRow)}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* Reverb Scraper - at the bottom of Manage Listings tab */}
