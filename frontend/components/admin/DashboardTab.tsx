@@ -135,7 +135,11 @@ export default function DashboardTab() {
   // Quick stats calculations
   const totalCount = transactions.length;
   const profitable = transactions.filter(t => (t.profit ?? 0) > 0).length;
-  const unprofitable = totalCount - profitable;
+  const soldTransactions = transactions.filter(t => t.transactionType === 'sold');
+  const unprofitable = soldTransactions.filter(t => (t.profit ?? 0) < 0).length;
+  const totalInvested = transactions
+    .filter(t => t.transactionType === 'for_sale')
+    .reduce((sum, t) => sum + (t.purchasePrice ?? 0), 0);
   const avgProfit = totalCount > 0
     ? transactions.reduce((sum, t) => sum + (t.profit ?? 0), 0) / totalCount
     : 0;
@@ -214,6 +218,11 @@ export default function DashboardTab() {
             label="Unprofitable"
             value={unprofitable.toString()}
             valueColor="text-red-600"
+          />
+          <StatItem
+            label="Total Invested (For Sale)"
+            value={formatCurrency(totalInvested)}
+            valueColor="text-[#020E1C]"
           />
           <StatItem
             label="Avg Profit / Transaction"
