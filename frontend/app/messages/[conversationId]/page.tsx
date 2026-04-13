@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, MessageSquare, Send, User, Tag, Paperclip, X } from 'lucide-react';
+import { ArrowLeft, Loader2, MessageSquare, Send, User, Tag, Paperclip, X, Check, CheckCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
@@ -803,9 +803,14 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
               {message.isMine ? 'Waiting for seller to respond' : 'Waiting for buyer to respond'}
             </p>
           )}
-          <p className={`text-xs mt-2 ${message.isMine ? 'text-red-200' : 'text-muted-foreground'}`}>
-            {formatTime(message.createdAt)}
-          </p>
+          <div className={`flex items-center gap-1 text-xs mt-2 ${message.isMine ? 'text-red-200 justify-end' : 'text-muted-foreground'}`}>
+            <span>{formatTime(message.createdAt)}</span>
+            {message.isMine && (
+              message.isRead
+                ? <CheckCheck className="h-3.5 w-3.5 text-blue-300" />
+                : <Check className="h-3.5 w-3.5" />
+            )}
+          </div>
           {!message.isMine && isMyTurn && isActiveOffer && !wasCountered && (
             <div className="flex gap-2 mt-3">
               <Button
@@ -871,13 +876,18 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
         {message.messageText && (
           <p className="text-sm whitespace-pre-wrap break-words">{linkifyText(message.messageText)}</p>
         )}
-        <p
-          className={`text-xs mt-1 ${
-            message.isMine ? 'text-red-200' : 'text-muted-foreground'
+        <div
+          className={`flex items-center gap-1 text-xs mt-1 ${
+            message.isMine ? 'text-red-200 justify-end' : 'text-muted-foreground'
           }`}
         >
-          {formatTime(message.createdAt)}
-        </p>
+          <span>{formatTime(message.createdAt)}</span>
+          {message.isMine && (
+            message.isRead
+              ? <CheckCheck className="h-3.5 w-3.5 text-blue-300" />
+              : <Check className="h-3.5 w-3.5" />
+          )}
+        </div>
       </div>
     </div>
   );
