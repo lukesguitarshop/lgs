@@ -313,8 +313,18 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
               placeholder="Search listings..."
               value={searchQuery}
               onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-              className="pl-10 w-full"
+              className={`pl-10 ${searchQuery ? 'pr-9' : ''} w-full`}
             />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => { setSearchQuery(''); setCurrentPage(1); }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
           </div>
           <Link href={`/filter${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}>
             <Button variant="outline" className="h-full px-3">
