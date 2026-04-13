@@ -32,7 +32,7 @@ interface SearchClientProps {
   initialListings: Listing[];
 }
 
-const ITEMS_PER_PAGE = 12;
+const ITEMS_PER_PAGE = 25;
 
 type SortOption = 'newest' | 'oldest' | 'price-low' | 'price-high' | 'alpha';
 
