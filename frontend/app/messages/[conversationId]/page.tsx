@@ -104,11 +104,22 @@ function ConversationPageContent() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedImages, setSelectedImages] = useState<File[]>([]);
   const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const MAX_MESSAGE_LENGTH = 500;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Lock body scroll when lightbox is open
+  useEffect(() => {
+    if (lightboxUrl) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [lightboxUrl]);
 
   // Fetch conversation details
   useEffect(() => {
@@ -480,6 +491,7 @@ function ConversationPageContent() {
                           onDecline={handleDeclineOffer}
                           onCounter={() => setShowOfferModal(true)}
                           isActioning={isActioning}
+                          onImageClick={setLightboxUrl}
                         />
                       </div>
                     );
@@ -673,6 +685,35 @@ function ConversationPageContent() {
           isCounter={conversation?.offerStatus === 'active' || conversation?.offerStatus === 'declined' || conversation?.offerStatus === 'expired'}
         />
       )}
+
+      {/* Fullscreen Image Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 z-10 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+            aria-label="Close"
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <div
+            className="w-full h-full flex items-center justify-center p-4 sm:p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightboxUrl}
+              alt="Full size"
+              className="max-w-full max-h-full object-contain rounded-lg select-none"
+              style={{ touchAction: 'pinch-zoom' }}
+              onClick={() => setLightboxUrl(null)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -686,6 +727,7 @@ interface MessageBubbleProps {
   onDecline?: () => void;
   onCounter?: () => void;
   isActioning?: boolean;
+  onImageClick?: (url: string) => void;
 }
 
 function formatPrice(amount: number): string {
@@ -696,7 +738,7 @@ function formatPrice(amount: number): string {
   }).format(amount);
 }
 
-function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccept, onDecline, onCounter, isActioning }: MessageBubbleProps) {
+function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccept, onDecline, onCounter, isActioning, onImageClick }: MessageBubbleProps) {
   // Handle system messages (accept, decline, expire)
   if (message.type === 'accept') {
     return (
@@ -811,19 +853,18 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
         {message.imageUrls && message.imageUrls.length > 0 && (
           <div className={`grid gap-2 mb-2 ${message.imageUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {message.imageUrls.map((url, index) => (
-              <a
+              <button
                 key={index}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block"
+                type="button"
+                onClick={() => onImageClick?.(url)}
+                className="block cursor-zoom-in"
               >
                 <img
                   src={url}
                   alt={`Attachment ${index + 1}`}
                   className="rounded-lg max-h-48 w-full object-cover hover:opacity-90 transition-opacity"
                 />
-              </a>
+              </button>
             ))}
           </div>
         )}
