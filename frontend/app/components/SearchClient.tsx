@@ -304,12 +304,21 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
         </Card>
       </aside>
       <main className="flex-1">
-        {/* Mobile filter button - links to dedicated filter page */}
-        <div className="lg:hidden mb-4">
+        {/* Mobile search + filter button */}
+        <div className="lg:hidden mb-4 flex gap-2">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search listings..."
+              value={searchQuery}
+              onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+              className="pl-10 w-full"
+            />
+          </div>
           <Link href={`/filter${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}>
-            <Button variant="outline" className="w-full">
-              <Filter className="h-4 w-4 mr-2" />
-              {hasActiveFilters ? 'Edit Filters' : 'Filter'}
+            <Button variant="outline" className="h-full px-3">
+              <Filter className="h-4 w-4" />
             </Button>
           </Link>
         </div>
@@ -397,7 +406,7 @@ function ListingCard({ listing, isFavorite, onToggleFavorite, priority = false }
       <Card className="overflow-hidden hover:shadow-lg transition-shadow h-full flex flex-col cursor-pointer">
         <div className="relative w-full aspect-square bg-gradient-to-br from-muted to-muted/50">
           {listing.images && listing.images.length > 0 ? (
-            <Image src={listing.images[0]} alt={listing.listing_title} fill className="object-cover" priority={priority} />
+            <Image src={listing.images[0]} alt={listing.listing_title} fill sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw" className="object-cover" priority={priority} />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-muted-foreground">
               <span className="text-6xl">🎸</span>
