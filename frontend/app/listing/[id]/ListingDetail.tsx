@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Copy, Heart, Tag, MessageSquare, AlertTriangle, X } from 'lucide-react';
 import JSZip from 'jszip';
+import * as XLSX from 'xlsx';
 import DOMPurify from 'dompurify';
 import { addToCart, isInCart, CartItem } from '@/lib/cart';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,7 +46,7 @@ interface ListingDetailProps {
 
 export default function ListingDetail({ listing }: ListingDetailProps) {
   const router = useRouter();
-  const { isAuthenticated, setShowLoginModal } = useAuth();
+  const { isAuthenticated, isAdmin, setShowLoginModal } = useAuth();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [inCart, setInCart] = useState(false);
@@ -187,6 +188,34 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
     } finally {
       setIsMessageLoading(false);
     }
+  };
+
+  const handleFacebookExport = () => {
+    const boilerplate = "Located in Columbus, Ohio. Will ship via UPS. Local pickup is even better. I'll take all forms of payment - cash, zelle, venmo, credit card, cash app, etc. Hearing out offers for local trades as well. Guitar is also listed on our site lukesguitarshop.com . Let me know if you have any questions. Thanks for looking!";
+    const description = (listing.description || '') + '\n\n\n' + boilerplate;
+    const title = (listing.listing_title || '').slice(0, 150);
+    const price = Math.round(listing.price);
+
+    const wb = XLSX.utils.book_new();
+
+    // Build the Bulk Upload Template sheet matching Facebook's exact format
+    const templateData = [
+      ['Facebook Marketplace Bulk Upload Template'],
+      ['You can create up to 50 listings at once. When you are finished, be sure to save or export this as an XLS/XLSX file.'],
+      ['REQUIRED | Plain text (up to 150 characters', 'REQUIRED | A whole number in $', 'REQUIRED | Supported values: "New"; "Used - Like New"; "Used - Good"; "Used - Fair"', 'OPTIONAL | Plain text (up to 5000 characters)', 'OPTIONAL | Type of listing'],
+      ['TITLE', 'PRICE', 'CONDITION', 'DESCRIPTION', 'CATEGORY'],
+      [title, price, 'Used - Like New', description, 'Musical Instruments//Guitars & Basses//Electric Guitars'],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(templateData);
+    ws['!cols'] = [{ wch: 50 }, { wch: 10 }, { wch: 20 }, { wch: 80 }, { wch: 50 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Bulk Upload Template');
+
+    // Add empty VALIDATION sheet (Facebook expects it)
+    const vsWs = XLSX.utils.aoa_to_sheet([[]]);
+    XLSX.utils.book_append_sheet(wb, vsWs, 'VALIDATION');
+
+    const safeName = listing.listing_title.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 50);
+    XLSX.writeFile(wb, `fb_${safeName}.xlsx`);
   };
 
   // Preload adjacent carousel images using native browser preloading (avoids Vercel Image Optimization)
@@ -474,6 +503,18 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
         {/* Right side - Product info */}
         <div className="space-y-6">
+          {/* Facebook export - admin only */}
+          {isAdmin && (
+            <button
+              onClick={handleFacebookExport}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md transition-colors"
+              title="Export to Facebook Marketplace"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              FB Export
+            </button>
+          )}
+
           {/* SOLD banner */}
           {listing.disabled && (
             <div className="bg-[#6E0114] text-[#FFFFF3] rounded-lg p-4 flex items-center gap-3">
@@ -595,7 +636,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 disabled={isMessageLoading}
               >
                 <MessageSquare className="h-5 w-5 mr-2" />
-                {isMessageLoading ? 'Opening...' : "Message Seller"}
+                {isMessageLoading ? 'Opening...' : "Message Luke"}
               </Button>
             </div>
           )}
