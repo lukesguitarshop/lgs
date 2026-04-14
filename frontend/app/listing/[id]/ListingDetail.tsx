@@ -192,7 +192,20 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
   const handleFacebookExport = () => {
     const boilerplate = "Located in Columbus, Ohio. Will ship via UPS. Local pickup is even better. I'll take all forms of payment - cash, zelle, venmo, credit card, cash app, etc. Hearing out offers for local trades as well. Guitar is also listed on our site lukesguitarshop.com . Let me know if you have any questions. Thanks for looking!";
-    const description = (listing.description || '') + '\n\n\n' + boilerplate;
+    // Convert HTML description to plain text
+    const htmlToPlainText = (html: string): string => {
+      let text = html;
+      text = text.replace(/<br\s*\/?>/gi, '\n');
+      text = text.replace(/<\/p>/gi, '\n\n');
+      text = text.replace(/<li>/gi, '- ');
+      text = text.replace(/<\/li>/gi, '\n');
+      text = text.replace(/<\/?(ul|ol)>/gi, '\n');
+      text = text.replace(/<[^>]+>/g, '');
+      text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+      text = text.replace(/\n{3,}/g, '\n\n');
+      return text.trim();
+    };
+    const description = htmlToPlainText(listing.description || '') + '\n\n\n' + boilerplate;
     const title = (listing.listing_title || '').slice(0, 150);
     const price = Math.round(listing.price);
 
