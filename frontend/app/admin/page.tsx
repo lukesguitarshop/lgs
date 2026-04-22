@@ -416,7 +416,9 @@ export default function AdminPage() {
   };
 
   const htmlToPlainText = (html: string): string => {
-    let text = html;
+    // Strip return policy section and everything after it
+    let cleaned = html.replace(/(<b>|<strong>)*\s*Return Policy\s*:?\s*(<\/b>|<\/strong>)*[\s\S]*/i, '');
+    let text = cleaned;
     text = text.replace(/<br\s*\/?>/gi, '\n');
     text = text.replace(/<\/p>/gi, '\n\n');
     text = text.replace(/<li>/gi, '- ');
