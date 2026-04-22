@@ -189,6 +189,7 @@ public class AdminController : ControllerBase
         {
             id = l.Id,
             listing_title = l.ListingTitle,
+            description = l.Description,
             condition = l.Condition,
             images = l.Images,
             price = l.Price,

@@ -7,7 +7,9 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users, Trash2, Settings, DollarSign, ArrowLeftRight, BarChart3, Calendar, Calculator } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users, Trash2, Settings, DollarSign, ArrowLeftRight, BarChart3, Calendar, Calculator, Download, FileSpreadsheet } from 'lucide-react';
+import JSZip from 'jszip';
+import * as XLSX from 'xlsx';
 import { DealFinderTab } from '@/components/admin/DealFinderTab';
 import { SweetwaterDealFinderTab } from '@/components/admin/SweetwaterDealFinderTab';
 import { UsersTab } from '@/components/admin/UsersTab';
@@ -31,6 +33,7 @@ interface ScraperResponse {
 interface AdminListing {
   id: string;
   listing_title: string;
+  description: string | null;
   condition: string;
   images: string[];
   price: number;
@@ -158,6 +161,9 @@ export default function AdminPage() {
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDisabledListings, setShowDisabledListings] = useState(false);
+  const [selectedListingIds, setSelectedListingIds] = useState<Set<string>>(new Set());
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkExporting, setBulkExporting] = useState(false);
   const [reviewScraperLoading, setReviewScraperLoading] = useState(false);
   const [reviewScraperResult, setReviewScraperResult] = useState<ScraperResponse | null>(null);
   const [initPricesLoading, setInitPricesLoading] = useState(false);
@@ -380,6 +386,143 @@ export default function AdminPage() {
       alert('Failed to delete listing');
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  // Bulk selection helpers
+  const toggleSelectListing = (id: string) => {
+    setSelectedListingIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = (listingIds: string[]) => {
+    const allSelected = listingIds.every(id => selectedListingIds.has(id));
+    if (allSelected) {
+      setSelectedListingIds(prev => {
+        const next = new Set(prev);
+        listingIds.forEach(id => next.delete(id));
+        return next;
+      });
+    } else {
+      setSelectedListingIds(prev => {
+        const next = new Set(prev);
+        listingIds.forEach(id => next.add(id));
+        return next;
+      });
+    }
+  };
+
+  const htmlToPlainText = (html: string): string => {
+    let text = html;
+    text = text.replace(/<br\s*\/?>/gi, '\n');
+    text = text.replace(/<\/p>/gi, '\n\n');
+    text = text.replace(/<li>/gi, '- ');
+    text = text.replace(/<\/li>/gi, '\n');
+    text = text.replace(/<\/?(ul|ol)>/gi, '\n');
+    text = text.replace(/<[^>]+>/g, '');
+    text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
+    text = text.replace(/\n{3,}/g, '\n\n');
+    return text.trim();
+  };
+
+  const getFullQualityUrl = (url: string): string => {
+    if (url.includes('rvb-img.reverb.com')) {
+      return url.replace(/\/[^/]*=[^/]*/g, '');
+    }
+    return url;
+  };
+
+  const handleBulkFbExport = () => {
+    const selected = listings.filter(l => selectedListingIds.has(l.id));
+    if (selected.length === 0) return;
+    setBulkExporting(true);
+
+    try {
+      const boilerplate = "Located in Columbus, Ohio. Will ship via UPS. Local pickup is even better. I'll take all forms of payment - cash, zelle, venmo, credit card, cash app, etc. Hearing out offers for local trades as well. Guitar is also listed on our site lukesguitarshop.com . Let me know if you have any questions. Thanks for looking!";
+
+      const wb = XLSX.utils.book_new();
+      const templateData: (string | number)[][] = [
+        ['Facebook Marketplace Bulk Upload Template'],
+        ['You can create up to 50 listings at once. When you are finished, be sure to save or export this as an XLS/XLSX file.'],
+        ['REQUIRED | Plain text (up to 150 characters', 'REQUIRED | A whole number in $', 'REQUIRED | Supported values: "New"; "Used - Like New"; "Used - Good"; "Used - Fair"', 'OPTIONAL | Plain text (up to 5000 characters)', 'OPTIONAL | Type of listing'],
+        ['TITLE', 'PRICE', 'CONDITION', 'DESCRIPTION', 'CATEGORY'],
+      ];
+
+      for (const listing of selected) {
+        const description = htmlToPlainText(listing.description || '') + '\n\n\n' + boilerplate;
+        templateData.push([
+          (listing.listing_title || '').slice(0, 150),
+          Math.round(listing.price),
+          'Used - Like New',
+          description,
+          'Musical Instruments//Guitars & Basses//Electric Guitars',
+        ]);
+      }
+
+      const ws = XLSX.utils.aoa_to_sheet(templateData);
+      ws['!cols'] = [{ wch: 50 }, { wch: 10 }, { wch: 20 }, { wch: 80 }, { wch: 50 }];
+      XLSX.utils.book_append_sheet(wb, ws, 'Bulk Upload Template');
+
+      const vsWs = XLSX.utils.aoa_to_sheet([[]]);
+      XLSX.utils.book_append_sheet(wb, vsWs, 'VALIDATION');
+
+      XLSX.writeFile(wb, `fb_bulk_upload_${selected.length}_listings.xlsx`);
+    } finally {
+      setBulkExporting(false);
+    }
+  };
+
+  const handleBulkPhotoDownload = async () => {
+    const selected = listings.filter(l => selectedListingIds.has(l.id));
+    if (selected.length === 0) return;
+    setBulkDownloading(true);
+
+    try {
+      const zip = new JSZip();
+
+      for (const listing of selected) {
+        if (!listing.images || listing.images.length === 0) continue;
+
+        const folderName = listing.listing_title
+          .replace(/[^a-zA-Z0-9\s-]/g, '')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .substring(0, 100);
+
+        const folder = zip.folder(folderName)!;
+
+        const fetchPromises = listing.images.map(async (imageUrl, index) => {
+          try {
+            const response = await fetch(getFullQualityUrl(imageUrl));
+            const blob = await response.blob();
+            const urlParts = imageUrl.split('.');
+            const ext = urlParts[urlParts.length - 1].split('?')[0].toLowerCase();
+            const extension = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext) ? ext : 'jpg';
+            folder.file(`${index + 1}.${extension}`, blob);
+          } catch (err) {
+            console.error(`Failed to fetch image ${index + 1} for ${listing.listing_title}:`, err);
+          }
+        });
+
+        await Promise.all(fetchPromises);
+      }
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `photos_${selected.length}_listings.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to create bulk photo zip:', err);
+    } finally {
+      setBulkDownloading(false);
     }
   };
 
@@ -662,6 +805,14 @@ export default function AdminPage() {
 
               const renderListingRow = (listing: AdminListing) => (
                 <tr key={listing.id} className={`border-b border-gray-100 ${listing.disabled ? 'bg-gray-50 opacity-60' : ''}`}>
+                  <td className="py-3 px-2 w-8">
+                    <input
+                      type="checkbox"
+                      checked={selectedListingIds.has(listing.id)}
+                      onChange={() => toggleSelectListing(listing.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114] cursor-pointer"
+                    />
+                  </td>
                   <td className="py-3 px-2">
                     {listing.images?.[0] ? (
                       <Image
@@ -791,9 +942,17 @@ export default function AdminPage() {
                 </tr>
               );
 
-              const tableHeader = (
+              const renderTableHeader = (listingIds: string[]) => (
                 <thead>
                   <tr className="border-b border-gray-200">
+                    <th className="py-3 px-2 w-8">
+                      <input
+                        type="checkbox"
+                        checked={listingIds.length > 0 && listingIds.every(id => selectedListingIds.has(id))}
+                        onChange={() => toggleSelectAll(listingIds)}
+                        className="h-4 w-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114] cursor-pointer"
+                      />
+                    </th>
                     <th className="text-left py-3 px-2 font-medium text-gray-700">Image</th>
                     <th className="text-left py-3 px-2 font-medium text-gray-700">Title</th>
                     <th className="text-left py-3 px-2 font-medium text-gray-700">Condition</th>
@@ -806,10 +965,43 @@ export default function AdminPage() {
 
               return (
                 <div>
+                  {/* Bulk action bar */}
+                  {selectedListingIds.size > 0 && (
+                    <div className="flex items-center gap-3 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                      <span className="text-sm font-medium text-blue-800">
+                        {selectedListingIds.size} selected
+                      </span>
+                      <Button
+                        variant="outline"
+                        className="text-sm h-8"
+                        onClick={handleBulkPhotoDownload}
+                        disabled={bulkDownloading}
+                      >
+                        {bulkDownloading ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Download className="h-3.5 w-3.5 mr-1.5" />}
+                        {bulkDownloading ? 'Downloading...' : 'Download Photos'}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="text-sm h-8"
+                        onClick={handleBulkFbExport}
+                        disabled={bulkExporting}
+                      >
+                        {bulkExporting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />}
+                        FB Export
+                      </Button>
+                      <button
+                        onClick={() => setSelectedListingIds(new Set())}
+                        className="ml-auto text-xs text-blue-600 hover:text-blue-800"
+                      >
+                        Clear selection
+                      </button>
+                    </div>
+                  )}
+
                   {/* Active Listings */}
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
-                      {tableHeader}
+                      {renderTableHeader(activeListings.map(l => l.id))}
                       <tbody>
                         {activeListings.map(renderListingRow)}
                       </tbody>
@@ -838,7 +1030,7 @@ export default function AdminPage() {
                       {showDisabledListings && (
                         <div className="overflow-x-auto border-t border-gray-200">
                           <table className="w-full text-sm">
-                            {tableHeader}
+                            {renderTableHeader(disabledListings.map(l => l.id))}
                             <tbody>
                               {disabledListings.map(renderListingRow)}
                             </tbody>

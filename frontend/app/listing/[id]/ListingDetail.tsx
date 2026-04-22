@@ -4,9 +4,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Copy, Heart, Tag, MessageSquare, AlertTriangle, X, ExternalLink } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Copy, Heart, Tag, MessageSquare, AlertTriangle, X } from 'lucide-react';
 import JSZip from 'jszip';
-import * as XLSX from 'xlsx';
 import DOMPurify from 'dompurify';
 import { addToCart, isInCart, CartItem } from '@/lib/cart';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,7 +45,7 @@ interface ListingDetailProps {
 
 export default function ListingDetail({ listing }: ListingDetailProps) {
   const router = useRouter();
-  const { isAuthenticated, isAdmin, setShowLoginModal } = useAuth();
+  const { isAuthenticated, setShowLoginModal } = useAuth();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [inCart, setInCart] = useState(false);
@@ -188,47 +187,6 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
     } finally {
       setIsMessageLoading(false);
     }
-  };
-
-  const handleFacebookExport = () => {
-    const boilerplate = "Located in Columbus, Ohio. Will ship via UPS. Local pickup is even better. I'll take all forms of payment - cash, zelle, venmo, credit card, cash app, etc. Hearing out offers for local trades as well. Guitar is also listed on our site lukesguitarshop.com . Let me know if you have any questions. Thanks for looking!";
-    // Convert HTML description to plain text
-    const htmlToPlainText = (html: string): string => {
-      let text = html;
-      text = text.replace(/<br\s*\/?>/gi, '\n');
-      text = text.replace(/<\/p>/gi, '\n\n');
-      text = text.replace(/<li>/gi, '- ');
-      text = text.replace(/<\/li>/gi, '\n');
-      text = text.replace(/<\/?(ul|ol)>/gi, '\n');
-      text = text.replace(/<[^>]+>/g, '');
-      text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
-      text = text.replace(/\n{3,}/g, '\n\n');
-      return text.trim();
-    };
-    const description = htmlToPlainText(listing.description || '') + '\n\n\n' + boilerplate;
-    const title = (listing.listing_title || '').slice(0, 150);
-    const price = Math.round(listing.price);
-
-    const wb = XLSX.utils.book_new();
-
-    // Build the Bulk Upload Template sheet matching Facebook's exact format
-    const templateData = [
-      ['Facebook Marketplace Bulk Upload Template'],
-      ['You can create up to 50 listings at once. When you are finished, be sure to save or export this as an XLS/XLSX file.'],
-      ['REQUIRED | Plain text (up to 150 characters', 'REQUIRED | A whole number in $', 'REQUIRED | Supported values: "New"; "Used - Like New"; "Used - Good"; "Used - Fair"', 'OPTIONAL | Plain text (up to 5000 characters)', 'OPTIONAL | Type of listing'],
-      ['TITLE', 'PRICE', 'CONDITION', 'DESCRIPTION', 'CATEGORY'],
-      [title, price, 'Used - Like New', description, 'Musical Instruments//Guitars & Basses//Electric Guitars'],
-    ];
-    const ws = XLSX.utils.aoa_to_sheet(templateData);
-    ws['!cols'] = [{ wch: 50 }, { wch: 10 }, { wch: 20 }, { wch: 80 }, { wch: 50 }];
-    XLSX.utils.book_append_sheet(wb, ws, 'Bulk Upload Template');
-
-    // Add empty VALIDATION sheet (Facebook expects it)
-    const vsWs = XLSX.utils.aoa_to_sheet([[]]);
-    XLSX.utils.book_append_sheet(wb, vsWs, 'VALIDATION');
-
-    const safeName = listing.listing_title.replace(/[^a-zA-Z0-9]/g, '_').slice(0, 50);
-    XLSX.writeFile(wb, `fb_${safeName}.xlsx`);
   };
 
   // Preload adjacent carousel images using native browser preloading (avoids Vercel Image Optimization)
@@ -428,30 +386,18 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
         {/* Left side - Image carousel */}
         <div className="space-y-4">
-          {/* Download Photos + FB Export buttons */}
-          <div className="flex items-center gap-2">
-            {images.length > 0 && (
-              <Button
-                variant="outline"
-                className="py-2 text-sm"
-                onClick={handleDownloadPhotos}
-                disabled={isDownloading}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                {isDownloading ? 'Downloading...' : `Download Photos (${images.length})`}
-              </Button>
-            )}
-            {isAdmin && (
-              <Button
-                variant="outline"
-                className="py-2 text-sm"
-                onClick={handleFacebookExport}
-              >
-                <ExternalLink className="h-4 w-4 mr-2" />
-                FB Export
-              </Button>
-            )}
-          </div>
+          {/* Download Photos button */}
+          {images.length > 0 && (
+            <Button
+              variant="outline"
+              className="py-2 text-sm"
+              onClick={handleDownloadPhotos}
+              disabled={isDownloading}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              {isDownloading ? 'Downloading...' : `Download Photos (${images.length})`}
+            </Button>
+          )}
 
           {/* Main image */}
           <div className="relative aspect-square bg-card rounded-lg overflow-hidden border border-border shadow-sm">
