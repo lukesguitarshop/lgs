@@ -722,7 +722,16 @@ export default function AdminPage() {
         </Link>
       </div>
 
-      <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Admin Portal</h1>
+      <div className="flex items-start justify-between mb-2">
+        <h1 className="text-3xl font-bold text-[#020E1C]">Admin Portal</h1>
+        <Link
+          href="/admin/trade-ins"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-medium rounded-md transition-colors text-sm"
+        >
+          <ArrowLeftRight className="h-4 w-4" />
+          Trade-Ins
+        </Link>
+      </div>
       <p className="text-gray-600 mb-6">Manage your guitar listings database</p>
 
       {/* Top-level section tabs */}
