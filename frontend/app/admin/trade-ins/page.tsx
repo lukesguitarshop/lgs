@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Loader2, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAdminTradeIns } from '@/lib/api';
+import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
 import type { AdminTradeInListItem, TradeInStatus } from '@/lib/types/trade-in';
 
 const STATUS_FILTERS: (TradeInStatus | 'all')[] = ['all','submitted','offered','accepted','received','inspected','completed','declined','expired','cancelled'];
@@ -36,7 +37,9 @@ export default function AdminTradeInsListPage() {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-[#020E1C] mb-6">Trade-ins</h1>
+      <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Trade-ins</h1>
+      <p className="text-gray-600 mb-6">Review submissions, send offers, manage shipping</p>
+      <AdminTabsNav />
       <div className="flex flex-wrap gap-2 mb-6">
         {STATUS_FILTERS.map(s => (
           <button key={s} onClick={() => setStatus(s)}

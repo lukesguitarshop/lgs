@@ -7,20 +7,14 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, TrendingDown, Users, Trash2, Settings, DollarSign, ArrowLeftRight, BarChart3, Calendar, Calculator, Download, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, Users, Trash2, Download, FileSpreadsheet } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
-import { DealFinderTab } from '@/components/admin/DealFinderTab';
-import { SweetwaterDealFinderTab } from '@/components/admin/SweetwaterDealFinderTab';
 import { UsersTab } from '@/components/admin/UsersTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
-import TransactionsTab from '@/components/admin/TransactionsTab';
-import DashboardTab from '@/components/admin/DashboardTab';
-import MonthlyBreakdownTab from '@/components/admin/MonthlyBreakdownTab';
-import ExtraExpensesTab from '@/components/admin/ExtraExpensesTab';
-import FlipCalculatorTab from '@/components/admin/FlipCalculatorTab';
+import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
 
 interface ScraperResponse {
   success: boolean;
@@ -157,7 +151,6 @@ export default function AdminPage() {
   const [sendingReply, setSendingReply] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
   const [activeTab, setActiveTab] = useState('listings');
-  const [adminSection, setAdminSection] = useState<'operations' | 'finances'>('operations');
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDisabledListings, setShowDisabledListings] = useState(false);
@@ -173,7 +166,7 @@ export default function AdminPage() {
   // Load active tab from localStorage on mount
   useEffect(() => {
     const savedTab = localStorage.getItem('adminActiveTab');
-    if (savedTab && ['listings', 'messages', 'offers', 'orders', 'deals', 'users'].includes(savedTab)) {
+    if (savedTab && ['listings', 'messages', 'offers', 'orders', 'users'].includes(savedTab)) {
       setActiveTab(savedTab);
     }
   }, []);
@@ -182,19 +175,6 @@ export default function AdminPage() {
   const handleTabChange = (value: string) => {
     setActiveTab(value);
     localStorage.setItem('adminActiveTab', value);
-  };
-
-  // Load admin section from localStorage on mount
-  useEffect(() => {
-    const savedSection = localStorage.getItem('adminSection');
-    if (savedSection && ['operations', 'finances'].includes(savedSection)) {
-      setAdminSection(savedSection as 'operations' | 'finances');
-    }
-  }, []);
-
-  const handleSectionChange = (value: string) => {
-    setAdminSection(value as 'operations' | 'finances');
-    localStorage.setItem('adminSection', value);
   };
 
   const fetchListings = async () => {
@@ -722,41 +702,16 @@ export default function AdminPage() {
         </Link>
       </div>
 
-      <div className="flex items-start justify-between mb-2">
-        <h1 className="text-3xl font-bold text-[#020E1C]">Admin Portal</h1>
-        <Link
-          href="/admin/trade-ins"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-medium rounded-md transition-colors text-sm"
-        >
-          <ArrowLeftRight className="h-4 w-4" />
-          Trade-Ins
-        </Link>
-      </div>
+      <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Admin Portal</h1>
       <p className="text-gray-600 mb-6">Manage your guitar listings database</p>
 
-      {/* Top-level section tabs */}
-      <Tabs value={adminSection} onValueChange={handleSectionChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-4">
-          <TabsTrigger value="operations" className="flex items-center gap-2 text-base">
-            <Settings className="h-4 w-4" />
-            <span>Operations</span>
-          </TabsTrigger>
-          <TabsTrigger value="finances" className="flex items-center gap-2 text-base">
-            <DollarSign className="h-4 w-4" />
-            <span>Finances</span>
-          </TabsTrigger>
-        </TabsList>
+      <AdminTabsNav />
 
-        <TabsContent value="operations">
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-6 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6">
           <TabsTrigger value="listings" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Listings</span>
-          </TabsTrigger>
-          <TabsTrigger value="deals" className="flex items-center gap-2">
-            <TrendingDown className="h-4 w-4" />
-            <span className="hidden sm:inline">Deals</span>
           </TabsTrigger>
           <TabsTrigger value="messages" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
@@ -1202,14 +1157,6 @@ export default function AdminPage() {
                 )}
               </div>
             )}
-          </div>
-        </TabsContent>
-
-        {/* Deals Tab */}
-        <TabsContent value="deals">
-          <DealFinderTab />
-          <div className="mt-6">
-            <SweetwaterDealFinderTab />
           </div>
         </TabsContent>
 
@@ -1817,71 +1764,6 @@ export default function AdminPage() {
           <UsersTab />
         </TabsContent>
       </Tabs>
-        </TabsContent>
-
-        <TabsContent value="finances">
-          <FinancesSection />
-        </TabsContent>
-      </Tabs>
     </div>
-  );
-}
-
-function FinancesSection() {
-  const [financeTab, setFinanceTab] = useState('transactions');
-
-  useEffect(() => {
-    const saved = localStorage.getItem('adminFinanceTab');
-    if (saved && ['transactions', 'dashboard', 'monthly', 'expenses', 'flip-calc'].includes(saved)) {
-      setFinanceTab(saved);
-    }
-  }, []);
-
-  const handleFinanceTabChange = (value: string) => {
-    setFinanceTab(value);
-    localStorage.setItem('adminFinanceTab', value);
-  };
-
-  return (
-    <Tabs value={financeTab} onValueChange={handleFinanceTabChange} className="w-full">
-      <TabsList className="grid w-full grid-cols-5 mb-6">
-        <TabsTrigger value="transactions" className="flex items-center gap-2">
-          <ArrowLeftRight className="h-4 w-4" />
-          <span className="hidden sm:inline">Transactions</span>
-        </TabsTrigger>
-        <TabsTrigger value="dashboard" className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4" />
-          <span className="hidden sm:inline">Dashboard</span>
-        </TabsTrigger>
-        <TabsTrigger value="monthly" className="flex items-center gap-2">
-          <Calendar className="h-4 w-4" />
-          <span className="hidden sm:inline">Monthly</span>
-        </TabsTrigger>
-        <TabsTrigger value="expenses" className="flex items-center gap-2">
-          <Receipt className="h-4 w-4" />
-          <span className="hidden sm:inline">Expenses</span>
-        </TabsTrigger>
-        <TabsTrigger value="flip-calc" className="flex items-center gap-2">
-          <Calculator className="h-4 w-4" />
-          <span className="hidden sm:inline">Flip Calc</span>
-        </TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="transactions">
-        <TransactionsTab />
-      </TabsContent>
-      <TabsContent value="dashboard">
-        <DashboardTab />
-      </TabsContent>
-      <TabsContent value="monthly">
-        <MonthlyBreakdownTab />
-      </TabsContent>
-      <TabsContent value="expenses">
-        <ExtraExpensesTab />
-      </TabsContent>
-      <TabsContent value="flip-calc">
-        <FlipCalculatorTab />
-      </TabsContent>
-    </Tabs>
   );
 }
