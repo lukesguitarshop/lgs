@@ -100,6 +100,9 @@ export default function Header() {
               <Link href="/shop-info" className={navLinkClass}>
                 Shop Info
               </Link>
+              <Link href="/trade-in" className={navLinkClass}>
+                Trade-In
+              </Link>
               {isAdmin ? (
                 <Link
                   href="/admin"
@@ -193,6 +196,13 @@ export default function Header() {
                 className="font-nav px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
               >
                 Shop Info
+              </Link>
+              <Link
+                href="/trade-in"
+                onClick={closeMobileMenu}
+                className="font-nav px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
+              >
+                Trade-In
               </Link>
               <MobileProfileButton onNavigate={closeMobileMenu} />
             </div>

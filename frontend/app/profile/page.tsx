@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { getAuthHeaders } from '@/lib/auth';
 import api from '@/lib/api';
-import { User, Heart, MessageSquare, Tag, Package, Edit, ChevronRight, Truck, ExternalLink, MapPin, Trash2 } from 'lucide-react';
+import { User, Heart, MessageSquare, Tag, Package, Edit, ChevronRight, Truck, ExternalLink, MapPin, Trash2, Guitar } from 'lucide-react';
 import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
 import { ShippingAddress, deleteShippingAddress } from '@/lib/auth';
 
@@ -156,6 +156,12 @@ export default function ProfilePage() {
       title: 'Messages',
       description: 'View all conversations',
     },
+    {
+      href: '/account/trade-ins',
+      icon: Guitar,
+      title: 'Trade-Ins',
+      description: 'Track guitars you sent us',
+    },
   ];
 
   return (
@@ -279,7 +285,7 @@ export default function ProfilePage() {
 
         {/* Quick Links - hidden for admin */}
         {!isAdmin && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {quickLinks.map((link) => (
               <Link key={link.href} href={link.href}>
                 <Card className="h-full hover:border-[#020E1C] transition-colors cursor-pointer">
