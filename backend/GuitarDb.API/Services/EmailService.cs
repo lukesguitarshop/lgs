@@ -699,6 +699,114 @@ public class EmailService
         await SendEmailAsync(_sellerEmail, subject, body);
     }
 
+    public async Task SendTradeInSubmittedAsync(string toEmail, string requestId, string brand, string model)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+        var subject = "We received your trade-in request";
+        var body = $@"
+<h2>Thanks for submitting!</h2>
+<p>We received your trade-in request for your <strong>{brand} {model}</strong>.</p>
+<p>We'll review your photos and get back to you within 24 hours with two offers — a cash offer and a higher store-credit offer.</p>
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View your request</a></p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    public async Task SendTradeInOfferReadyAsync(string toEmail, string requestId, string brand, string model, decimal cashOffer, decimal creditOffer, DateTime expiresAt)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+        var subject = $"Your trade-in offer for the {brand} {model} is ready";
+        var body = $@"
+<h2>Your offer is ready</h2>
+<p>We've reviewed your <strong>{brand} {model}</strong> and put together two offers:</p>
+<ul>
+    <li><strong>Cash:</strong> ${cashOffer:N2}</li>
+    <li><strong>Store credit:</strong> ${creditOffer:N2} (higher value!)</li>
+</ul>
+<p>This offer expires on <strong>{expiresAt:MMMM d, yyyy}</strong>.</p>
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Review your offer</a></p>
+<p style=""color: #666; font-size: 12px;"">Final offer subject to inspection. If condition differs, offer may be adjusted.</p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    public async Task SendTradeInAcceptedShippingInstructionsAsync(string toEmail, string requestId, string brand, string model)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+        var subject = "Next steps: shipping your guitar";
+        var body = $@"
+<h2>Thanks for accepting!</h2>
+<p>Here's what happens next:</p>
+<ol>
+    <li>We'll upload your prepaid shipping label within 1 business day.</li>
+    <li>Pack your <strong>{brand} {model}</strong> securely (case + box, plenty of padding).</li>
+    <li>Drop it off at the carrier indicated on the label.</li>
+</ol>
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View shipping page</a></p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    public async Task SendTradeInDeclinedAdminAsync(string brand, string model, string userEmail)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(_sellerEmail)) return;
+        var subject = $"Trade-in offer declined: {brand} {model}";
+        var body = $@"
+<h2>Offer Declined</h2>
+<p>The user <strong>{userEmail}</strong> declined the offer for their <strong>{brand} {model}</strong>.</p>
+<p>You can send a new offer if you want to try again.</p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+        await SendEmailAsync(_sellerEmail, subject, body);
+    }
+
+    public async Task SendTradeInReceivedAsync(string toEmail, string requestId, string brand, string model)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+        var subject = "We got your guitar";
+        var body = $@"
+<h2>Your guitar arrived</h2>
+<p>We received your <strong>{brand} {model}</strong> and are inspecting it now. We'll send you another update within 1–2 business days.</p>
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"">View your trade-in</a></p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    public async Task SendTradeInPaymentSentAsync(string toEmail, string brand, string model, decimal amount, string? paypalTransactionId)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+        var subject = "Your trade-in payment is on the way";
+        var txnLine = string.IsNullOrEmpty(paypalTransactionId)
+            ? string.Empty
+            : $"<p>PayPal transaction ID: <code>{paypalTransactionId}</code></p>";
+        var body = $@"
+<h2>Payment Sent</h2>
+<p>We've sent <strong>${amount:N2}</strong> via PayPal for your <strong>{brand} {model}</strong>.</p>
+{txnLine}
+<p>Thanks for trading with us!</p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    public async Task SendTradeInCreditIssuedAsync(string toEmail, string brand, string model, decimal amount, decimal newBalance)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+        var subject = "Your store credit is ready to spend";
+        var body = $@"
+<h2>Store Credit Available</h2>
+<p>We've added <strong>${amount:N2}</strong> in store credit for your <strong>{brand} {model}</strong>. Your new balance is <strong>${newBalance:N2}</strong>.</p>
+<p>Apply it at checkout next time you shop.</p>
+<p><a href=""{_frontendUrl}/account/credit"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View credit balance</a></p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
     private static string? GetTrackingUrl(string carrier, string trackingNumber)
     {
         return carrier.ToUpper() switch
