@@ -2034,6 +2034,12 @@ public class MongoDbService
         return result.ModifiedCount > 0;
     }
 
+    public async Task<bool> DeleteTradeInRequestAsync(string id)
+    {
+        var result = await _tradeInRequestsCollection.DeleteOneAsync(t => t.Id == id);
+        return result.DeletedCount > 0;
+    }
+
     // Store credit helpers
     public async Task<StoreCredit?> GetStoreCreditByUserAsync(string userId)
     {

@@ -401,6 +401,17 @@ export async function adminCancelTradeIn(id: string): Promise<void> {
   await api.authPost(`/admin/trade-ins/${id}/cancel`);
 }
 
+export async function adminEditTradeIn(
+  id: string,
+  edits: { brand?: string; model?: string; condition?: string; notes?: string }
+): Promise<void> {
+  await api.authPatch(`/admin/trade-ins/${id}`, edits);
+}
+
+export async function adminDeleteTradeIn(id: string): Promise<void> {
+  await api.authDelete(`/admin/trade-ins/${id}`);
+}
+
 // Store credit API
 export async function getMyStoreCredit(): Promise<StoreCreditDto> {
   return api.authGet<StoreCreditDto>('/store-credit/me');

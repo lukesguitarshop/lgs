@@ -101,6 +101,14 @@ public class MarkPaidRequest
     public string? PaypalTransactionId { get; set; }
 }
 
+public class AdminEditTradeInRequest
+{
+    public string? Brand { get; set; }
+    public string? Model { get; set; }
+    public string? Condition { get; set; }
+    public string? Notes { get; set; }
+}
+
 // Store credit
 public class StoreCreditDto
 {

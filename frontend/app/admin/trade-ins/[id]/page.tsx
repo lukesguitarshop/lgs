@@ -2,16 +2,19 @@
 import { useEffect, useState, use } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Upload, ExternalLink } from 'lucide-react';
+import { Loader2, ArrowLeft, Upload, ExternalLink, Pencil, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import {
   getAdminTradeIn, adminCreateTradeInOffer, adminUploadTradeInLabel,
   adminMarkTradeInReceived, adminMarkTradeInInspected, adminCompleteTradeIn,
-  adminMarkTradeInPaid, adminCancelTradeIn
+  adminMarkTradeInPaid, adminCancelTradeIn, adminEditTradeIn, adminDeleteTradeIn
 } from '@/lib/api';
-import type { AdminTradeInDetail } from '@/lib/types/trade-in';
+import type { AdminTradeInDetail, TradeInCondition } from '@/lib/types/trade-in';
+
+const CONDITIONS: TradeInCondition[] = ['Mint', 'Excellent', 'Very Good', 'Good', 'Fair'];
 
 function formatPrice(n: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
@@ -19,6 +22,7 @@ function formatPrice(n: number) {
 
 export default function AdminTradeInDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
+  const router = useRouter();
   const { isAdmin } = useAuth();
   const { showToast } = useToast();
   const [data, setData] = useState<AdminTradeInDetail | null>(null);
@@ -29,6 +33,13 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
   const [expirationDays, setExpirationDays] = useState('7');
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [paypalTxn, setPaypalTxn] = useState('');
+
+  // Edit mode state
+  const [editing, setEditing] = useState(false);
+  const [editBrand, setEditBrand] = useState('');
+  const [editModel, setEditModel] = useState('');
+  const [editCondition, setEditCondition] = useState<TradeInCondition>('Excellent');
+  const [editNotes, setEditNotes] = useState('');
 
   const reload = async () => setData(await getAdminTradeIn(id));
 
@@ -49,6 +60,44 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
     finally { setBusy(false); }
   };
 
+  const startEdit = () => {
+    setEditBrand(data.brand);
+    setEditModel(data.model);
+    setEditCondition(data.condition as TradeInCondition);
+    setEditNotes(data.notes);
+    setEditing(true);
+  };
+
+  const handleSaveEdit = () => wrap(async () => {
+    if (!editBrand.trim() || !editModel.trim()) {
+      showToast('Brand and model required', 'error');
+      return;
+    }
+    await adminEditTradeIn(id, {
+      brand: editBrand.trim(),
+      model: editModel.trim(),
+      condition: editCondition,
+      notes: editNotes,
+    });
+    showToast('Saved', 'success');
+    setEditing(false);
+  });
+
+  const handleDelete = () => {
+    const ok = confirm(`Permanently delete this trade-in (${data.brand} ${data.model}) and its photos? This cannot be undone.`);
+    if (!ok) return;
+    setBusy(true);
+    adminDeleteTradeIn(id)
+      .then(() => {
+        showToast('Trade-in deleted', 'success');
+        router.push('/admin/trade-ins');
+      })
+      .catch((e: unknown) => {
+        showToast(e instanceof Error ? e.message : 'Delete failed', 'error');
+        setBusy(false);
+      });
+  };
+
   const handleSendOffer = () => wrap(async () => {
     const c = parseFloat(cashOffer); const sc = parseFloat(creditOffer); const d = parseInt(expirationDays, 10);
     if (isNaN(c) || isNaN(sc) || isNaN(d)) { showToast('Enter valid numbers', 'error'); return; }
@@ -65,14 +114,52 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       <Link href="/admin/trade-ins" className="inline-flex items-center text-gray-600 mb-4"><ArrowLeft className="h-4 w-4 mr-2" />All trade-ins</Link>
-      <div className="flex justify-between items-start mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-[#020E1C]">{data.brand} {data.model}</h1>
-          <p className="text-gray-600">{data.condition} · {data.email} · <span className="capitalize font-medium">{data.status}</span></p>
-        </div>
-      </div>
 
-      {data.notes && (
+      {/* Header — read or edit mode */}
+      {!editing ? (
+        <div className="flex justify-between items-start mb-6 gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-[#020E1C]">{data.brand} {data.model}</h1>
+            <p className="text-gray-600">{data.condition} · {data.email} · <span className="capitalize font-medium">{data.status}</span></p>
+          </div>
+          <Button onClick={startEdit} variant="outline" size="sm" className="flex-shrink-0">
+            <Pencil className="h-4 w-4 mr-2" />Edit details
+          </Button>
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-300 rounded-lg p-4 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-semibold">Edit trade-in details</h2>
+            <button onClick={() => setEditing(false)} className="text-gray-500 hover:text-gray-700"><X className="h-5 w-5" /></button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Brand</label>
+              <input value={editBrand} onChange={e => setEditBrand(e.target.value)} className="w-full border rounded px-2 py-1" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Model</label>
+              <input value={editModel} onChange={e => setEditModel(e.target.value)} className="w-full border rounded px-2 py-1" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-600 mb-1">Condition</label>
+              <select value={editCondition} onChange={e => setEditCondition(e.target.value as TradeInCondition)} className="w-full border rounded px-2 py-1 bg-white">
+                {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+          </div>
+          <div className="mb-3">
+            <label className="block text-xs text-gray-600 mb-1">Notes</label>
+            <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} className="w-full border rounded px-2 py-1" />
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleSaveEdit} disabled={busy} className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">Save</Button>
+            <Button onClick={() => setEditing(false)} disabled={busy} variant="outline">Cancel</Button>
+          </div>
+        </div>
+      )}
+
+      {data.notes && !editing && (
         <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4 text-sm">
           <strong>Notes from user:</strong> {data.notes}
         </div>
@@ -149,11 +236,16 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      {/* Cancel escape hatch */}
-      {data.status !== 'completed' && data.status !== 'cancelled' && (
-        <Button onClick={() => { if (confirm('Cancel this trade-in?')) wrap(async () => { await adminCancelTradeIn(id); }); }}
-          disabled={busy} variant="outline" className="text-red-700 border-red-300">Cancel trade-in</Button>
-      )}
+      {/* Danger zone — Cancel + Delete */}
+      <div className="flex flex-wrap gap-2 mt-8 pt-6 border-t border-gray-200">
+        {data.status !== 'completed' && data.status !== 'cancelled' && (
+          <Button onClick={() => { if (confirm('Cancel this trade-in?')) wrap(async () => { await adminCancelTradeIn(id); }); }}
+            disabled={busy} variant="outline" className="text-red-700 border-red-300">Cancel trade-in</Button>
+        )}
+        <Button onClick={handleDelete} disabled={busy} variant="outline" className="text-white bg-red-700 border-red-700 hover:bg-red-800">
+          <Trash2 className="h-4 w-4 mr-2" />Delete permanently
+        </Button>
+      </div>
     </div>
   );
 }

@@ -236,4 +236,50 @@ public class AdminTradeInsController : ControllerBase
         await _mongoDbService.UpdateTradeInRequestAsync(req);
         return Ok(new { id = req.Id });
     }
+
+    [HttpPatch("{id}")]
+    public async Task<IActionResult> Edit(string id, [FromBody] AdminEditTradeInRequest request)
+    {
+        var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
+        if (req == null) return NotFound(new { error = "Not found" });
+
+        if (request.Condition != null)
+        {
+            var allowed = new[] { "Mint", "Excellent", "Very Good", "Good", "Fair" };
+            if (!allowed.Contains(request.Condition))
+                return BadRequest(new { error = "Invalid condition" });
+            req.Condition = request.Condition;
+        }
+        if (request.Brand != null) req.Brand = request.Brand.Trim();
+        if (request.Model != null) req.Model = request.Model.Trim();
+        if (request.Notes != null) req.Notes = request.Notes.Trim();
+
+        await _mongoDbService.UpdateTradeInRequestAsync(req);
+        return Ok(new { id = req.Id });
+    }
+
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Delete(string id)
+    {
+        var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
+        if (req == null) return NotFound(new { error = "Not found" });
+
+        var ok = await _mongoDbService.DeleteTradeInRequestAsync(id);
+        if (!ok) return StatusCode(500, new { error = "Delete failed" });
+
+        // Best-effort cleanup of uploaded files for this trade-in
+        try
+        {
+            var dir = Path.Combine(
+                _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot"),
+                "uploads", "trade-ins", id);
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to clean up files for deleted trade-in {Id}", id);
+        }
+
+        return Ok(new { id });
+    }
 }
