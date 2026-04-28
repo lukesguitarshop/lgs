@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { api } from '@/lib/api';
+import { api, getMyStoreCredit } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { ShoppingCart, ArrowLeft, Loader2, CreditCard, LogIn, MapPin, Plus, Pencil } from 'lucide-react';
 import PayPalCheckoutButton from '@/components/PayPalCheckoutButton';
@@ -61,6 +61,8 @@ export default function CheckoutPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('stripe');
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const [savedAddress, setSavedAddress] = useState<ShippingAddress | null>(null);
+  const [creditBalance, setCreditBalance] = useState(0);
+  const [applyCredit, setApplyCredit] = useState(false);
 
   // Load cart from localStorage and fetch pending items
   useEffect(() => {
@@ -120,9 +122,19 @@ export default function CheckoutPage() {
     }
   }, [isAuthenticated, user]);
 
+  // Load store credit balance
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    getMyStoreCredit().then(d => setCreditBalance(d.balance)).catch(() => {});
+  }, [isAuthenticated]);
+
   const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
   const paypalFee = Math.round(subtotal * 0.035 * 100) / 100; // 3.5% fee for PayPal, rounded to 2 decimals
   const total = paymentMethod === 'paypal' ? subtotal + paypalFee : subtotal;
+  const creditApplied = applyCredit ? Math.min(creditBalance, subtotal) : 0;
+  const totalAfterCredit = paymentMethod === 'paypal'
+    ? subtotal + paypalFee - creditApplied
+    : subtotal - creditApplied;
   const currency = cartItems[0]?.currency || 'USD';
 
   const hasValidAddress = savedAddress &&
@@ -142,8 +154,8 @@ export default function CheckoutPage() {
 
     setCheckoutLoading(true);
     setError(null);
-    trackBeginCheckout(total, currency);
-    sessionStorage.setItem('checkout_total', JSON.stringify({ total, currency }));
+    trackBeginCheckout(totalAfterCredit, currency);
+    sessionStorage.setItem('checkout_total', JSON.stringify({ total: totalAfterCredit, currency }));
 
     try {
       // Build checkout request data
@@ -153,6 +165,7 @@ export default function CheckoutPage() {
           quantity: 1,
         })),
         shippingAddress: savedAddress,
+        applyStoreCredit: applyCredit,
       };
 
       // Use authenticated request (authentication is required)
@@ -305,6 +318,7 @@ export default function CheckoutPage() {
                       src={item.image}
                       alt={item.title}
                       fill
+                      sizes="80px"
                       className="object-cover"
                     />
                   ) : (
@@ -344,9 +358,18 @@ export default function CheckoutPage() {
                   <span>{formatPrice(paypalFee, currency)}</span>
                 </div>
               )}
+              {creditBalance > 0 && (
+                <div className="flex items-center justify-between bg-red-50 border border-[#6E0114] rounded p-2">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer flex-1">
+                    <input type="checkbox" checked={applyCredit} onChange={e => setApplyCredit(e.target.checked)} />
+                    <span>Apply store credit ({formatPrice(creditBalance, currency)} available)</span>
+                  </label>
+                  {applyCredit && <span className="text-sm font-semibold text-[#6E0114]">-{formatPrice(creditApplied, currency)}</span>}
+                </div>
+              )}
               <div className="border-t pt-3 flex justify-between font-semibold text-lg text-[#020E1C]">
                 <span>Total</span>
-                <span>{formatPrice(total, currency)}</span>
+                <span>{formatPrice(totalAfterCredit, currency)}</span>
               </div>
             </div>
 
