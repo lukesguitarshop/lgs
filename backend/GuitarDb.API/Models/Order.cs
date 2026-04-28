@@ -68,6 +68,15 @@ public class Order
     [BsonElement("tracking_number")]
     [BsonIgnoreIfNull]
     public string? TrackingNumber { get; set; }
+
+    [BsonElement("store_credit_applied")]
+    [BsonIgnoreIfDefault]
+    public decimal StoreCreditApplied { get; set; } = 0;
+
+    [BsonElement("store_credit_id")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    [BsonIgnoreIfNull]
+    public string? StoreCreditId { get; set; }
 }
 
 public class OrderItem

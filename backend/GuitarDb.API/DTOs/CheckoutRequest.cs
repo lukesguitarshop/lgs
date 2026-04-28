@@ -9,6 +9,9 @@ public class CheckoutRequest
 
     [JsonPropertyName("shippingAddress")]
     public ShippingAddress? ShippingAddress { get; set; }
+
+    [JsonPropertyName("applyStoreCredit")]
+    public bool ApplyStoreCredit { get; set; } = false;
 }
 
 public class ShippingAddress

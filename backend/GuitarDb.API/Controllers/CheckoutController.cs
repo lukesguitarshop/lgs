@@ -118,6 +118,32 @@ public class CheckoutController : ControllerBase
             return BadRequest(new { error = "No valid items to checkout" });
         }
 
+        // Apply store credit if requested
+        decimal storeCreditApplied = 0;
+        string? storeCreditId = null;
+        if (request.ApplyStoreCredit && userId != null)
+        {
+            var sc = await _mongoDbService.GetStoreCreditByUserAsync(userId);
+            if (sc != null && sc.Balance > 0)
+            {
+                var subtotal = lineItems.Sum(li => (li.PriceData?.UnitAmount ?? 0) * (li.Quantity ?? 1)) / 100m;
+                storeCreditApplied = Math.Min(sc.Balance, subtotal);
+                storeCreditId = sc.Id;
+            }
+        }
+
+        if (storeCreditApplied > 0 && lineItems.Count > 0)
+        {
+            var creditCents = (long)(storeCreditApplied * 100);
+            var first = lineItems[0];
+            var newAmount = (first.PriceData!.UnitAmount ?? 0) - creditCents;
+            if (newAmount < 0) newAmount = 0;
+            first.PriceData.UnitAmount = newAmount;
+            // Reflect the discount in the product name so the user sees it on Stripe's checkout
+            first.PriceData.ProductData.Description =
+                $"{first.PriceData.ProductData.Description} (store credit -${storeCreditApplied:N2})";
+        }
+
         StripeConfiguration.ApiKey = _configuration["Stripe:SecretKey"];
 
         var options = new SessionCreateOptions
@@ -159,7 +185,9 @@ public class CheckoutController : ControllerBase
             Metadata = new Dictionary<string, string>
             {
                 { "listing_ids", string.Join(",", listingIds) },
-                { "user_id", userId ?? "" }
+                { "user_id", userId ?? "" },
+                { "store_credit_applied", storeCreditApplied.ToString("F2") },
+                { "store_credit_id", storeCreditId ?? "" }
             }
         };
 
@@ -283,6 +311,24 @@ public class CheckoutController : ControllerBase
                 Status = "completed",
                 UserId = userId
             };
+
+            // Apply store credit debit if metadata indicates credit was used
+            session.Metadata.TryGetValue("store_credit_applied", out var creditAppliedStr);
+            session.Metadata.TryGetValue("store_credit_id", out var creditIdStr);
+            decimal.TryParse(creditAppliedStr, out var creditApplied);
+            order.StoreCreditApplied = creditApplied;
+            order.StoreCreditId = string.IsNullOrEmpty(creditIdStr) ? null : creditIdStr;
+
+            if (creditApplied > 0 && userId != null)
+            {
+                var ok = await _mongoDbService.DebitUserStoreCreditAsync(
+                    userId, creditApplied, $"order {order.StripeSessionId}", null);
+                if (!ok)
+                {
+                    _logger.LogWarning("Store credit debit failed for user {User} amount {Amount}", userId, creditApplied);
+                    // Continue anyway — order should still go through; we'll reconcile manually.
+                }
+            }
 
             await _mongoDbService.CreateOrderAsync(order);
             _logger.LogInformation("Created order {OrderId} for session {SessionId}", order.Id, session.Id);
