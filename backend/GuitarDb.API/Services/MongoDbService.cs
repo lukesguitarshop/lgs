@@ -22,6 +22,8 @@ public class MongoDbService
     private readonly IMongoCollection<Transaction> _transactionsCollection;
     private readonly IMongoCollection<ExtraExpense> _extraExpensesCollection;
     private readonly IMongoCollection<MonthlySnapshot> _monthlySnapshotsCollection;
+    private readonly IMongoCollection<TradeInRequest> _tradeInRequestsCollection;
+    private readonly IMongoCollection<StoreCredit> _storeCreditsCollection;
     private readonly ILogger<MongoDbService> _logger;
 
     public MongoDbService(IConfiguration configuration, ILogger<MongoDbService> logger)
@@ -52,6 +54,8 @@ public class MongoDbService
         _transactionsCollection = database.GetCollection<Transaction>("transactions");
         _extraExpensesCollection = database.GetCollection<ExtraExpense>("extra_expenses");
         _monthlySnapshotsCollection = database.GetCollection<MonthlySnapshot>("monthly_snapshots");
+        _tradeInRequestsCollection = database.GetCollection<TradeInRequest>("trade_in_requests");
+        _storeCreditsCollection = database.GetCollection<StoreCredit>("store_credits");
 
         CreateIndexesAsync().GetAwaiter().GetResult();
     }
@@ -240,6 +244,28 @@ public class MongoDbService
             var swListingIdIndex = Builders<SweetwaterPotentialBuy>.IndexKeys.Ascending(x => x.SweetwaterListingId);
             await _sweetwaterPotentialBuysCollection.Indexes.CreateOneAsync(
                 new CreateIndexModel<SweetwaterPotentialBuy>(swListingIdIndex, new CreateIndexOptions { Name = "sweetwater_listing_id_idx", Unique = true })
+            );
+
+            // Trade-in indexes
+            var tradeInUserIndex = Builders<TradeInRequest>.IndexKeys.Ascending(t => t.UserId);
+            await _tradeInRequestsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<TradeInRequest>(tradeInUserIndex, new CreateIndexOptions { Name = "user_id_idx" })
+            );
+
+            var tradeInStatusIndex = Builders<TradeInRequest>.IndexKeys.Ascending(t => t.Status);
+            await _tradeInRequestsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<TradeInRequest>(tradeInStatusIndex, new CreateIndexOptions { Name = "status_idx" })
+            );
+
+            var tradeInCreatedAtIndex = Builders<TradeInRequest>.IndexKeys.Descending(t => t.CreatedAt);
+            await _tradeInRequestsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<TradeInRequest>(tradeInCreatedAtIndex, new CreateIndexOptions { Name = "created_at_idx" })
+            );
+
+            // Store credit indexes
+            var storeCreditUserIndex = Builders<StoreCredit>.IndexKeys.Ascending(s => s.UserId);
+            await _storeCreditsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<StoreCredit>(storeCreditUserIndex, new CreateIndexOptions { Name = "user_id_idx", Unique = true })
             );
 
             _logger.LogInformation("MongoDB indexes created successfully");
@@ -1965,6 +1991,109 @@ public class MongoDbService
         {
             await UpsertMonthlySnapshotAsync(snapshot);
         }
+    }
+
+    // Trade-in helpers
+    public async Task<TradeInRequest> CreateTradeInRequestAsync(TradeInRequest request)
+    {
+        request.CreatedAt = DateTime.UtcNow;
+        request.UpdatedAt = DateTime.UtcNow;
+        await _tradeInRequestsCollection.InsertOneAsync(request);
+        return request;
+    }
+
+    public async Task<TradeInRequest?> GetTradeInRequestByIdAsync(string id)
+    {
+        return await _tradeInRequestsCollection.Find(t => t.Id == id).FirstOrDefaultAsync();
+    }
+
+    public async Task<List<TradeInRequest>> GetTradeInRequestsByUserAsync(string userId)
+    {
+        return await _tradeInRequestsCollection
+            .Find(t => t.UserId == userId)
+            .SortByDescending(t => t.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<List<TradeInRequest>> GetAllTradeInRequestsAsync(string? statusFilter = null)
+    {
+        var filter = string.IsNullOrEmpty(statusFilter)
+            ? Builders<TradeInRequest>.Filter.Empty
+            : Builders<TradeInRequest>.Filter.Eq(t => t.Status, statusFilter);
+        return await _tradeInRequestsCollection
+            .Find(filter)
+            .SortByDescending(t => t.CreatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<bool> UpdateTradeInRequestAsync(TradeInRequest request)
+    {
+        request.UpdatedAt = DateTime.UtcNow;
+        var result = await _tradeInRequestsCollection.ReplaceOneAsync(
+            t => t.Id == request.Id, request);
+        return result.ModifiedCount > 0;
+    }
+
+    // Store credit helpers
+    public async Task<StoreCredit?> GetStoreCreditByUserAsync(string userId)
+    {
+        return await _storeCreditsCollection.Find(s => s.UserId == userId).FirstOrDefaultAsync();
+    }
+
+    public async Task<StoreCredit> CreateOrCreditUserAsync(string userId, decimal amount, string reason, string? refId = null)
+    {
+        var existing = await GetStoreCreditByUserAsync(userId);
+        var entry = new StoreCreditEntry
+        {
+            Type = StoreCreditEntryType.Credit,
+            Amount = amount,
+            Reason = reason,
+            RefId = refId
+        };
+
+        if (existing == null)
+        {
+            var sc = new StoreCredit
+            {
+                UserId = userId,
+                Balance = amount,
+                History = new List<StoreCreditEntry> { entry }
+            };
+            await _storeCreditsCollection.InsertOneAsync(sc);
+            return sc;
+        }
+
+        var update = Builders<StoreCredit>.Update
+            .Inc(s => s.Balance, amount)
+            .Push(s => s.History, entry)
+            .Set(s => s.UpdatedAt, DateTime.UtcNow);
+        await _storeCreditsCollection.UpdateOneAsync(s => s.Id == existing.Id, update);
+        existing.Balance += amount;
+        existing.History.Add(entry);
+        return existing;
+    }
+
+    public async Task<bool> DebitUserStoreCreditAsync(string userId, decimal amount, string reason, string? refId = null)
+    {
+        var existing = await GetStoreCreditByUserAsync(userId);
+        if (existing == null || existing.Balance < amount) return false;
+
+        var entry = new StoreCreditEntry
+        {
+            Type = StoreCreditEntryType.Debit,
+            Amount = amount,
+            Reason = reason,
+            RefId = refId
+        };
+        var update = Builders<StoreCredit>.Update
+            .Inc(s => s.Balance, -amount)
+            .Push(s => s.History, entry)
+            .Set(s => s.UpdatedAt, DateTime.UtcNow);
+        var filter = Builders<StoreCredit>.Filter.And(
+            Builders<StoreCredit>.Filter.Eq(s => s.UserId, userId),
+            Builders<StoreCredit>.Filter.Gte(s => s.Balance, amount));
+        var result = await _storeCreditsCollection.UpdateOneAsync(filter, update);
+        return result.ModifiedCount > 0;
     }
 
 }
