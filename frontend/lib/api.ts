@@ -315,4 +315,95 @@ export async function deleteAdminUser(
   return api.authDelete<{ success: boolean; message: string }>(`/admin/users/${id}`);
 }
 
+// Trade-in API
+import type { TradeInRequestDto, AdminTradeInListItem, AdminTradeInDetail } from './types/trade-in';
+import type { StoreCreditDto } from './types/store-credit';
+
+export async function submitTradeIn(formData: FormData): Promise<{ id: string }> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const response = await fetch(`${API_BASE_URL}/trade-ins`, {
+    method: 'POST',
+    body: formData,
+    headers,
+  });
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw { message: errBody.error || 'Submit failed', status: response.status } as ApiError;
+  }
+  return response.json();
+}
+
+export async function getMyTradeIns(): Promise<TradeInRequestDto[]> {
+  return api.authGet<TradeInRequestDto[]>('/trade-ins/me');
+}
+
+export async function getTradeIn(id: string): Promise<TradeInRequestDto> {
+  return api.authGet<TradeInRequestDto>(`/trade-ins/${id}`);
+}
+
+export async function acceptTradeInOffer(id: string, type: 'cash' | 'credit', paypalEmail?: string): Promise<TradeInRequestDto> {
+  return api.authPost<TradeInRequestDto>(`/trade-ins/${id}/accept`, { type, paypalEmail });
+}
+
+export async function declineTradeInOffer(id: string): Promise<TradeInRequestDto> {
+  return api.authPost<TradeInRequestDto>(`/trade-ins/${id}/decline`);
+}
+
+// Admin trade-in API
+export async function getAdminTradeIns(status?: string): Promise<AdminTradeInListItem[]> {
+  const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+  return api.authGet<AdminTradeInListItem[]>(`/admin/trade-ins${qs}`);
+}
+
+export async function getAdminTradeIn(id: string): Promise<AdminTradeInDetail> {
+  return api.authGet<AdminTradeInDetail>(`/admin/trade-ins/${id}`);
+}
+
+export async function adminCreateTradeInOffer(id: string, cashOffer: number, storeCreditOffer: number, expirationDays: number): Promise<{ id: string }> {
+  return api.authPost(`/admin/trade-ins/${id}/offer`, { cashOffer, storeCreditOffer, expirationDays });
+}
+
+export async function adminUploadTradeInLabel(id: string, file: File): Promise<{ labelUrl: string }> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const fd = new FormData();
+  fd.append('label', file);
+  const response = await fetch(`${API_BASE_URL}/admin/trade-ins/${id}/label`, {
+    method: 'POST', body: fd, headers,
+  });
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    throw { message: errBody.error || 'Upload failed', status: response.status } as ApiError;
+  }
+  return response.json();
+}
+
+export async function adminMarkTradeInReceived(id: string): Promise<void> {
+  await api.authPost(`/admin/trade-ins/${id}/mark-received`);
+}
+
+export async function adminMarkTradeInInspected(id: string, notes?: string): Promise<void> {
+  await api.authPost(`/admin/trade-ins/${id}/mark-inspected`, { notes });
+}
+
+export async function adminCompleteTradeIn(id: string): Promise<void> {
+  await api.authPost(`/admin/trade-ins/${id}/complete`);
+}
+
+export async function adminMarkTradeInPaid(id: string, paypalTransactionId?: string): Promise<void> {
+  await api.authPost(`/admin/trade-ins/${id}/mark-paid`, { paypalTransactionId });
+}
+
+export async function adminCancelTradeIn(id: string): Promise<void> {
+  await api.authPost(`/admin/trade-ins/${id}/cancel`);
+}
+
+// Store credit API
+export async function getMyStoreCredit(): Promise<StoreCreditDto> {
+  return api.authGet<StoreCreditDto>('/store-credit/me');
+}
+
 export default api;
