@@ -42,7 +42,7 @@ public class TradeInsController : ControllerBase
         {
             return BadRequest(new { error = "Brand, model, and condition are required" });
         }
-        var allowedConditions = new[] { "Excellent", "Very Good", "Good", "Fair" };
+        var allowedConditions = new[] { "Mint", "Excellent", "Very Good", "Good", "Fair" };
         if (!allowedConditions.Contains(request.Condition))
         {
             return BadRequest(new { error = "Invalid condition" });

@@ -12,7 +12,7 @@ import { useToast } from '@/components/ui/toast';
 import { submitTradeIn } from '@/lib/api';
 import type { TradeInCondition } from '@/lib/types/trade-in';
 
-const CONDITIONS: TradeInCondition[] = ['Excellent', 'Very Good', 'Good', 'Fair'];
+const CONDITIONS: TradeInCondition[] = ['Mint', 'Excellent', 'Very Good', 'Good', 'Fair'];
 
 export default function TradeInSubmitPage() {
   const router = useRouter();

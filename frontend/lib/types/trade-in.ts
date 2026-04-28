@@ -1,4 +1,4 @@
-export type TradeInCondition = 'Excellent' | 'Very Good' | 'Good' | 'Fair';
+export type TradeInCondition = 'Mint' | 'Excellent' | 'Very Good' | 'Good' | 'Fair';
 
 export type TradeInStatus =
   | 'submitted' | 'offered' | 'accepted' | 'declined' | 'expired'
