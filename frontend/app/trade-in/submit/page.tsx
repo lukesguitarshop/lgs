@@ -93,7 +93,7 @@ export default function TradeInSubmitPage() {
         <div>
           <Label htmlFor="condition">Condition</Label>
           <select id="condition" value={condition} onChange={(e) => setCondition(e.target.value as TradeInCondition)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-[#6E0114]">
+            className="w-full border border-gray-300 rounded-md px-3 py-2 bg-[#FFFFF3] focus:outline-none focus:ring-2 focus:ring-[#6E0114]">
             {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
         </div>
