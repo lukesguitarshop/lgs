@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, LogOut, Heart, Tag, MessageSquare, Shield, Bell } from 'lucide-react';
+import { User, LogOut, Heart, Tag, MessageSquare, Shield, Bell, Guitar } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -145,6 +145,12 @@ export function ProfileButton() {
               <Link href="/messages" className="cursor-pointer">
                 <MessageSquare className="mr-2 h-4 w-4" />
                 Messages
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link href="/account/trade-ins" className="cursor-pointer">
+                <Guitar className="mr-2 h-4 w-4" />
+                My Trade-Ins
               </Link>
             </DropdownMenuItem>
           </>
@@ -293,6 +299,14 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           >
             <MessageSquare className="h-4 w-4" />
             Messages
+          </Link>
+          <Link
+            href="/account/trade-ins"
+            onClick={onNavigate}
+            className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <Guitar className="h-4 w-4" />
+            My Trade-Ins
           </Link>
         </>
       )}

@@ -97,11 +97,11 @@ export default function Header() {
               <Link href="/" className={navLinkClass}>
                 Listings
               </Link>
-              <Link href="/shop-info" className={navLinkClass}>
-                Shop Info
-              </Link>
               <Link href="/trade-in" className={navLinkClass}>
                 Trade-In
+              </Link>
+              <Link href="/shop-info" className={navLinkClass}>
+                Shop Info
               </Link>
               {isAdmin ? (
                 <Link
@@ -191,18 +191,18 @@ export default function Header() {
                 Home
               </Link>
               <Link
-                href="/shop-info"
-                onClick={closeMobileMenu}
-                className="font-nav px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
-              >
-                Shop Info
-              </Link>
-              <Link
                 href="/trade-in"
                 onClick={closeMobileMenu}
                 className="font-nav px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
               >
                 Trade-In
+              </Link>
+              <Link
+                href="/shop-info"
+                onClick={closeMobileMenu}
+                className="font-nav px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
+              >
+                Shop Info
               </Link>
               <MobileProfileButton onNavigate={closeMobileMenu} />
             </div>
