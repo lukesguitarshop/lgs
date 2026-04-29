@@ -15,15 +15,15 @@ public class AdminTradeInsController : ControllerBase
     private readonly MongoDbService _mongoDbService;
     private readonly EmailService _emailService;
     private readonly ILogger<AdminTradeInsController> _logger;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IFileStorageService _fileStorage;
 
     public AdminTradeInsController(MongoDbService mongoDbService, EmailService emailService,
-        ILogger<AdminTradeInsController> logger, IWebHostEnvironment environment)
+        ILogger<AdminTradeInsController> logger, IFileStorageService fileStorage)
     {
         _mongoDbService = mongoDbService;
         _emailService = emailService;
         _logger = logger;
-        _environment = environment;
+        _fileStorage = fileStorage;
     }
 
     private string? GetAdminId() => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -141,16 +141,11 @@ public class AdminTradeInsController : ControllerBase
         if (label.ContentType != "application/pdf") return BadRequest(new { error = "Label must be a PDF" });
         if (label.Length > 10 * 1024 * 1024) return BadRequest(new { error = "Label must be under 10MB" });
 
-        var dir = Path.Combine(
-            _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot"),
-            "uploads", "trade-ins", req.Id!);
-        Directory.CreateDirectory(dir);
-        var labelPath = Path.Combine(dir, "label.pdf");
-        using (var stream = new FileStream(labelPath, FileMode.Create))
-            await label.CopyToAsync(stream);
+        var key = $"trade-ins/{req.Id}/label.pdf";
+        using var labelStream = label.OpenReadStream();
+        var labelUrl = await _fileStorage.UploadAsync(key, labelStream, label.ContentType);
 
-        var baseUrl = $"{Request.Scheme}://{Request.Host}";
-        req.Shipping.LabelUrl = $"{baseUrl}/uploads/trade-ins/{req.Id}/label.pdf";
+        req.Shipping.LabelUrl = labelUrl;
         req.Shipping.LabelUploadedAt = DateTime.UtcNow;
         await _mongoDbService.UpdateTradeInRequestAsync(req);
         return Ok(new { labelUrl = req.Shipping.LabelUrl });
@@ -270,10 +265,7 @@ public class AdminTradeInsController : ControllerBase
         // Best-effort cleanup of uploaded files for this trade-in
         try
         {
-            var dir = Path.Combine(
-                _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot"),
-                "uploads", "trade-ins", id);
-            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            await _fileStorage.DeletePrefixAsync($"trade-ins/{id}/");
         }
         catch (Exception ex)
         {
