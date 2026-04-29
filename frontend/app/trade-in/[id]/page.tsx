@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Package, CheckCircle2, XCircle, Clock, Download } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
+import { ImageLightbox } from '@/components/ImageLightbox';
 import { getTradeIn, acceptTradeInOffer, declineTradeInOffer } from '@/lib/api';
 import type { TradeInRequestDto } from '@/lib/types/trade-in';
 
@@ -23,6 +24,7 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
   const [acceptType, setAcceptType] = useState<'cash' | 'credit' | null>(null);
   const [paypalEmail, setPaypalEmail] = useState('');
   const [acting, setActing] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) { setLoading(false); return; }
@@ -73,9 +75,14 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
       {data.photos.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
           {data.photos.map((p, i) => (
-            <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
+            <button
+              key={i}
+              type="button"
+              onClick={() => setLightboxIndex(i)}
+              className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 cursor-pointer hover:opacity-90 transition-opacity"
+            >
               <Image src={p.url} alt={`photo ${i + 1}`} fill sizes="200px" className="object-cover" />
-            </div>
+            </button>
           ))}
         </div>
       )}
@@ -188,6 +195,14 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
           <p>This trade-in is closed.</p>
         </div>
       )}
+
+      <ImageLightbox
+        images={data.photos.map(p => p.url)}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
+        alt={`${data.brand} ${data.model} photo`}
+      />
     </div>
   );
 }

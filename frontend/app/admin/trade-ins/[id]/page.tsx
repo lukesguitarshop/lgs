@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ArrowLeft, Upload, ExternalLink, Pencil, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
+import { ImageLightbox } from '@/components/ImageLightbox';
 import {
   getAdminTradeIn, adminCreateTradeInOffer, adminUploadTradeInLabel,
   adminMarkTradeInReceived, adminMarkTradeInInspected, adminCompleteTradeIn,
@@ -33,6 +34,7 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
   const [expirationDays, setExpirationDays] = useState('7');
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [paypalTxn, setPaypalTxn] = useState('');
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
   // Edit mode state
   const [editing, setEditing] = useState(false);
@@ -159,19 +161,24 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      {data.notes && !editing && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded p-3 mb-4 text-sm">
-          <strong>Notes from user:</strong> {data.notes}
-        </div>
-      )}
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
         {data.photos.map((p, i) => (
-          <a key={i} href={p.url} target="_blank" rel="noopener" className="relative aspect-square rounded overflow-hidden bg-gray-100 block">
+          <button
+            key={i}
+            type="button"
+            onClick={() => setLightboxIndex(i)}
+            className="relative aspect-square rounded overflow-hidden bg-gray-100 block cursor-pointer hover:opacity-90 transition-opacity"
+          >
             <Image src={p.url} alt={`photo ${i + 1}`} fill sizes="200px" className="object-cover" />
-          </a>
+          </button>
         ))}
       </div>
+
+      {data.notes && !editing && (
+        <p className="text-sm text-gray-700 mb-6">
+          <span className="font-medium">Notes from user:</span> {data.notes}
+        </p>
+      )}
 
       {/* Active offer summary */}
       {data.activeOffer && (
@@ -246,6 +253,15 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
           <Trash2 className="h-4 w-4 mr-2" />Delete permanently
         </Button>
       </div>
+
+      <ImageLightbox
+        images={data.photos.map(p => p.url)}
+        index={lightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+        onIndexChange={setLightboxIndex}
+        alt={`${data.brand} ${data.model} photo`}
+      />
     </div>
   );
 }
+
