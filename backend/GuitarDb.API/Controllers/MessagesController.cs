@@ -14,19 +14,19 @@ public class MessagesController : ControllerBase
     private readonly MongoDbService _mongoDbService;
     private readonly EmailService _emailService;
     private readonly ILogger<MessagesController> _logger;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IFileStorageService _fileStorage;
     private static readonly TimeSpan OfferExpiration = TimeSpan.FromHours(48);
 
     public MessagesController(
         MongoDbService mongoDbService,
         EmailService emailService,
         ILogger<MessagesController> logger,
-        IWebHostEnvironment environment)
+        IFileStorageService fileStorage)
     {
         _mongoDbService = mongoDbService;
         _emailService = emailService;
         _logger = logger;
-        _environment = environment;
+        _fileStorage = fileStorage;
     }
 
     /// <summary>
@@ -292,22 +292,12 @@ public class MessagesController : ControllerBase
 
                 try
                 {
-                    // Save image to wwwroot/uploads/messages
-                    var uploadsPath = Path.Combine(_environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot"), "uploads", "messages");
-                    Directory.CreateDirectory(uploadsPath);
-
                     var fileExtension = Path.GetExtension(image.FileName);
                     var fileName = $"{Guid.NewGuid()}{fileExtension}";
-                    var filePath = Path.Combine(uploadsPath, fileName);
+                    var key = $"messages/{fileName}";
 
-                    using (var stream = new FileStream(filePath, FileMode.Create))
-                    {
-                        await image.CopyToAsync(stream);
-                    }
-
-                    // Build the URL for the uploaded image
-                    var baseUrl = $"{Request.Scheme}://{Request.Host}";
-                    var imageUrl = $"{baseUrl}/uploads/messages/{fileName}";
+                    using var msStream = image.OpenReadStream();
+                    var imageUrl = await _fileStorage.UploadAsync(key, msStream, image.ContentType);
                     imageUrls.Add(imageUrl);
                 }
                 catch (Exception ex)
