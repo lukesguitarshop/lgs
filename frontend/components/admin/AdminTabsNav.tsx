@@ -27,10 +27,10 @@ export function AdminTabsNav() {
           <Link
             key={href}
             href={href}
-            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md text-base font-medium transition-colors ${
+            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md text-base font-medium border transition-colors ${
               active
-                ? 'bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110]'
-                : 'bg-gray-100 text-[#020E1C] hover:bg-gray-200'
+                ? 'bg-[#6E0114] text-[#FFFFF3] border-[#6E0114] hover:bg-[#580110]'
+                : 'bg-[#FFFFF3] text-[#020E1C] border-gray-300 hover:border-[#6E0114] hover:text-[#6E0114]'
             }`}
           >
             <Icon className="h-4 w-4" />
