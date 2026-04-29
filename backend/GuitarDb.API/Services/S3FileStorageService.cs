@@ -56,9 +56,21 @@ public class S3FileStorageService : IFileStorageService, IDisposable
         var credentials = new BasicAWSCredentials(accessKey, secretKey);
         var client = new AmazonS3Client(credentials, config);
 
-        // Public URL pattern for path-style S3 endpoints: {endpoint}/{bucket}/{key}
-        var publicBase = $"{endpoint!.TrimEnd('/')}/{bucket}";
-        _logger.LogInformation("S3 file storage initialised. Endpoint={Endpoint} Bucket={Bucket}", endpoint, bucket);
+        // Public URL pattern. Path-style ({endpoint}/{bucket}/{key}) is the API endpoint and
+        // requires authentication on Tigris — anonymous reads only work via the virtual-host
+        // form ({bucket}.{endpoint-host}/{key}). Allow an explicit override for custom domains.
+        var explicitBase = Environment.GetEnvironmentVariable("S3_PUBLIC_BASE_URL");
+        string publicBase;
+        if (!string.IsNullOrWhiteSpace(explicitBase))
+        {
+            publicBase = explicitBase!.TrimEnd('/');
+        }
+        else
+        {
+            var endpointUri = new Uri(endpoint!);
+            publicBase = $"{endpointUri.Scheme}://{bucket}.{endpointUri.Host}";
+        }
+        _logger.LogInformation("S3 file storage initialised. Endpoint={Endpoint} Bucket={Bucket} PublicBase={PublicBase}", endpoint, bucket, publicBase);
         return new S3Context(client, bucket!, publicBase);
     }
 
