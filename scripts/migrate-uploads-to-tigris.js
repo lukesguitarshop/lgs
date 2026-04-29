@@ -64,7 +64,11 @@ const TARBALL_PATH = requireEnv('TARBALL_PATH');
 const OLD_BASE_URL = requireEnv('OLD_BASE_URL').replace(/\/+$/, '');
 const AWS_REGION = process.env.AWS_REGION || 'auto';
 
-const PUBLIC_BASE = `${AWS_ENDPOINT_URL_S3.replace(/\/+$/, '')}/${BUCKET_NAME}`;
+// Public reads on Tigris only work via the virtual-host form. Path-style is
+// the auth-only API endpoint. e.g. https://<bucket>.fly.storage.tigris.dev/<key>
+const _endpointUrl = new URL(AWS_ENDPOINT_URL_S3);
+const PUBLIC_BASE = process.env.S3_PUBLIC_BASE_URL?.replace(/\/+$/, '')
+  ?? `${_endpointUrl.protocol}//${BUCKET_NAME}.${_endpointUrl.host}`;
 
 function log(...args) {
   console.log(`[${new Date().toISOString()}]`, ...args);
