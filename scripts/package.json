@@ -1,0 +1,14 @@
+{
+  "name": "lgs-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-off migration and ops scripts for Luke's Guitar Shop.",
+  "scripts": {
+    "migrate-uploads": "node migrate-uploads-to-tigris.js"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.645.0",
+    "mongodb": "^6.8.0",
+    "mime-types": "^2.1.35"
+  }
+}
