@@ -15,15 +15,15 @@ public class TradeInsController : ControllerBase
     private readonly MongoDbService _mongoDbService;
     private readonly EmailService _emailService;
     private readonly ILogger<TradeInsController> _logger;
-    private readonly IWebHostEnvironment _environment;
+    private readonly IFileStorageService _fileStorage;
 
     public TradeInsController(MongoDbService mongoDbService, EmailService emailService,
-        ILogger<TradeInsController> logger, IWebHostEnvironment environment)
+        ILogger<TradeInsController> logger, IFileStorageService fileStorage)
     {
         _mongoDbService = mongoDbService;
         _emailService = emailService;
         _logger = logger;
-        _environment = environment;
+        _fileStorage = fileStorage;
     }
 
     private string? GetUserId() => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -76,21 +76,16 @@ public class TradeInsController : ControllerBase
             if (!allowedTypes.Contains(image.ContentType.ToLower()))
                 return BadRequest(new { error = "Photos must be JPEG, PNG, GIF, or WebP" });
 
-            var uploadsRoot = Path.Combine(
-                _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot"),
-                "uploads", "trade-ins", tradeIn.Id!);
-            Directory.CreateDirectory(uploadsRoot);
-
             var ext = Path.GetExtension(image.FileName);
             var fileName = $"{Guid.NewGuid()}{ext}";
-            var filePath = Path.Combine(uploadsRoot, fileName);
-            using (var stream = new FileStream(filePath, FileMode.Create))
-                await image.CopyToAsync(stream);
+            var key = $"trade-ins/{tradeIn.Id}/{fileName}";
 
-            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            using var imageStream = image.OpenReadStream();
+            var photoUrl = await _fileStorage.UploadAsync(key, imageStream, image.ContentType);
+
             photos.Add(new TradeInPhoto
             {
-                Url = $"{baseUrl}/uploads/trade-ins/{tradeIn.Id}/{fileName}",
+                Url = photoUrl,
                 OriginalFileName = image.FileName
             });
         }
