@@ -20,21 +20,21 @@ export function AdminTabsNav() {
   };
 
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-6">
+    <div className="grid w-full grid-cols-4 gap-1 rounded-lg bg-muted p-1 mb-4">
       {TABS.map(({ href, label, icon: Icon }) => {
         const active = isActive(href);
         return (
           <Link
             key={href}
             href={href}
-            className={`flex items-center justify-center gap-2 px-4 py-2 rounded-md text-base font-medium border transition-colors ${
+            className={`font-nav inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1 text-sm transition-all ${
               active
-                ? 'bg-[#6E0114] text-[#FFFFF3] border-[#6E0114] hover:bg-[#580110]'
-                : 'bg-[#FFFFF3] text-[#020E1C] border-gray-300 hover:border-[#6E0114] hover:text-[#6E0114]'
+                ? 'bg-[#6E0114] text-[#FFFFF3] shadow'
+                : 'text-[#020E1C]/60 hover:text-[#020E1C]'
             }`}
           >
             <Icon className="h-4 w-4" />
-            <span>{label}</span>
+            <span className="hidden sm:inline">{label}</span>
           </Link>
         );
       })}

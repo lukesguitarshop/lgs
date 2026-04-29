@@ -85,8 +85,13 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
   const canDecline = data.status === 'submitted' && data.allOffers.length === 0;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <Link href="/admin/trade-ins" className="inline-flex items-center text-gray-600 mb-4"><ArrowLeft className="h-4 w-4 mr-2" />All trade-ins</Link>
+    <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
+      <div className="mb-6">
+        <Link href="/admin/trade-ins" className="inline-flex items-center text-gray-600 hover:text-[#020E1C] transition-colors">
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          All trade-ins
+        </Link>
+      </div>
 
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-[#020E1C]">{data.brand} {data.model}</h1>

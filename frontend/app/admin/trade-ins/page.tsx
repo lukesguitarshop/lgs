@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, ArrowRight, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, ArrowRight, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
@@ -119,9 +119,20 @@ export default function AdminTradeInsListPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
+      <div className="mb-6">
+        <Link
+          href="/"
+          className="inline-flex items-center text-gray-600 hover:text-[#020E1C] transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Home
+        </Link>
+      </div>
+
       <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Trade-ins</h1>
       <p className="text-gray-600 mb-6">Review submissions, send offers, manage shipping</p>
+
       <AdminTabsNav />
       <div className="flex flex-wrap gap-2 mb-6">
         {STATUS_FILTERS.map(s => (
