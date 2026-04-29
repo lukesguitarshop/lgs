@@ -53,7 +53,7 @@ export default function AdminTradeInsListPage() {
       ) : items.length === 0 ? (
         <p className="text-gray-600">No trade-ins {status !== 'all' && `with status "${status}"`}.</p>
       ) : (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+        <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 overflow-hidden">
           <table className="w-full">
             <thead className="bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-600">
               <tr>

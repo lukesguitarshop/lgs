@@ -32,7 +32,7 @@ export const metadata: Metadata = {
     default: "Luke's Guitar Shop | Quality Guitars at Great Prices",
     template: "%s | Luke's Guitar Shop",
   },
-  description: "Shop quality new and used guitars at Luke's Guitar Shop. Free shipping on all orders. Fender, Gibson, Martin, Taylor, and more.",
+  description: "Shop quality used guitars at Luke's Guitar Shop. Free shipping on all orders. Fender, Gibson, Martin, Taylor, and more.",
   keywords: ["guitar", "guitars", "used guitars", "guitar shop", "buy guitar", "Fender", "Gibson", "Martin", "Taylor", "electric guitar", "acoustic guitar"],
   authors: [{ name: "Luke's Guitar Shop" }],
   creator: "Luke's Guitar Shop",
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     url: siteUrl,
     siteName: "Luke's Guitar Shop",
     title: "Luke's Guitar Shop | Quality Guitars at Great Prices",
-    description: "Shop quality new and used guitars at Luke's Guitar Shop. Free shipping on all orders.",
+    description: "Shop quality used guitars at Luke's Guitar Shop. Free shipping on all orders.",
     images: [
       {
         url: "/images/logo-transparent.png",
@@ -63,7 +63,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Luke's Guitar Shop | Quality Guitars at Great Prices",
-    description: "Shop quality new and used guitars at Luke's Guitar Shop. Free shipping on all orders.",
+    description: "Shop quality used guitars at Luke's Guitar Shop. Free shipping on all orders.",
     images: ["/images/logo-transparent.png"],
   },
   robots: {
@@ -89,7 +89,7 @@ function OrganizationJsonLd() {
     name: "Luke's Guitar Shop",
     url: siteUrl,
     logo: `${siteUrl}/images/logo-transparent.png`,
-    description: "Quality new and used guitars at great prices. Free shipping on all orders.",
+    description: "Quality used guitars at great prices. Free shipping on all orders.",
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer service",
@@ -137,7 +137,7 @@ function LocalBusinessJsonLd() {
     name: "Luke's Guitar Shop",
     url: siteUrl,
     logo: `${siteUrl}/images/logo-transparent.png`,
-    description: "Quality new and used guitars at great prices. Free shipping on all orders.",
+    description: "Quality used guitars at great prices. Free shipping on all orders.",
     priceRange: "$$",
     image: `${siteUrl}/images/logo-transparent.png`,
     email: "lukesguitarshop@gmail.com",

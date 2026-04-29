@@ -33,7 +33,7 @@ export default function StoreCreditPage() {
       {data && data.history.length > 0 ? (
         <div className="space-y-2">
           {data.history.map((entry, i) => (
-            <div key={i} className="flex justify-between bg-white border border-gray-200 rounded p-3">
+            <div key={i} className="flex justify-between bg-[#FFFFF3] border border-gray-200 rounded p-3">
               <div>
                 <p className="capitalize text-sm font-medium">{entry.reason}</p>
                 <p className="text-xs text-gray-500">{new Date(entry.createdAt).toLocaleString()}</p>

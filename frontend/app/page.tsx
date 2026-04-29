@@ -50,5 +50,5 @@ export default async function HomePage() {
 
 export const metadata = {
   title: 'Luke\'s Guitar Shop',
-  description: 'Browse my current guitar listings on Reverb.',
+  description: 'Shop quality used guitars at Luke\'s Guitar Shop. Free shipping on all orders. Fender, Gibson, Martin, Taylor, and more.',
 };

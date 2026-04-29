@@ -181,7 +181,7 @@ function NumberInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
-          className={`w-full border border-gray-300 rounded-md bg-white text-[#020E1C] focus:outline-none focus:ring-2 focus:ring-[#6E0114]/30 focus:border-[#6E0114] ${
+          className={`w-full border border-gray-300 rounded-md bg-[#FFFFF3] text-[#020E1C] focus:outline-none focus:ring-2 focus:ring-[#6E0114]/30 focus:border-[#6E0114] ${
             compact ? 'text-sm py-1.5' : 'py-2'
           } ${prefix ? 'pl-6' : 'pl-3'} ${suffix ? 'pr-7' : 'pr-3'}`}
         />

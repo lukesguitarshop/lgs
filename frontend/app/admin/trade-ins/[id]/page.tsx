@@ -127,7 +127,7 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
           </Button>
         </div>
       ) : (
-        <div className="bg-white border border-gray-300 rounded-lg p-4 mb-6">
+        <div className="bg-[#FFFFF3] border border-gray-300 rounded-lg p-4 mb-6">
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-semibold">Edit trade-in details</h2>
             <button onClick={() => setEditing(false)} className="text-gray-500 hover:text-gray-700"><X className="h-5 w-5" /></button>
@@ -143,7 +143,7 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
             </div>
             <div>
               <label className="block text-xs text-gray-600 mb-1">Condition</label>
-              <select value={editCondition} onChange={e => setEditCondition(e.target.value as TradeInCondition)} className="w-full border rounded px-2 py-1 bg-white">
+              <select value={editCondition} onChange={e => setEditCondition(e.target.value as TradeInCondition)} className="w-full border rounded px-2 py-1 bg-[#FFFFF3]">
                 {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
@@ -186,7 +186,7 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
       )}
 
       {/* Send offer form (always shown so admin can re-offer) */}
-      <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
+      <div className="bg-[#FFFFF3] border border-gray-200 rounded-lg p-4 mb-4">
         <h2 className="font-semibold mb-3">Send {data.allOffers.length > 0 ? 'new ' : ''}offer</h2>
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -207,7 +207,7 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
 
       {/* Shipping section — visible after acceptance */}
       {(data.status === 'accepted' || data.status === 'received' || data.status === 'inspected' || data.status === 'completed') && (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
+        <div className="bg-[#FFFFF3] border border-gray-200 rounded-lg p-4 mb-4">
           <h2 className="font-semibold mb-3">Shipping & inspection</h2>
           {data.shipping?.labelUrl ? (
             <p className="text-sm mb-2">Label: <a href={data.shipping.labelUrl} target="_blank" rel="noopener" className="text-[#6E0114] underline inline-flex items-center">View PDF <ExternalLink className="h-3 w-3 ml-1" /></a></p>

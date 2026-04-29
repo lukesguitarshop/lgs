@@ -252,7 +252,7 @@ export default function DashboardTab() {
           <h3 className="text-lg font-semibold text-[#020E1C] mb-4">Trade Chains</h3>
           <div className="space-y-3">
             {tradeGroups.map((group, i) => (
-              <div key={i} className="py-2 px-3 bg-white rounded border border-gray-100">
+              <div key={i} className="py-2 px-3 bg-[#FFFFF3] rounded border border-gray-100">
                 <TradeGroupView group={group} />
               </div>
             ))}

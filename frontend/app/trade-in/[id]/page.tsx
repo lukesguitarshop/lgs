@@ -111,7 +111,7 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
           <Button onClick={handleDecline} disabled={acting} variant="outline">Decline both</Button>
 
           {acceptType === 'cash' && (
-            <div className="bg-white border border-gray-200 rounded-lg p-4 mt-4">
+            <div className="bg-[#FFFFF3] border border-gray-200 rounded-lg p-4 mt-4">
               <label className="block text-sm font-medium mb-2">Your PayPal email</label>
               <input type="email" value={paypalEmail} onChange={(e) => setPaypalEmail(e.target.value)} className="w-full border rounded px-3 py-2 mb-3" />
               <div className="flex gap-2">
@@ -141,7 +141,7 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
           ) : (
             <p className="text-gray-700">We'll upload your prepaid label within 1 business day. Check back shortly.</p>
           )}
-          <div className="bg-white rounded p-4 border">
+          <div className="bg-[#FFFFF3] rounded p-4 border">
             <h3 className="font-semibold mb-2">Packing checklist</h3>
             <ul className="list-disc list-inside text-sm text-gray-700 space-y-1">
               <li>Use a hardshell or gig case if available</li>
