@@ -1,6 +1,5 @@
 using GuitarDb.API.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.IdentityModel.Tokens;
 using System.Reflection;
 using System.Text;
@@ -28,6 +27,10 @@ builder.Services.AddSwaggerGen(options =>
 
 // Register MongoDB service as singleton
 builder.Services.AddSingleton<MongoDbService>();
+
+// Register S3-compatible file storage (Tigris on Fly.io). Lazy-init: it does not
+// hit env vars until first use, so the API still boots locally without S3 creds.
+builder.Services.AddSingleton<IFileStorageService, S3FileStorageService>();
 
 // Register ScraperService with HttpClient for Reverb API
 builder.Services.AddHttpClient<ScraperService>(client =>
@@ -143,17 +146,8 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-// Serve static files (for uploaded images)
-var webRootPath = builder.Environment.WebRootPath ?? Path.Combine(builder.Environment.ContentRootPath, "wwwroot");
-if (!Directory.Exists(webRootPath))
-{
-    Directory.CreateDirectory(webRootPath);
-}
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(webRootPath),
-    RequestPath = ""
-});
+// Uploaded files are now served directly from Tigris (S3) — no static-file middleware needed.
+// wwwroot/ is intentionally not served because it only ever held /uploads/ which has been migrated.
 
 app.UseCors("AllowFrontend");
 
