@@ -245,6 +245,12 @@ public class AdminTradeInsController : ControllerBase
                 return BadRequest(new { error = "Invalid condition" });
             req.Condition = request.Condition;
         }
+        if (request.Brand != null && request.Brand.Length > 100)
+            return BadRequest(new { error = "Brand must be 100 characters or fewer" });
+        if (request.Model != null && request.Model.Length > 100)
+            return BadRequest(new { error = "Model must be 100 characters or fewer" });
+        if (request.Notes != null && request.Notes.Length > 1000)
+            return BadRequest(new { error = "Notes must be 1000 characters or fewer" });
         if (request.Brand != null) req.Brand = request.Brand.Trim();
         if (request.Model != null) req.Model = request.Model.Trim();
         if (request.Notes != null) req.Notes = request.Notes.Trim();

@@ -84,11 +84,11 @@ export default function TradeInSubmitPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
           <Label htmlFor="brand">Brand</Label>
-          <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Gibson, Fender, Martin..." required />
+          <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Gibson, Fender, Martin..." maxLength={100} required />
         </div>
         <div>
           <Label htmlFor="model">Model</Label>
-          <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Les Paul Standard, Stratocaster..." required />
+          <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Les Paul Standard, Stratocaster..." maxLength={100} required />
         </div>
         <div>
           <Label htmlFor="condition">Condition</Label>
@@ -98,9 +98,12 @@ export default function TradeInSubmitPage() {
           </select>
         </div>
         <div>
-          <Label htmlFor="notes">Notes (optional)</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="notes">Notes (optional)</Label>
+            <span className="text-xs text-gray-500">{notes.length}/1000</span>
+          </div>
           <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any modifications, issues, or details we should know about?" rows={4}
+            placeholder="Any modifications, issues, or details we should know about?" rows={4} maxLength={1000}
             className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6E0114]" />
         </div>
         <div>

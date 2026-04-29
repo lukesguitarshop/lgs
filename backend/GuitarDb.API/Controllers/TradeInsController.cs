@@ -42,6 +42,12 @@ public class TradeInsController : ControllerBase
         {
             return BadRequest(new { error = "Brand, model, and condition are required" });
         }
+        if (request.Brand.Length > 100)
+            return BadRequest(new { error = "Brand must be 100 characters or fewer" });
+        if (request.Model.Length > 100)
+            return BadRequest(new { error = "Model must be 100 characters or fewer" });
+        if (request.Notes != null && request.Notes.Length > 1000)
+            return BadRequest(new { error = "Notes must be 1000 characters or fewer" });
         var allowedConditions = new[] { "Mint", "Excellent", "Very Good", "Good", "Fair" };
         if (!allowedConditions.Contains(request.Condition))
         {

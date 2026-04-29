@@ -214,11 +214,11 @@ export default function AdminTradeInsListPage() {
             <div className="space-y-3">
               <div>
                 <label className="block text-xs text-gray-600 mb-1">Brand</label>
-                <input value={editBrand} onChange={e => setEditBrand(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 bg-[#FFFFF3]" />
+                <input value={editBrand} onChange={e => setEditBrand(e.target.value)} maxLength={100} className="w-full border border-gray-300 rounded px-3 py-2 bg-[#FFFFF3]" />
               </div>
               <div>
                 <label className="block text-xs text-gray-600 mb-1">Model</label>
-                <input value={editModel} onChange={e => setEditModel(e.target.value)} className="w-full border border-gray-300 rounded px-3 py-2 bg-[#FFFFF3]" />
+                <input value={editModel} onChange={e => setEditModel(e.target.value)} maxLength={100} className="w-full border border-gray-300 rounded px-3 py-2 bg-[#FFFFF3]" />
               </div>
               <div>
                 <label className="block text-xs text-gray-600 mb-1">Condition</label>
@@ -227,8 +227,11 @@ export default function AdminTradeInsListPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs text-gray-600 mb-1">Notes</label>
-                <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} className="w-full border border-gray-300 rounded px-3 py-2 bg-[#FFFFF3]" />
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs text-gray-600 mb-1">Notes</label>
+                  <span className="text-xs text-gray-500">{editNotes.length}/1000</span>
+                </div>
+                <textarea value={editNotes} onChange={e => setEditNotes(e.target.value)} rows={3} maxLength={1000} className="w-full border border-gray-300 rounded px-3 py-2 bg-[#FFFFF3]" />
               </div>
             </div>
           )}
