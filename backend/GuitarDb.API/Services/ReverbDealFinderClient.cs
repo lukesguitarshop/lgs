@@ -41,6 +41,7 @@ public class ReverbDealFinderClient
         CancellationToken cancellationToken = default)
     {
         var allListings = new List<ReverbListing>();
+        var allowedMakes = new HashSet<string>(makes, StringComparer.OrdinalIgnoreCase);
         var makeParams = string.Join("&", makes.Select(m => $"make[]={Uri.EscapeDataString(m)}"));
         var baseUrl = $"{BaseUrl}/listings/all?{makeParams}&price_max={priceMax}&accepts_offers={acceptsOffers.ToString().ToLower()}&sort=created_at-desc&per_page={perPage}";
 
@@ -75,10 +76,12 @@ public class ReverbDealFinderClient
 
                 var liveListings = listingsResponse.Listings
                     .Where(l => l.State.Slug.Equals("live", StringComparison.OrdinalIgnoreCase))
+                    .Where(l => l.OffersEnabled)
+                    .Where(l => allowedMakes.Contains(l.Make))
                     .ToList();
 
                 allListings.AddRange(liveListings);
-                _logger.LogInformation("Page {Page}: {Count} live listings (total: {Total})", page, liveListings.Count, allListings.Count);
+                _logger.LogInformation("Page {Page}: {Count} live offer-enabled listings (total: {Total})", page, liveListings.Count, allListings.Count);
 
                 if (allListings.Count >= maxListings)
                 {

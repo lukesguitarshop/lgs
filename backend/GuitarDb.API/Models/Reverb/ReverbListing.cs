@@ -56,6 +56,9 @@ public class ReverbListing
     [JsonPropertyName("finish")]
     public string? Finish { get; set; }
 
+    [JsonPropertyName("offers_enabled")]
+    public bool OffersEnabled { get; set; }
+
     [JsonIgnore]
     public int? ParsedYear => int.TryParse(Year, out var y) ? y : null;
 

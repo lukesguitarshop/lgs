@@ -188,6 +188,14 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
+      {data.status === 'rejected' && (
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
+          <XCircle className="h-8 w-8 text-gray-500 mb-2" />
+          <h2 className="text-xl font-semibold mb-2">We&apos;re unable to make an offer</h2>
+          <p>Thanks for thinking of us. We can&apos;t take this one — feel free to submit other guitars in the future.</p>
+        </div>
+      )}
+
       {(data.status === 'declined' || data.status === 'expired' || data.status === 'cancelled') && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
           <XCircle className="h-8 w-8 text-gray-500 mb-2" />

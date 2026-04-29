@@ -412,6 +412,10 @@ export async function adminDeleteTradeIn(id: string): Promise<void> {
   await api.authDelete(`/admin/trade-ins/${id}`);
 }
 
+export async function adminRejectTradeIn(id: string, reason?: string): Promise<void> {
+  await api.authPost(`/admin/trade-ins/${id}/reject`, { reason });
+}
+
 // Store credit API
 export async function getMyStoreCredit(): Promise<StoreCreditDto> {
   return api.authGet<StoreCreditDto>('/store-credit/me');

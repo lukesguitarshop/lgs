@@ -253,6 +253,21 @@ public class AdminTradeInsController : ControllerBase
         return Ok(new { id = req.Id });
     }
 
+    [HttpPost("{id}/reject")]
+    public async Task<IActionResult> Reject(string id, [FromBody] RejectTradeInRequest request)
+    {
+        var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
+        if (req == null) return NotFound(new { error = "Not found" });
+        if (req.Status != TradeInStatus.Submitted || req.Offers.Count > 0)
+            return BadRequest(new { error = "Can only decline a request that has no offers yet" });
+
+        req.Status = TradeInStatus.Rejected;
+        await _mongoDbService.UpdateTradeInRequestAsync(req);
+
+        _ = _emailService.SendTradeInRejectedByAdminAsync(req.Email, req.Brand, req.Model, request?.Reason);
+        return Ok(new { id = req.Id });
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(string id)
     {

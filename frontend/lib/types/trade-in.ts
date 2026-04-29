@@ -2,7 +2,7 @@ export type TradeInCondition = 'Mint' | 'Excellent' | 'Very Good' | 'Good' | 'Fa
 
 export type TradeInStatus =
   | 'submitted' | 'offered' | 'accepted' | 'declined' | 'expired'
-  | 'received' | 'inspected' | 'completed' | 'cancelled';
+  | 'received' | 'inspected' | 'completed' | 'cancelled' | 'rejected';
 
 export interface TradeInPhoto { url: string; }
 

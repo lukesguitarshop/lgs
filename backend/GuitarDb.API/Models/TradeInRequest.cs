@@ -163,6 +163,7 @@ public static class TradeInStatus
     public const string Inspected = "inspected";
     public const string Completed = "completed";
     public const string Cancelled = "cancelled";
+    public const string Rejected = "rejected";
 }
 
 public static class TradeInOfferType

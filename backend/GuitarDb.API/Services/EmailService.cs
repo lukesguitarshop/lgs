@@ -763,6 +763,23 @@ public class EmailService
         await SendEmailAsync(_sellerEmail, subject, body);
     }
 
+    public async Task SendTradeInRejectedByAdminAsync(string toEmail, string brand, string model, string? reason)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+        var subject = $"Update on your trade-in: {brand} {model}";
+        var reasonBlock = string.IsNullOrWhiteSpace(reason)
+            ? string.Empty
+            : $"<p><strong>Reason:</strong> {System.Net.WebUtility.HtmlEncode(reason)}</p>";
+        var body = $@"
+<h2>We're unable to make an offer</h2>
+<p>Thanks for submitting your <strong>{brand} {model}</strong> for trade-in. After reviewing the details, we're not able to make an offer at this time.</p>
+{reasonBlock}
+<p>You're welcome to submit other guitars in the future. Thanks for thinking of us!</p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
     public async Task SendTradeInReceivedAsync(string toEmail, string requestId, string brand, string model)
     {
         if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;

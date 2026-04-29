@@ -109,6 +109,11 @@ public class AdminEditTradeInRequest
     public string? Notes { get; set; }
 }
 
+public class RejectTradeInRequest
+{
+    public string? Reason { get; set; }
+}
+
 // Store credit
 public class StoreCreditDto
 {
