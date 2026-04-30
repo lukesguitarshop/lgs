@@ -487,6 +487,7 @@ function ConversationPageContent() {
                           isMyTurn={isMyTurn && isThisActiveOffer}
                           isActiveOffer={isThisActiveOffer}
                           wasCountered={wasCountered}
+                          pendingActionBy={conversation?.pendingActionBy}
                           onAccept={handleAcceptOffer}
                           onDecline={handleDeclineOffer}
                           onCounter={() => setShowOfferModal(true)}
@@ -723,6 +724,7 @@ interface MessageBubbleProps {
   isMyTurn?: boolean;
   isActiveOffer?: boolean;
   wasCountered?: boolean;
+  pendingActionBy?: 'buyer' | 'seller';
   onAccept?: () => void;
   onDecline?: () => void;
   onCounter?: () => void;
@@ -738,7 +740,7 @@ function formatPrice(amount: number): string {
   }).format(amount);
 }
 
-function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccept, onDecline, onCounter, isActioning, onImageClick }: MessageBubbleProps) {
+function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pendingActionBy, onAccept, onDecline, onCounter, isActioning, onImageClick }: MessageBubbleProps) {
   // Handle system messages (accept, decline, expire)
   if (message.type === 'accept') {
     return (
@@ -798,9 +800,9 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, onAccep
               Countered
             </p>
           )}
-          {isActiveOffer && !wasCountered && (
+          {isActiveOffer && !wasCountered && pendingActionBy && (
             <p className={`text-xs mt-1 ${message.isMine ? 'text-red-200' : 'text-muted-foreground'}`}>
-              {message.isMine ? 'Waiting for seller to respond' : 'Waiting for buyer to respond'}
+              {pendingActionBy === 'buyer' ? 'Waiting for buyer to respond' : 'Waiting for seller to respond'}
             </p>
           )}
           <div className={`flex items-center gap-1 text-xs mt-2 ${message.isMine ? 'text-red-200 justify-end' : 'text-muted-foreground'}`}>
