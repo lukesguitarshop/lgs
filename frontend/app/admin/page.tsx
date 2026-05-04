@@ -1587,7 +1587,7 @@ export default function AdminPage() {
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Status</th>
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Tracking</th>
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Address</th>
-                      <th className="py-3 px-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="text-left py-3 px-2 font-medium text-gray-700">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
