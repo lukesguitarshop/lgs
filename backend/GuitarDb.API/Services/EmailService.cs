@@ -645,6 +645,52 @@ public class EmailService
     }
 
     /// <summary>
+    /// Send cancellation email to buyer
+    /// </summary>
+    public async Task SendOrderCancellationEmailAsync(
+        string buyerEmail,
+        string orderId,
+        List<(string Title, decimal Price, string Currency)> items,
+        decimal totalAmount)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(buyerEmail))
+        {
+            _logger.LogDebug("Skipping order cancellation email - email not configured");
+            return;
+        }
+
+        var subject = "Your Order Has Been Cancelled – Luke's Guitar Shop";
+
+        var itemsList = string.Join("", items.Select(i =>
+            $"<li><strong>{i.Title}</strong> - ${i.Price:N2} {i.Currency}</li>"));
+
+        var body = $@"
+<h2>Your Order Has Been Cancelled</h2>
+<p>We're sorry to let you know that your order has been cancelled.</p>
+
+<h3>Order Details</h3>
+<p><strong>Order Reference:</strong> #{orderId[^8..].ToUpper()}</p>
+
+<h3>Items</h3>
+<ul>
+{itemsList}
+</ul>
+
+<p><strong>Total:</strong> ${totalAmount:N2}</p>
+
+<h3>Refund</h3>
+<p>Your refund is being processed and should appear within 5–10 business days depending on your payment method and bank.</p>
+
+<p>If you have any questions, please don't hesitate to contact us.</p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+";
+
+        await SendEmailAsync(buyerEmail, subject, body);
+    }
+
+    /// <summary>
     /// Send new order notification to seller
     /// </summary>
     public async Task SendNewOrderNotificationToSellerAsync(
