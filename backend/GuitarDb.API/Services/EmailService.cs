@@ -659,7 +659,7 @@ public class EmailService
             return;
         }
 
-        var subject = "Your Order Has Been Cancelled – Luke's Guitar Shop";
+        var subject = "Your Order Has Been Cancelled - Luke's Guitar Shop";
 
         var itemsList = string.Join("", items.Select(i =>
             $"<li><strong>{i.Title}</strong> - ${i.Price:N2} {i.Currency}</li>"));
