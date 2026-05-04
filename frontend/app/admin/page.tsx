@@ -288,6 +288,8 @@ export default function AdminPage() {
         return 'Shipped';
       case 'delivered':
         return 'Delivered';
+      case 'cancelled':
+        return 'Cancelled';
       default:
         return status;
     }
@@ -1654,7 +1656,9 @@ export default function AdminPage() {
                         </td>
                         <td className="py-3 px-2">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            order.status === 'pending'
+                            order.status === 'cancelled'
+                              ? 'bg-red-100 text-red-700'
+                              : order.status === 'pending'
                               ? 'bg-yellow-100 text-yellow-700'
                               : 'bg-green-100 text-green-700'
                           }`}>
