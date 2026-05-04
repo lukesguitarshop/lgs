@@ -146,6 +146,7 @@ export default function AdminPage() {
   const [trackingCarrier, setTrackingCarrier] = useState<string>('');
   const [trackingNumber, setTrackingNumber] = useState<string>('');
   const [savingTracking, setSavingTracking] = useState(false);
+  const [cancellingOrderId, setCancellingOrderId] = useState<string | null>(null);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
@@ -262,6 +263,30 @@ export default function AdminPage() {
       console.error('Failed to save tracking:', err);
     } finally {
       setSavingTracking(false);
+    }
+  };
+
+  const cancelOrder = async (orderId: string) => {
+    setCancellingOrderId(orderId);
+    try {
+      await api.authPatch(`/admin/orders/${orderId}/status`, { status: 'cancelled' });
+      await fetchOrders();
+    } catch (err) {
+      console.error('Failed to cancel order:', err);
+    } finally {
+      setCancellingOrderId(null);
+    }
+  };
+
+  const restoreOrder = async (orderId: string) => {
+    setCancellingOrderId(orderId);
+    try {
+      await api.authPatch(`/admin/orders/${orderId}/status`, { status: 'completed' });
+      await fetchOrders();
+    } catch (err) {
+      console.error('Failed to restore order:', err);
+    } finally {
+      setCancellingOrderId(null);
     }
   };
 
@@ -1562,6 +1587,7 @@ export default function AdminPage() {
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Status</th>
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Tracking</th>
                       <th className="text-left py-3 px-2 font-medium text-gray-700">Address</th>
+                      <th className="py-3 px-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1752,6 +1778,25 @@ export default function AdminPage() {
                               </p>
                               <p>{order.shippingAddress.country}</p>
                             </div>
+                          )}
+                        </td>
+                        <td className="py-3 px-2">
+                          {order.status === 'cancelled' ? (
+                            <button
+                              onClick={() => restoreOrder(order.id)}
+                              disabled={cancellingOrderId === order.id}
+                              className="text-xs text-green-700 hover:underline disabled:opacity-50"
+                            >
+                              {cancellingOrderId === order.id ? 'Restoring...' : 'Restore'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => cancelOrder(order.id)}
+                              disabled={cancellingOrderId === order.id}
+                              className="text-xs text-red-600 hover:underline disabled:opacity-50"
+                            >
+                              {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel'}
+                            </button>
                           )}
                         </td>
                       </tr>
