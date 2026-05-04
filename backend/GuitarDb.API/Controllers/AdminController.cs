@@ -672,16 +672,52 @@ public class AdminController : ControllerBase
     [HttpPatch("orders/{id}/status")]
     public async Task<IActionResult> UpdateOrderStatus(string id, [FromBody] UpdateOrderStatusRequest request)
     {
-        var validStatuses = new[] { "completed", "shipped", "delivered", "pending" };
+        var validStatuses = new[] { "completed", "shipped", "delivered", "pending", "cancelled" };
         if (string.IsNullOrEmpty(request.Status) || !validStatuses.Contains(request.Status.ToLower()))
         {
-            return BadRequest(new { error = "Invalid status. Valid values: completed, shipped, delivered, pending" });
+            return BadRequest(new { error = "Invalid status. Valid values: completed, shipped, delivered, pending, cancelled" });
         }
 
-        var success = await _mongoDbService.UpdateOrderStatusAsync(id, request.Status.ToLower());
+        var newStatus = request.Status.ToLower();
+
+        // Fetch order before updating (needed for cancellation email)
+        var order = await _mongoDbService.GetOrderByIdAsync(id);
+        if (order == null)
+        {
+            return NotFound(new { error = "Order not found" });
+        }
+
+        var success = await _mongoDbService.UpdateOrderStatusAsync(id, newStatus);
         if (!success)
         {
             return NotFound(new { error = "Order not found" });
+        }
+
+        // Send cancellation email when order is cancelled
+        if (newStatus == "cancelled")
+        {
+            string? buyerEmail = null;
+
+            if (!string.IsNullOrEmpty(order.UserId))
+            {
+                var user = await _mongoDbService.GetUserByIdAsync(order.UserId);
+                buyerEmail = user?.Email;
+            }
+            else if (!string.IsNullOrEmpty(order.GuestEmail))
+            {
+                buyerEmail = order.GuestEmail;
+            }
+
+            if (!string.IsNullOrEmpty(buyerEmail))
+            {
+                var items = order.Items.Select(i => (i.ListingTitle, i.Price, order.Currency)).ToList();
+                _ = _emailService.SendOrderCancellationEmailAsync(
+                    buyerEmail,
+                    order.Id!,
+                    items,
+                    order.TotalAmount
+                );
+            }
         }
 
         return Ok(new { success = true });
