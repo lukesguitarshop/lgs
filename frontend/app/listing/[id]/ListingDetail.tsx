@@ -543,7 +543,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 listing.disabled
                   ? 'bg-gray-400 text-[#FFFFF3] cursor-not-allowed'
                   : listing.pending
-                  ? 'bg-yellow-400 text-yellow-900 cursor-not-allowed'
+                  ? 'bg-gray-400 text-[#FFFFF3] cursor-not-allowed'
                   : inCart
                   ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
                   : 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]'

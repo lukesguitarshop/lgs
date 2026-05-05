@@ -6,17 +6,18 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, LogIn, Upload, X, ArrowLeft } from 'lucide-react';
+import { Loader2, LogIn, Upload, X, ArrowLeft, MapPin, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { submitTradeIn } from '@/lib/api';
 import type { TradeInCondition } from '@/lib/types/trade-in';
+import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
 
 const CONDITIONS: TradeInCondition[] = ['Mint', 'Excellent', 'Very Good', 'Good', 'Fair'];
 
 export default function TradeInSubmitPage() {
   const router = useRouter();
-  const { isAuthenticated, setShowLoginModal, setShowRegisterModal } = useAuth();
+  const { isAuthenticated, setShowLoginModal, setShowRegisterModal, user, refreshUser } = useAuth();
   const { showToast } = useToast();
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
@@ -24,6 +25,7 @@ export default function TradeInSubmitPage() {
   const [notes, setNotes] = useState('');
   const [photos, setPhotos] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [addressModalOpen, setAddressModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isAuthenticated) {
@@ -52,6 +54,11 @@ export default function TradeInSubmitPage() {
     e.preventDefault();
     if (!brand.trim() || !model.trim()) {
       showToast('Please fill in brand and model', 'error');
+      return;
+    }
+    if (!user?.shippingAddress) {
+      showToast('Please add a shipping address to your profile before submitting', 'error');
+      setAddressModalOpen(true);
       return;
     }
     if (photos.length === 0) {
@@ -125,10 +132,51 @@ export default function TradeInSubmitPage() {
           </div>
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={(e) => handleFiles(e.target.files)} className="hidden" />
         </div>
+        {/* Return address */}
+        <div className="border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center justify-between mb-2">
+            <Label className="flex items-center gap-2 text-base">
+              <MapPin className="h-4 w-4" />
+              Return address (for shipping label)
+            </Label>
+            <button
+              type="button"
+              onClick={() => setAddressModalOpen(true)}
+              className="text-sm text-[#6E0114] hover:underline font-medium"
+            >
+              {user?.shippingAddress ? 'Edit' : 'Add address'}
+            </button>
+          </div>
+          {user?.shippingAddress ? (
+            <div className="text-sm text-gray-700 space-y-0.5">
+              <p className="font-medium">{user.shippingAddress.fullName}</p>
+              <p>{user.shippingAddress.line1}</p>
+              {user.shippingAddress.line2 && <p>{user.shippingAddress.line2}</p>}
+              <p>{user.shippingAddress.city}, {user.shippingAddress.state} {user.shippingAddress.postalCode}</p>
+              <p>{user.shippingAddress.country}</p>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3">
+              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>An address is required so we can generate your prepaid shipping label. <button type="button" onClick={() => setAddressModalOpen(true)} className="underline font-medium">Add one now.</button></span>
+            </div>
+          )}
+        </div>
+
         <Button type="submit" disabled={submitting} className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold py-6 text-lg disabled:opacity-50">
           {submitting ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />Submitting...</> : 'Submit for review'}
         </Button>
       </form>
+
+      <ShippingAddressModal
+        isOpen={addressModalOpen}
+        onClose={() => setAddressModalOpen(false)}
+        initialAddress={user?.shippingAddress}
+        onSave={async () => {
+          await refreshUser();
+          setAddressModalOpen(false);
+        }}
+      />
     </div>
   );
 }
