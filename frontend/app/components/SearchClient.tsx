@@ -26,6 +26,7 @@ interface Listing {
   currency: string;
   scraped_at: string;
   listed_at: string | null;
+  pending?: boolean;
 }
 
 interface SearchClientProps {
@@ -428,9 +429,15 @@ function ListingCard({ listing, isFavorite, onToggleFavorite, priority = false }
             </div>
           )}
           {/* ON SALE badge */}
-          {isOnSale && (
+          {isOnSale && !listing.pending && (
             <div className="absolute top-2 left-2 bg-[#6E0114] text-[#FFFFF3] text-xs font-bold px-2 py-1 rounded">
               ON SALE
+            </div>
+          )}
+          {/* Pending Trade In badge */}
+          {listing.pending && (
+            <div className="absolute top-2 left-2 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded">
+              PENDING TRADE IN
             </div>
           )}
           {/* Favorite button */}

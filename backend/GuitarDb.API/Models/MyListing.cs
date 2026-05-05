@@ -46,4 +46,7 @@ public class MyListing
 
     [BsonElement("disabled")]
     public bool Disabled { get; set; } = false;
+
+    [BsonElement("pending")]
+    public bool Pending { get; set; } = false;
 }

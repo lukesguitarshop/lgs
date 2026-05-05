@@ -194,7 +194,8 @@ public class AdminController : ControllerBase
             images = l.Images,
             price = l.Price,
             currency = l.Currency,
-            disabled = l.Disabled
+            disabled = l.Disabled,
+            pending = l.Pending
         }));
     }
 
@@ -219,6 +220,29 @@ public class AdminController : ControllerBase
         }
 
         return Ok(new { id, disabled = newDisabledStatus });
+    }
+
+    /// <summary>
+    /// Toggle the pending trade-in status of a listing
+    /// </summary>
+    [HttpPatch("listings/{id}/toggle-pending")]
+    public async Task<IActionResult> ToggleListingPending(string id)
+    {
+        var listing = await _mongoDbService.GetMyListingByIdAsync(id);
+        if (listing == null)
+        {
+            return NotFound(new { error = "Listing not found" });
+        }
+
+        var newPendingStatus = !listing.Pending;
+        var success = await _mongoDbService.SetListingPendingAsync(id, newPendingStatus);
+
+        if (!success)
+        {
+            return StatusCode(500, new { error = "Failed to update listing" });
+        }
+
+        return Ok(new { id, pending = newPendingStatus });
     }
 
     /// <summary>

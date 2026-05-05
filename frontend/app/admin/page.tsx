@@ -33,6 +33,7 @@ interface AdminListing {
   price: number;
   currency: string;
   disabled: boolean;
+  pending: boolean;
 }
 
 interface Conversation {
@@ -130,6 +131,7 @@ export default function AdminPage() {
   const [listings, setListings] = useState<AdminListing[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [togglingPendingId, setTogglingPendingId] = useState<string | null>(null);
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editPriceValue, setEditPriceValue] = useState<string>('');
   const [savingPriceId, setSavingPriceId] = useState<string | null>(null);
@@ -376,6 +378,20 @@ export default function AdminPage() {
       console.error('Failed to toggle listing:', err);
     } finally {
       setTogglingId(null);
+    }
+  };
+
+  const togglePending = async (id: string) => {
+    setTogglingPendingId(id);
+    try {
+      const response = await api.authPatch<{ id: string; pending: boolean }>(`/admin/listings/${id}/toggle-pending`);
+      setListings(prev =>
+        prev.map(l => (l.id === id ? { ...l, pending: response.pending } : l))
+      );
+    } catch (err) {
+      console.error('Failed to toggle pending:', err);
+    } finally {
+      setTogglingPendingId(null);
     }
   };
 
@@ -878,6 +894,10 @@ export default function AdminPage() {
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
                         Disabled
                       </span>
+                    ) : listing.pending ? (
+                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                        Pending
+                      </span>
                     ) : (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                         Active
@@ -895,6 +915,30 @@ export default function AdminPage() {
                         <ExternalLink className="h-3 w-3" />
                         View
                       </a>
+                      <button
+                        onClick={() => togglePending(listing.id)}
+                        disabled={togglingPendingId === listing.id || listing.disabled}
+                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                          listing.pending
+                            ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
+                            : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800'
+                        } disabled:opacity-50`}
+                        title={listing.pending ? 'Remove pending status' : 'Mark as pending trade-in'}
+                      >
+                        {togglingPendingId === listing.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : listing.pending ? (
+                          <>
+                            <ToggleRight className="h-3 w-3" />
+                            Pending
+                          </>
+                        ) : (
+                          <>
+                            <ToggleLeft className="h-3 w-3" />
+                            Pending
+                          </>
+                        )}
+                      </button>
                       <button
                         onClick={() => toggleListing(listing.id)}
                         disabled={togglingId === listing.id}

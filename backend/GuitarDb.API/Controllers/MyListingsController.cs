@@ -31,7 +31,8 @@ public class MyListingsController : ControllerBase
             original_price = l.OriginalPrice,
             currency = l.Currency,
             scraped_at = l.ScrapedAt,
-            listed_at = l.ListedAt
+            listed_at = l.ListedAt,
+            pending = l.Pending
         }));
     }
 
@@ -82,7 +83,8 @@ public class MyListingsController : ControllerBase
             currency = listing.Currency,
             scraped_at = listing.ScrapedAt,
             listed_at = listing.ListedAt,
-            disabled = listing.Disabled
+            disabled = listing.Disabled,
+            pending = listing.Pending
         });
     }
 }

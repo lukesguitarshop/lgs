@@ -347,6 +347,14 @@ public class MongoDbService
         return result.MatchedCount > 0;
     }
 
+    public async Task<bool> SetListingPendingAsync(string id, bool pending)
+    {
+        var filter = Builders<MyListing>.Filter.Eq(l => l.Id, id);
+        var update = Builders<MyListing>.Update.Set(l => l.Pending, pending);
+        var result = await _myListingsCollection.UpdateOneAsync(filter, update);
+        return result.MatchedCount > 0;
+    }
+
     public async Task<bool> UpdateListingPriceAsync(string id, decimal price)
     {
         var filter = Builders<MyListing>.Filter.Eq(l => l.Id, id);

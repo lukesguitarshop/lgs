@@ -28,6 +28,7 @@ interface Listing {
   scraped_at: string;
   listed_at: string | null;
   disabled?: boolean;
+  pending?: boolean;
 }
 
 function formatPrice(price: number, currency: string = 'USD'): string {
@@ -541,15 +542,19 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
               className={`flex-1 font-semibold py-6 text-lg transition-all ${
                 listing.disabled
                   ? 'bg-gray-400 text-[#FFFFF3] cursor-not-allowed'
+                  : listing.pending
+                  ? 'bg-yellow-400 text-yellow-900 cursor-not-allowed'
                   : inCart
                   ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
                   : 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]'
               }`}
               onClick={handleAddToCart}
-              disabled={inCart || listing.disabled}
+              disabled={inCart || listing.disabled || listing.pending}
             >
               {listing.disabled ? (
                 'SOLD'
+              ) : listing.pending ? (
+                'Pending Trade In'
               ) : inCart ? (
                 <>
                   <Check className="h-5 w-5 mr-2" />
