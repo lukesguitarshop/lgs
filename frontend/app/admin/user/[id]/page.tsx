@@ -25,6 +25,7 @@ import {
   ChevronDown,
   ChevronUp,
   ShieldX,
+  DollarSign,
 } from 'lucide-react';
 
 interface UserDetail {
@@ -84,6 +85,7 @@ export default function AdminUserDetailPage() {
 
   const [user, setUser] = useState<UserDetail | null>(null);
   const [orders, setOrders] = useState<UserOrder[]>([]);
+  const [storeCredit, setStoreCredit] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -151,10 +153,20 @@ export default function AdminUserDetailPage() {
     }
   }, [userId]);
 
+  const fetchStoreCredit = useCallback(async () => {
+    try {
+      const data = await api.authGet<{ balance: number }>(`/admin/users/${userId}/store-credit`);
+      setStoreCredit(data.balance);
+    } catch (err) {
+      console.error('Failed to fetch store credit:', err);
+    }
+  }, [userId]);
+
   useEffect(() => {
     if (isAdmin && userId) {
       fetchUser();
       fetchOrders();
+      fetchStoreCredit();
     }
   }, [isAdmin, userId, fetchUser, fetchOrders]);
 
@@ -389,6 +401,17 @@ export default function AdminUserDetailPage() {
               </Button>
             </>
           )}
+        </div>
+      </div>
+
+      {/* Store Credit */}
+      <div className="mb-6">
+        <div className="inline-flex items-center gap-3 bg-[#FFFFF3] rounded-lg border border-gray-200 px-5 py-3">
+          <DollarSign className="h-5 w-5 text-green-600" />
+          <span className="text-sm font-medium text-gray-600">Store Credit</span>
+          <span className="text-lg font-semibold text-[#020E1C]">
+            {storeCredit === null ? '...' : `$${storeCredit.toFixed(2)}`}
+          </span>
         </div>
       </div>
 
