@@ -30,6 +30,7 @@ interface PayPalCheckoutButtonProps {
   onError: (error: string) => void;
   disabled?: boolean;
   useAuth?: boolean;
+  applyStoreCredit?: boolean;
 }
 
 export default function PayPalCheckoutButton({
@@ -41,6 +42,7 @@ export default function PayPalCheckoutButton({
   onError,
   disabled = false,
   useAuth = true,
+  applyStoreCredit = false,
 }: PayPalCheckoutButtonProps) {
   const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
 
@@ -82,6 +84,7 @@ export default function PayPalCheckoutButton({
                 quantity: 1,
               })),
               shippingAddress,
+              applyStoreCredit,
             };
 
             // Authentication is required
