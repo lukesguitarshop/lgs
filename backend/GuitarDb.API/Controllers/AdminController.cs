@@ -1397,7 +1397,14 @@ public class AdminController : ControllerBase
     public async Task<IActionResult> GetUserStoreCredit(string id)
     {
         var sc = await _mongoDbService.GetStoreCreditByUserAsync(id);
-        return Ok(new { balance = sc?.Balance ?? 0m });
+        return Ok(new
+        {
+            balance = sc?.Balance ?? 0m,
+            history = sc?.History
+                .OrderByDescending(h => h.CreatedAt)
+                .Select(h => new { h.Type, h.Amount, h.Reason, h.CreatedAt })
+                ?? []
+        });
     }
 
     /// <summary>

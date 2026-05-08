@@ -86,6 +86,7 @@ export default function AdminUserDetailPage() {
   const [user, setUser] = useState<UserDetail | null>(null);
   const [orders, setOrders] = useState<UserOrder[]>([]);
   const [storeCredit, setStoreCredit] = useState<number | null>(null);
+  const [storeCreditHistory, setStoreCreditHistory] = useState<{ type: string; amount: number; reason: string; createdAt: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -155,8 +156,9 @@ export default function AdminUserDetailPage() {
 
   const fetchStoreCredit = useCallback(async () => {
     try {
-      const data = await api.authGet<{ balance: number }>(`/admin/users/${userId}/store-credit`);
+      const data = await api.authGet<{ balance: number; history: { type: string; amount: number; reason: string; createdAt: string }[] }>(`/admin/users/${userId}/store-credit`);
       setStoreCredit(data.balance);
+      setStoreCreditHistory(data.history);
     } catch (err) {
       console.error('Failed to fetch store credit:', err);
     }
@@ -168,7 +170,7 @@ export default function AdminUserDetailPage() {
       fetchOrders();
       fetchStoreCredit();
     }
-  }, [isAdmin, userId, fetchUser, fetchOrders]);
+  }, [isAdmin, userId, fetchUser, fetchOrders, fetchStoreCredit]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -405,14 +407,48 @@ export default function AdminUserDetailPage() {
       </div>
 
       {/* Store Credit */}
-      <div className="mb-6">
-        <div className="inline-flex items-center gap-3 bg-[#FFFFF3] rounded-lg border border-gray-200 px-5 py-3">
+      <div className="mb-6 bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center gap-2 mb-4">
           <DollarSign className="h-5 w-5 text-green-600" />
-          <span className="text-sm font-medium text-gray-600">Store Credit</span>
-          <span className="text-lg font-semibold text-[#020E1C]">
+          <h2 className="text-lg font-semibold text-[#020E1C]">Store Credit</h2>
+          <span className="ml-2 text-2xl font-bold text-green-600">
             {storeCredit === null ? '...' : `$${storeCredit.toFixed(2)}`}
           </span>
         </div>
+        {storeCreditHistory.length === 0 ? (
+          <p className="text-sm text-gray-400">No transactions</p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200 text-left text-gray-500">
+                  <th className="pb-2 pr-4 font-medium">Date</th>
+                  <th className="pb-2 pr-4 font-medium">Type</th>
+                  <th className="pb-2 pr-4 font-medium">Amount</th>
+                  <th className="pb-2 font-medium">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {storeCreditHistory.map((entry, i) => (
+                  <tr key={i} className="border-b border-gray-100 last:border-0">
+                    <td className="py-2 pr-4 text-gray-500 whitespace-nowrap">
+                      {new Date(entry.createdAt).toLocaleDateString()}
+                    </td>
+                    <td className="py-2 pr-4">
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${entry.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {entry.type}
+                      </span>
+                    </td>
+                    <td className={`py-2 pr-4 font-medium ${entry.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+                      {entry.type === 'credit' ? '+' : '-'}${entry.amount.toFixed(2)}
+                    </td>
+                    <td className="py-2 text-gray-600">{entry.reason}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
