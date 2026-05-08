@@ -1391,6 +1391,16 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Get store credit for a specific user (admin only)
+    /// </summary>
+    [HttpGet("users/{id}/store-credit")]
+    public async Task<IActionResult> GetUserStoreCredit(string id)
+    {
+        var sc = await _mongoDbService.GetStoreCreditByUserAsync(id);
+        return Ok(new { balance = sc?.Balance ?? 0m });
+    }
+
+    /// <summary>
     /// Update a user's details (admin only)
     /// </summary>
     [HttpPut("users/{id}")]
