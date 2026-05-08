@@ -526,9 +526,34 @@ public class CheckoutController : ControllerBase
         });
         var grandTotal = totalAmount + transactionFee;
 
+        // Apply store credit if requested
+        decimal storeCreditApplied = 0m;
+        if (request.ApplyStoreCredit && userId != null)
+        {
+            var sc = await _mongoDbService.GetStoreCreditByUserAsync(userId);
+            if (sc != null && sc.Balance > 0)
+            {
+                storeCreditApplied = Math.Min(sc.Balance, totalAmount);
+                storeCreditApplied = Math.Round(storeCreditApplied, 2);
+                grandTotal -= storeCreditApplied;
+            }
+        }
+
         try
         {
             var accessToken = await GetPayPalAccessToken();
+
+            var itemTotal = totalAmount + transactionFee;
+            object breakdown = storeCreditApplied > 0
+                ? (object)new
+                {
+                    item_total = new { currency_code = currency, value = itemTotal.ToString("F2") },
+                    discount = new { currency_code = currency, value = storeCreditApplied.ToString("F2") }
+                }
+                : new
+                {
+                    item_total = new { currency_code = currency, value = itemTotal.ToString("F2") }
+                };
 
             var orderPayload = new
             {
@@ -541,17 +566,10 @@ public class CheckoutController : ControllerBase
                         {
                             currency_code = currency,
                             value = grandTotal.ToString("F2"),
-                            breakdown = new
-                            {
-                                item_total = new
-                                {
-                                    currency_code = currency,
-                                    value = grandTotal.ToString("F2")
-                                }
-                            }
+                            breakdown
                         },
                         items = items,
-                        custom_id = $"{userId ?? ""}|{string.Join(",", listingIds)}",
+                        custom_id = $"{userId ?? ""}|{string.Join(",", listingIds)}|{storeCreditApplied.ToString("F2")}",
                         shipping = new
                         {
                             name = new { full_name = shipping.FullName },
@@ -659,16 +677,14 @@ public class CheckoutController : ControllerBase
                 .GetProperty("captures")[0]
                 .GetProperty("id").GetString();
 
-            // Parse custom_id format: "userId|listingId1,listingId2"
+            // Parse custom_id format: "userId|listingId1,listingId2|storeCreditApplied"
             string? userId = null;
             string listingIdsString = customId;
-            var pipeIndex = customId.IndexOf('|');
-            if (pipeIndex >= 0)
-            {
-                userId = customId.Substring(0, pipeIndex);
-                if (string.IsNullOrEmpty(userId)) userId = null;
-                listingIdsString = customId.Substring(pipeIndex + 1);
-            }
+            decimal storeCreditApplied = 0m;
+            var parts = customId.Split('|');
+            if (parts.Length >= 1) { userId = string.IsNullOrEmpty(parts[0]) ? null : parts[0]; }
+            if (parts.Length >= 2) { listingIdsString = parts[1]; }
+            if (parts.Length >= 3) { decimal.TryParse(parts[2], out storeCreditApplied); }
 
             var listingIds = listingIdsString.Split(',', StringSplitOptions.RemoveEmptyEntries).Distinct().ToList();
             if (listingIds.Count == 0)
@@ -739,8 +755,17 @@ public class CheckoutController : ControllerBase
                 TotalAmount = grandTotal,
                 Currency = currency,
                 Status = "completed",
-                UserId = userId
+                UserId = userId,
+                StoreCreditApplied = storeCreditApplied
             };
+
+            if (storeCreditApplied > 0 && userId != null)
+            {
+                var ok = await _mongoDbService.DebitUserStoreCreditAsync(
+                    userId, storeCreditApplied, $"order {request.OrderId}", null);
+                if (!ok)
+                    _logger.LogWarning("Store credit debit failed for user {User} amount {Amount}", userId, storeCreditApplied);
+            }
 
             await _mongoDbService.CreateOrderAsync(order);
             _logger.LogInformation("Created order {OrderId} for PayPal order {PayPalOrderId}", order.Id, request.OrderId);

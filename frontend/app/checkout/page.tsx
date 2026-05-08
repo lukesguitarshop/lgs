@@ -463,6 +463,7 @@ export default function CheckoutPage() {
                   currency={currency}
                   disabled={!hasValidAddress}
                   useAuth={true}
+                  applyStoreCredit={applyCredit}
                   onSuccess={async (orderId) => {
                     localStorage.removeItem('cart');
                     router.push(`/checkout/success?paypal_order_id=${orderId}`);
