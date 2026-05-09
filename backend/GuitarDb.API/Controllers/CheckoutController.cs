@@ -512,8 +512,21 @@ public class CheckoutController : ControllerBase
             return BadRequest(new { error = "No valid items to checkout" });
         }
 
-        // Calculate 3.5% PayPal fee
-        var transactionFee = Math.Round(totalAmount * 0.035m, 2);
+        // Apply store credit if requested (before fee so fee is calculated on reduced amount)
+        decimal storeCreditApplied = 0m;
+        if (request.ApplyStoreCredit && userId != null)
+        {
+            var sc = await _mongoDbService.GetStoreCreditByUserAsync(userId);
+            if (sc != null && sc.Balance > 0)
+            {
+                storeCreditApplied = Math.Min(sc.Balance, totalAmount);
+                storeCreditApplied = Math.Round(storeCreditApplied, 2);
+            }
+        }
+
+        // Calculate 3.5% PayPal fee on amount after store credit
+        var amountAfterCredit = totalAmount - storeCreditApplied;
+        var transactionFee = Math.Round(amountAfterCredit * 0.035m, 2);
         items.Add(new
         {
             name = "PayPal Fee (3.5%)",
@@ -524,20 +537,7 @@ public class CheckoutController : ControllerBase
                 value = transactionFee.ToString("F2")
             }
         });
-        var grandTotal = totalAmount + transactionFee;
-
-        // Apply store credit if requested
-        decimal storeCreditApplied = 0m;
-        if (request.ApplyStoreCredit && userId != null)
-        {
-            var sc = await _mongoDbService.GetStoreCreditByUserAsync(userId);
-            if (sc != null && sc.Balance > 0)
-            {
-                storeCreditApplied = Math.Min(sc.Balance, totalAmount);
-                storeCreditApplied = Math.Round(storeCreditApplied, 2);
-                grandTotal -= storeCreditApplied;
-            }
-        }
+        var grandTotal = amountAfterCredit + transactionFee;
 
         try
         {

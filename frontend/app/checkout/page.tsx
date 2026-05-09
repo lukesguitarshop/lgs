@@ -129,12 +129,13 @@ export default function CheckoutPage() {
   }, [isAuthenticated]);
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
-  const paypalFee = Math.round(subtotal * 0.035 * 100) / 100; // 3.5% fee for PayPal, rounded to 2 decimals
-  const total = paymentMethod === 'paypal' ? subtotal + paypalFee : subtotal;
   const creditApplied = applyCredit ? Math.min(creditBalance, subtotal) : 0;
+  const subtotalAfterCredit = subtotal - creditApplied;
+  const paypalFee = Math.round(subtotalAfterCredit * 0.035 * 100) / 100; // 3.5% fee on amount after store credit
+  const total = paymentMethod === 'paypal' ? subtotal + paypalFee : subtotal;
   const totalAfterCredit = paymentMethod === 'paypal'
-    ? subtotal + paypalFee - creditApplied
-    : subtotal - creditApplied;
+    ? subtotalAfterCredit + paypalFee
+    : subtotalAfterCredit;
   const currency = cartItems[0]?.currency || 'USD';
 
   const hasValidAddress = savedAddress &&
