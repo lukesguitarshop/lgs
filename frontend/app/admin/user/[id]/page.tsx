@@ -87,6 +87,9 @@ export default function AdminUserDetailPage() {
   const [orders, setOrders] = useState<UserOrder[]>([]);
   const [storeCredit, setStoreCredit] = useState<number | null>(null);
   const [storeCreditHistory, setStoreCreditHistory] = useState<{ type: string; amount: number; reason: string; createdAt: string }[]>([]);
+  const [editingCredit, setEditingCredit] = useState(false);
+  const [editCreditValue, setEditCreditValue] = useState('');
+  const [savingCredit, setSavingCredit] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -153,6 +156,25 @@ export default function AdminUserDetailPage() {
       setLoadingOrders(false);
     }
   }, [userId]);
+
+  const handleSaveCredit = async () => {
+    const newBalance = parseFloat(editCreditValue);
+    if (isNaN(newBalance) || newBalance < 0) return;
+    setSavingCredit(true);
+    try {
+      const data = await api.authPost<{ balance: number; history: { type: string; amount: number; reason: string; createdAt: string }[] }>(
+        `/admin/users/${userId}/store-credit`,
+        { newBalance }
+      );
+      setStoreCredit(data.balance);
+      setStoreCreditHistory(data.history);
+      setEditingCredit(false);
+    } catch (err) {
+      console.error('Failed to update store credit:', err);
+    } finally {
+      setSavingCredit(false);
+    }
+  };
 
   const fetchStoreCredit = useCallback(async () => {
     try {
@@ -408,12 +430,51 @@ export default function AdminUserDetailPage() {
 
       {/* Store Credit */}
       <div className="mb-6 bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
           <DollarSign className="h-5 w-5 text-green-600" />
           <h2 className="text-lg font-semibold text-[#020E1C]">Store Credit</h2>
-          <span className="ml-2 text-2xl font-bold text-green-600">
-            {storeCredit === null ? '...' : `$${storeCredit.toFixed(2)}`}
-          </span>
+          {editingCredit ? (
+            <>
+              <span className="text-gray-400">$</span>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={editCreditValue}
+                onChange={(e) => setEditCreditValue(e.target.value)}
+                className="w-32 h-8 text-base"
+                autoFocus
+              />
+              <Button
+                onClick={handleSaveCredit}
+                disabled={savingCredit}
+                className="h-8 px-3 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+              >
+                {savingCredit ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+              </Button>
+              <Button
+                onClick={() => setEditingCredit(false)}
+                disabled={savingCredit}
+                variant="outline"
+                className="h-8 px-3"
+              >
+                <X className="h-3 w-3" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <span className="ml-1 text-2xl font-bold text-green-600">
+                {storeCredit === null ? '...' : `$${storeCredit.toFixed(2)}`}
+              </span>
+              <button
+                onClick={() => { setEditCreditValue((storeCredit ?? 0).toFixed(2)); setEditingCredit(true); }}
+                className="text-gray-400 hover:text-gray-600 ml-1"
+                title="Edit balance"
+              >
+                <Pencil className="h-4 w-4" />
+              </button>
+            </>
+          )}
         </div>
         {storeCreditHistory.length === 0 ? (
           <p className="text-sm text-gray-400">No transactions</p>
