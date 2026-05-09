@@ -1408,6 +1408,38 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Admin adjustment: set a user's store credit balance (creates history entry)
+    /// </summary>
+    [HttpPost("users/{id}/store-credit")]
+    public async Task<IActionResult> AdjustUserStoreCredit(string id, [FromBody] AdminStoreCreditRequest request)
+    {
+        if (request.NewBalance < 0)
+            return BadRequest(new { error = "Balance cannot be negative" });
+
+        var sc = await _mongoDbService.GetStoreCreditByUserAsync(id);
+        var currentBalance = sc?.Balance ?? 0m;
+        var diff = Math.Round(request.NewBalance - currentBalance, 2);
+
+        if (diff == 0)
+            return Ok(new { balance = currentBalance });
+
+        if (diff > 0)
+            await _mongoDbService.CreateOrCreditUserAsync(id, diff, $"Admin balance adjustment");
+        else
+            await _mongoDbService.DebitUserStoreCreditAsync(id, Math.Abs(diff), $"Admin balance adjustment");
+
+        var updated = await _mongoDbService.GetStoreCreditByUserAsync(id);
+        return Ok(new
+        {
+            balance = updated?.Balance ?? request.NewBalance,
+            history = updated?.History
+                .OrderByDescending(h => h.CreatedAt)
+                .Select(h => new { h.Type, h.Amount, h.Reason, h.CreatedAt })
+                ?? []
+        });
+    }
+
+    /// <summary>
     /// Update a user's details (admin only)
     /// </summary>
     [HttpPut("users/{id}")]
@@ -1577,6 +1609,11 @@ public class AdminController : ControllerBase
         public int Page { get; set; }
         public int PerPage { get; set; }
         public int TotalPages { get; set; }
+    }
+
+    public class AdminStoreCreditRequest
+    {
+        public decimal NewBalance { get; set; }
     }
 
     public class UpdateUserRequest
