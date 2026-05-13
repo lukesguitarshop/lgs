@@ -499,6 +499,10 @@ export default function ShopInfoPage() {
                 <p className="text-muted-foreground mt-3">Items returned damaged, incomplete, or without insurance are not eligible for refund.</p>
               </div>
               <div>
+                <h2 className="text-xl font-semibold mb-2">Store Credit Purchases</h2>
+                <p className="text-muted-foreground">Guitars purchased using store credit are final sale and are not eligible for return under any circumstances. No exceptions will be made.</p>
+              </div>
+              <div>
                 <h2 className="text-xl font-semibold mb-2">Condition Expectations</h2>
                 <p className="text-muted-foreground">You are purchasing a used instrument, not a professionally set-up guitar. Minor adjustments (intonation, action, tuning stability, etc.) are expected and are the buyer&apos;s responsibility. &ldquo;Used&rdquo; condition is not grounds for a return.</p>
               </div>
