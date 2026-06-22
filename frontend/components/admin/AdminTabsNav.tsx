@@ -2,13 +2,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Settings, TrendingDown, DollarSign, ArrowLeftRight } from 'lucide-react';
+import { Settings, TrendingDown, DollarSign, ArrowLeftRight, Hammer } from 'lucide-react';
 
 const TABS = [
   { href: '/admin', label: 'Operations', icon: Settings },
   { href: '/deal-finder', label: 'Deal Finder', icon: TrendingDown },
   { href: '/finances', label: 'Finances', icon: DollarSign },
   { href: '/admin/trade-ins', label: 'Trade-Ins', icon: ArrowLeftRight },
+  { href: '/admin/other-tools', label: 'Other Tools', icon: Hammer },
 ];
 
 export function AdminTabsNav() {
@@ -20,7 +21,7 @@ export function AdminTabsNav() {
   };
 
   return (
-    <div className="grid w-full grid-cols-4 gap-1 rounded-lg bg-muted p-1 mb-4">
+    <div className="grid w-full grid-cols-5 gap-1 rounded-lg bg-muted p-1 mb-4">
       {TABS.map(({ href, label, icon: Icon }) => {
         const active = isActive(href);
         return (
