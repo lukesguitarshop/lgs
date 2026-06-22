@@ -183,7 +183,7 @@ export default function OtherToolsPage() {
                       )}
                     </Button>
                   </div>
-                  <pre className="whitespace-pre-wrap break-words text-sm text-gray-700 bg-gray-50 border border-gray-100 rounded p-3 max-h-72 overflow-y-auto font-sans">
+                  <pre className="whitespace-pre-wrap break-words text-sm text-gray-700 bg-[#FFFFF3] border border-gray-200 rounded p-3 max-h-72 overflow-y-auto font-sans">
                     {snippet.text}
                   </pre>
                 </div>
