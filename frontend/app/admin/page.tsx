@@ -160,8 +160,6 @@ export default function AdminPage() {
   const [selectedListingIds, setSelectedListingIds] = useState<Set<string>>(new Set());
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
-  const [reviewScraperLoading, setReviewScraperLoading] = useState(false);
-  const [reviewScraperResult, setReviewScraperResult] = useState<ScraperResponse | null>(null);
   const [initPricesLoading, setInitPricesLoading] = useState(false);
   const lastKnownOrderCountRef = useRef<number | null>(null);
   const initialLoadDoneRef = useRef(false);
@@ -440,7 +438,7 @@ export default function AdminPage() {
 
   const htmlToPlainText = (html: string): string => {
     // Strip return policy section and everything after it
-    let cleaned = html.replace(/(<b>|<strong>)*\s*Return Policy\s*:?\s*(<\/b>|<\/strong>)*[\s\S]*/i, '');
+    const cleaned = html.replace(/(<b>|<strong>)*\s*Return Policy\s*:?\s*(<\/b>|<\/strong>)*[\s\S]*/i, '');
     let text = cleaned;
     text = text.replace(/<br\s*\/?>/gi, '\n');
     text = text.replace(/<\/p>/gi, '\n\n');
@@ -651,24 +649,6 @@ export default function AdminPage() {
       });
     } finally {
       setLoading(false);
-    }
-  };
-
-  const runReviewScraper = async () => {
-    setReviewScraperLoading(true);
-    setReviewScraperResult(null);
-
-    try {
-      const response = await api.authPost<ScraperResponse>('/admin/run-review-scraper', {});
-      setReviewScraperResult(response);
-    } catch (err) {
-      setReviewScraperResult({
-        success: false,
-        message: 'Failed to run review scraper',
-        error: err instanceof Error ? err.message : 'Unknown error',
-      });
-    } finally {
-      setReviewScraperLoading(false);
     }
   };
 
@@ -1163,67 +1143,6 @@ export default function AdminPage() {
                   <div className="mt-4">
                     <h3 className="text-sm font-semibold text-red-700 mb-2">Error Details:</h3>
                     <pre className="bg-red-50 text-red-800 p-4 rounded-lg text-sm">{result.error}</pre>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Review Scraper */}
-          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6 mt-6">
-            <h2 className="text-xl font-semibold text-[#020E1C] mb-4">Review Scraper</h2>
-            <p className="text-gray-600 mb-6">
-              Fetch reviews from your Reverb shop feedback. Only imports new reviews that haven&apos;t been imported yet.
-            </p>
-
-            <Button
-              onClick={runReviewScraper}
-              disabled={reviewScraperLoading}
-              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-6 py-3"
-            >
-              {reviewScraperLoading ? (
-                <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Fetching Reviews...
-                </>
-              ) : (
-                <>
-                  <Play className="h-5 w-5 mr-2" />
-                  Run Review Scraper
-                </>
-              )}
-            </Button>
-
-            {reviewScraperResult && (
-              <div className="mt-6">
-                <div
-                  className={`flex items-center gap-2 p-4 rounded-lg ${
-                    reviewScraperResult.success
-                      ? 'bg-green-50 border border-green-200 text-green-800'
-                      : 'bg-red-50 border border-red-200 text-red-800'
-                  }`}
-                >
-                  {reviewScraperResult.success ? (
-                    <CheckCircle className="h-5 w-5 flex-shrink-0" />
-                  ) : (
-                    <XCircle className="h-5 w-5 flex-shrink-0" />
-                  )}
-                  <span className="font-medium">{reviewScraperResult.message}</span>
-                </div>
-
-                {reviewScraperResult.output && reviewScraperResult.output.length > 0 && (
-                  <div className="mt-4">
-                    <h3 className="text-sm font-semibold text-gray-700 mb-2">Output:</h3>
-                    <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto max-h-96 overflow-y-auto">
-                      {reviewScraperResult.output.join('\n')}
-                    </pre>
-                  </div>
-                )}
-
-                {reviewScraperResult.error && (
-                  <div className="mt-4">
-                    <h3 className="text-sm font-semibold text-red-700 mb-2">Error Details:</h3>
-                    <pre className="bg-red-50 text-red-800 p-4 rounded-lg text-sm">{reviewScraperResult.error}</pre>
                   </div>
                 )}
               </div>
