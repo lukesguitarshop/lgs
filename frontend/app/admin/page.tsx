@@ -1063,7 +1063,7 @@ export default function AdminPage() {
 
           {/* Reverb Scraper - at the bottom of Manage Listings tab */}
           <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6 mt-6">
-            <h2 className="text-xl font-semibold text-[#020E1C] mb-4">Reverb Scraper</h2>
+            <h2 className="text-xl font-semibold text-[#020E1C] mb-4">Reverb Listing Scraper</h2>
             <p className="text-gray-600 mb-6">
               Manually trigger the scraper to refresh your listings from Reverb. This will fetch all
               current listings and update the database.
