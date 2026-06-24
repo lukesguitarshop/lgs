@@ -26,6 +26,11 @@ import {
   ChevronUp,
   ShieldX,
   DollarSign,
+  Activity,
+  LogIn,
+  ShoppingCart,
+  Heart,
+  HeartOff,
 } from 'lucide-react';
 
 interface UserDetail {
@@ -54,6 +59,14 @@ interface OrderItem {
   price: number;
   currency: string;
   quantity: number;
+}
+
+interface ActivityEntry {
+  id: string;
+  type: string;
+  description: string;
+  listingId: string | null;
+  createdAt: string;
 }
 
 interface UserOrder {
@@ -90,6 +103,8 @@ export default function AdminUserDetailPage() {
   const [editingCredit, setEditingCredit] = useState(false);
   const [editCreditValue, setEditCreditValue] = useState('');
   const [savingCredit, setSavingCredit] = useState(false);
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
+  const [loadingActivity, setLoadingActivity] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,6 +191,18 @@ export default function AdminUserDetailPage() {
     }
   };
 
+  const fetchActivity = useCallback(async () => {
+    setLoadingActivity(true);
+    try {
+      const data = await api.authGet<ActivityEntry[]>(`/admin/users/${userId}/activity`);
+      setActivity(data);
+    } catch (err) {
+      console.error('Failed to fetch activity:', err);
+    } finally {
+      setLoadingActivity(false);
+    }
+  }, [userId]);
+
   const fetchStoreCredit = useCallback(async () => {
     try {
       const data = await api.authGet<{ balance: number; history: { type: string; amount: number; reason: string; createdAt: string }[] }>(`/admin/users/${userId}/store-credit`);
@@ -191,8 +218,9 @@ export default function AdminUserDetailPage() {
       fetchUser();
       fetchOrders();
       fetchStoreCredit();
+      fetchActivity();
     }
-  }, [isAdmin, userId, fetchUser, fetchOrders, fetchStoreCredit]);
+  }, [isAdmin, userId, fetchUser, fetchOrders, fetchStoreCredit, fetchActivity]);
 
   const handleSave = async () => {
     if (!user) return;
@@ -285,6 +313,23 @@ export default function AdminUserDetailPage() {
       hour: 'numeric',
       minute: '2-digit',
     });
+  };
+
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'login':
+        return <LogIn className="h-4 w-4 text-blue-600" />;
+      case 'add_to_cart':
+        return <ShoppingCart className="h-4 w-4 text-[#6E0114]" />;
+      case 'favorite':
+        return <Heart className="h-4 w-4 text-pink-600" />;
+      case 'unfavorite':
+        return <HeartOff className="h-4 w-4 text-gray-400" />;
+      case 'order_placed':
+        return <Receipt className="h-4 w-4 text-green-600" />;
+      default:
+        return <Activity className="h-4 w-4 text-gray-400" />;
+    }
   };
 
   const getStatusDisplay = (status: string): string => {
@@ -509,6 +554,52 @@ export default function AdminUserDetailPage() {
               </tbody>
             </table>
           </div>
+        )}
+      </div>
+
+      {/* Activity Log */}
+      <div className="mb-6 bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
+        <h2 className="text-lg font-semibold text-[#020E1C] flex items-center gap-2 mb-4">
+          <Activity className="h-5 w-5" />
+          Activity Log
+          <span className="text-sm font-normal text-gray-500">
+            ({activity.length}{activity.length === 100 ? '+' : ''})
+          </span>
+        </h2>
+
+        {loadingActivity ? (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+          </div>
+        ) : activity.length === 0 ? (
+          <div className="text-center py-8">
+            <Activity className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-500">No activity recorded yet</p>
+          </div>
+        ) : (
+          <ul className="space-y-1 max-h-96 overflow-y-auto">
+            {activity.map((entry) => (
+              <li
+                key={entry.id}
+                className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0"
+              >
+                <span className="shrink-0">{getActivityIcon(entry.type)}</span>
+                {entry.listingId ? (
+                  <Link
+                    href={`/listing/${entry.listingId}`}
+                    className="flex-1 text-sm text-[#020E1C] hover:text-[#6E0114] hover:underline"
+                  >
+                    {entry.description}
+                  </Link>
+                ) : (
+                  <span className="flex-1 text-sm text-[#020E1C]">{entry.description}</span>
+                )}
+                <span className="shrink-0 text-xs text-gray-500 whitespace-nowrap">
+                  {formatDate(entry.createdAt)}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 

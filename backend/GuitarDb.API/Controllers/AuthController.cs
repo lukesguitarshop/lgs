@@ -152,6 +152,7 @@ public class AuthController : ControllerBase
         }
 
         _logger.LogInformation("User logged in: {Email}", email);
+        await _mongoDbService.LogActivityAsync(user.Id!, "login", "Logged in");
 
         var token = _authService.GenerateJwtToken(user);
 

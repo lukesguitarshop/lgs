@@ -24,6 +24,7 @@ public class MongoDbService
     private readonly IMongoCollection<MonthlySnapshot> _monthlySnapshotsCollection;
     private readonly IMongoCollection<TradeInRequest> _tradeInRequestsCollection;
     private readonly IMongoCollection<StoreCredit> _storeCreditsCollection;
+    private readonly IMongoCollection<UserActivity> _userActivitiesCollection;
     private readonly ILogger<MongoDbService> _logger;
 
     public MongoDbService(IConfiguration configuration, ILogger<MongoDbService> logger)
@@ -56,6 +57,7 @@ public class MongoDbService
         _monthlySnapshotsCollection = database.GetCollection<MonthlySnapshot>("monthly_snapshots");
         _tradeInRequestsCollection = database.GetCollection<TradeInRequest>("trade_in_requests");
         _storeCreditsCollection = database.GetCollection<StoreCredit>("store_credits");
+        _userActivitiesCollection = database.GetCollection<UserActivity>("user_activities");
 
         CreateIndexesAsync().GetAwaiter().GetResult();
     }
@@ -121,6 +123,20 @@ public class MongoDbService
             var favoriteUserIndex = Builders<Favorite>.IndexKeys.Ascending(f => f.UserId);
             await _favoritesCollection.Indexes.CreateOneAsync(
                 new CreateIndexModel<Favorite>(favoriteUserIndex, new CreateIndexOptions { Name = "user_id_idx" })
+            );
+
+            // User activity indexes
+            var activityUserCreatedIndex = Builders<UserActivity>.IndexKeys
+                .Ascending(a => a.UserId)
+                .Descending(a => a.CreatedAt);
+            await _userActivitiesCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<UserActivity>(activityUserCreatedIndex, new CreateIndexOptions { Name = "user_created_idx" })
+            );
+
+            // Auto-expire activity records after 180 days to keep the collection small
+            var activityTtlIndex = Builders<UserActivity>.IndexKeys.Ascending(a => a.CreatedAt);
+            await _userActivitiesCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<UserActivity>(activityTtlIndex, new CreateIndexOptions { Name = "activity_ttl_idx", ExpireAfter = TimeSpan.FromDays(180) })
             );
 
             // Offers indexes
@@ -820,6 +836,39 @@ public class MongoDbService
         var filter = Builders<Favorite>.Filter.Eq(f => f.UserId, userId);
         var favorites = await _favoritesCollection.Find(filter).ToListAsync();
         return favorites.Select(f => f.ListingId).ToList();
+    }
+
+    // User activity operations
+    public async Task LogActivityAsync(string userId, string type, string description, string? listingId = null)
+    {
+        if (string.IsNullOrEmpty(userId)) return;
+
+        try
+        {
+            var activity = new UserActivity
+            {
+                UserId = userId,
+                Type = type,
+                Description = description,
+                ListingId = listingId,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _userActivitiesCollection.InsertOneAsync(activity);
+        }
+        catch (Exception ex)
+        {
+            // Activity logging must never break the main request
+            _logger.LogWarning(ex, "Failed to log activity '{Type}' for user {UserId}", type, userId);
+        }
+    }
+
+    public async Task<List<UserActivity>> GetUserActivityAsync(string userId, int limit = 100)
+    {
+        var filter = Builders<UserActivity>.Filter.Eq(a => a.UserId, userId);
+        return await _userActivitiesCollection.Find(filter)
+            .SortByDescending(a => a.CreatedAt)
+            .Limit(limit)
+            .ToListAsync();
     }
 
     // Offers operations

@@ -1391,6 +1391,30 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Get recent activity log for a specific user (admin only)
+    /// </summary>
+    [HttpGet("users/{id}/activity")]
+    public async Task<IActionResult> GetUserActivity(string id)
+    {
+        var user = await _mongoDbService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { error = "User not found" });
+        }
+
+        var activity = await _mongoDbService.GetUserActivityAsync(id, 100);
+
+        return Ok(activity.Select(a => new
+        {
+            id = a.Id,
+            type = a.Type,
+            description = a.Description,
+            listingId = a.ListingId,
+            createdAt = a.CreatedAt
+        }));
+    }
+
+    /// <summary>
     /// Get store credit for a specific user (admin only)
     /// </summary>
     [HttpGet("users/{id}/store-credit")]
