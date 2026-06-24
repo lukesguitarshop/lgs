@@ -875,7 +875,7 @@ public class MongoDbService
     /// Global, paginated, filterable activity feed for the admin dashboard.
     /// </summary>
     public async Task<(List<UserActivity> Items, long Total)> GetActivityFeedAsync(
-        string? type, string? userId, bool descending, int page, int perPage)
+        string? type, string? userId, bool descending, int page, int perPage, bool includeAdmin = false)
     {
         var builder = Builders<UserActivity>.Filter;
         var filter = builder.Empty;
@@ -883,6 +883,18 @@ public class MongoDbService
             filter &= builder.Eq(a => a.Type, type);
         if (!string.IsNullOrWhiteSpace(userId))
             filter &= builder.Eq(a => a.UserId, userId);
+
+        // By default, hide activity from admin accounts so the owner isn't
+        // wading through their own logs.
+        if (!includeAdmin)
+        {
+            var adminIds = await _usersCollection
+                .Find(Builders<User>.Filter.Eq(u => u.IsAdmin, true))
+                .Project(u => u.Id!)
+                .ToListAsync();
+            if (adminIds.Count > 0)
+                filter &= builder.Nin(a => a.UserId, adminIds);
+        }
 
         var total = await _userActivitiesCollection.CountDocumentsAsync(filter);
 

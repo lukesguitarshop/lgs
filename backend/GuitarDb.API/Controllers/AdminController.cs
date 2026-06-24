@@ -1400,12 +1400,13 @@ public class AdminController : ControllerBase
         [FromQuery] string? userId = null,
         [FromQuery] string sort = "newest",
         [FromQuery] int page = 1,
-        [FromQuery] int perPage = 50)
+        [FromQuery] int perPage = 50,
+        [FromQuery] bool includeAdmin = false)
     {
         if (perPage > 200) perPage = 200;
         var descending = !string.Equals(sort, "oldest", StringComparison.OrdinalIgnoreCase);
 
-        var (items, total) = await _mongoDbService.GetActivityFeedAsync(type, userId, descending, page, perPage);
+        var (items, total) = await _mongoDbService.GetActivityFeedAsync(type, userId, descending, page, perPage, includeAdmin);
 
         var users = await _mongoDbService.GetUsersByIdsAsync(items.Select(a => a.UserId));
         var userMap = users.ToDictionary(u => u.Id!, u => u);

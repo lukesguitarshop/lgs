@@ -133,6 +133,7 @@ function OtherToolsContent() {
   const [activityType, setActivityType] = useState('');
   const [activitySort, setActivitySort] = useState<'newest' | 'oldest'>('newest');
   const [activityUserId, setActivityUserId] = useState<string | null>(searchParams.get('user'));
+  const [includeAdmin, setIncludeAdmin] = useState(false);
 
   const fetchActivity = useCallback(async () => {
     setActivityLoading(true);
@@ -143,6 +144,7 @@ function OtherToolsContent() {
         sort: activitySort,
         page: activityPage,
         perPage: ACTIVITY_PER_PAGE,
+        includeAdmin,
       });
       setActivity(data.items);
       setActivityTotal(data.total);
@@ -151,7 +153,7 @@ function OtherToolsContent() {
     } finally {
       setActivityLoading(false);
     }
-  }, [activityType, activityUserId, activitySort, activityPage]);
+  }, [activityType, activityUserId, activitySort, activityPage, includeAdmin]);
 
   useEffect(() => {
     if (isAdmin && activeTab === 'activity') {
@@ -371,6 +373,16 @@ function OtherToolsContent() {
                 <option value="newest">Newest first</option>
                 <option value="oldest">Oldest first</option>
               </select>
+
+              <label className="inline-flex items-center gap-2 h-9 text-sm text-[#020E1C] cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={includeAdmin}
+                  onChange={(e) => { setIncludeAdmin(e.target.checked); setActivityPage(1); }}
+                  className="rounded border-gray-300"
+                />
+                Include admin
+              </label>
 
               {activityUserId && (
                 <button

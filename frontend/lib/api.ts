@@ -446,6 +446,7 @@ export async function getAdminActivity(opts: {
   sort?: string;
   page?: number;
   perPage?: number;
+  includeAdmin?: boolean;
 } = {}): Promise<AdminActivityPage> {
   const params = new URLSearchParams();
   if (opts.type) params.set('type', opts.type);
@@ -453,6 +454,7 @@ export async function getAdminActivity(opts: {
   if (opts.sort) params.set('sort', opts.sort);
   params.set('page', String(opts.page ?? 1));
   params.set('perPage', String(opts.perPage ?? 50));
+  if (opts.includeAdmin) params.set('includeAdmin', 'true');
   return api.authGet<AdminActivityPage>(`/admin/activity?${params}`);
 }
 
