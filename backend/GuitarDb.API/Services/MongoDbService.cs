@@ -871,6 +871,45 @@ public class MongoDbService
             .ToListAsync();
     }
 
+    /// <summary>
+    /// Global, paginated, filterable activity feed for the admin dashboard.
+    /// </summary>
+    public async Task<(List<UserActivity> Items, long Total)> GetActivityFeedAsync(
+        string? type, string? userId, bool descending, int page, int perPage)
+    {
+        var builder = Builders<UserActivity>.Filter;
+        var filter = builder.Empty;
+        if (!string.IsNullOrWhiteSpace(type))
+            filter &= builder.Eq(a => a.Type, type);
+        if (!string.IsNullOrWhiteSpace(userId))
+            filter &= builder.Eq(a => a.UserId, userId);
+
+        var total = await _userActivitiesCollection.CountDocumentsAsync(filter);
+
+        var sort = descending
+            ? Builders<UserActivity>.Sort.Descending(a => a.CreatedAt)
+            : Builders<UserActivity>.Sort.Ascending(a => a.CreatedAt);
+
+        if (page < 1) page = 1;
+        if (perPage < 1) perPage = 50;
+
+        var items = await _userActivitiesCollection.Find(filter)
+            .Sort(sort)
+            .Skip((page - 1) * perPage)
+            .Limit(perPage)
+            .ToListAsync();
+
+        return (items, total);
+    }
+
+    public async Task<List<User>> GetUsersByIdsAsync(IEnumerable<string> ids)
+    {
+        var idList = ids.Distinct().ToList();
+        if (idList.Count == 0) return new List<User>();
+        var filter = Builders<User>.Filter.In(u => u.Id, idList);
+        return await _usersCollection.Find(filter).ToListAsync();
+    }
+
     // Offers operations
     public async Task<Offer> CreateOfferAsync(Offer offer)
     {

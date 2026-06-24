@@ -559,13 +559,21 @@ export default function AdminUserDetailPage() {
 
       {/* Activity Log */}
       <div className="mb-6 bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
-        <h2 className="text-lg font-semibold text-[#020E1C] flex items-center gap-2 mb-4">
-          <Activity className="h-5 w-5" />
-          Activity Log
-          <span className="text-sm font-normal text-gray-500">
-            ({activity.length}{activity.length === 100 ? '+' : ''})
-          </span>
-        </h2>
+        <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
+          <h2 className="text-lg font-semibold text-[#020E1C] flex items-center gap-2">
+            <Activity className="h-5 w-5" />
+            Activity Log
+            <span className="text-sm font-normal text-gray-500">
+              ({activity.length}{activity.length === 100 ? '+' : ''})
+            </span>
+          </h2>
+          <Link
+            href={`/admin/other-tools?tab=activity&user=${userId}`}
+            className="text-sm text-[#6E0114] hover:underline whitespace-nowrap"
+          >
+            View in activity log →
+          </Link>
+        </div>
 
         {loadingActivity ? (
           <div className="flex justify-center py-8">

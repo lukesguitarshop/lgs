@@ -1391,6 +1391,51 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Global activity feed across all users (admin only).
+    /// Supports filtering by type and user, sorting, and pagination.
+    /// </summary>
+    [HttpGet("activity")]
+    public async Task<IActionResult> GetActivityFeed(
+        [FromQuery] string? type = null,
+        [FromQuery] string? userId = null,
+        [FromQuery] string sort = "newest",
+        [FromQuery] int page = 1,
+        [FromQuery] int perPage = 50)
+    {
+        if (perPage > 200) perPage = 200;
+        var descending = !string.Equals(sort, "oldest", StringComparison.OrdinalIgnoreCase);
+
+        var (items, total) = await _mongoDbService.GetActivityFeedAsync(type, userId, descending, page, perPage);
+
+        var users = await _mongoDbService.GetUsersByIdsAsync(items.Select(a => a.UserId));
+        var userMap = users.ToDictionary(u => u.Id!, u => u);
+
+        var result = items.Select(a =>
+        {
+            userMap.TryGetValue(a.UserId, out var u);
+            return new
+            {
+                id = a.Id,
+                userId = a.UserId,
+                userName = u?.FullName ?? "Unknown user",
+                userEmail = u?.Email,
+                type = a.Type,
+                description = a.Description,
+                listingId = a.ListingId,
+                createdAt = a.CreatedAt
+            };
+        });
+
+        return Ok(new
+        {
+            items = result,
+            total,
+            page,
+            perPage
+        });
+    }
+
+    /// <summary>
     /// Get recent activity log for a specific user (admin only)
     /// </summary>
     [HttpGet("users/{id}/activity")]
