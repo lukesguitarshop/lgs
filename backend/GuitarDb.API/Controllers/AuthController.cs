@@ -64,7 +64,11 @@ public class AuthController : ControllerBase
                 var newVerificationToken = await _mongoDbService.CreateEmailVerificationTokenAsync(existingUser.Id!);
                 var frontendUrl = _configuration["FrontendUrl"] ?? "http://localhost:3000";
                 var newVerificationLink = $"{frontendUrl}/verify-email?token={newVerificationToken.Token}";
-                await _emailService.SendEmailVerificationAsync(email, newVerificationLink);
+                var resent = await _emailService.SendEmailVerificationAsync(email, newVerificationLink);
+                if (!resent)
+                {
+                    _logger.LogWarning("VERIFICATION EMAIL FAILED to send to {Email} (existing unverified user)", email);
+                }
 
                 return Ok(new { message = "A verification email has been sent. Please check your inbox." });
             }
@@ -104,9 +108,15 @@ public class AuthController : ControllerBase
         var verificationToken = await _mongoDbService.CreateEmailVerificationTokenAsync(user.Id!);
         var frontendBaseUrl = _configuration["FrontendUrl"] ?? "http://localhost:3000";
         var verificationLink = $"{frontendBaseUrl}/verify-email?token={verificationToken.Token}";
-        await _emailService.SendEmailVerificationAsync(email, verificationLink);
-
-        _logger.LogInformation("Verification email sent to: {Email}", email);
+        var verificationSent = await _emailService.SendEmailVerificationAsync(email, verificationLink);
+        if (verificationSent)
+        {
+            _logger.LogInformation("Verification email sent to: {Email}", email);
+        }
+        else
+        {
+            _logger.LogWarning("VERIFICATION EMAIL FAILED to send to {Email} (new registration)", email);
+        }
 
         return Ok(new { message = "Registration successful! Please check your email to verify your account." });
     }
@@ -428,9 +438,15 @@ public class AuthController : ControllerBase
         var verificationToken = await _mongoDbService.CreateEmailVerificationTokenAsync(user.Id!);
         var frontendUrl = _configuration["FrontendUrl"] ?? "http://localhost:3000";
         var verificationLink = $"{frontendUrl}/verify-email?token={verificationToken.Token}";
-        await _emailService.SendEmailVerificationAsync(email, verificationLink);
-
-        _logger.LogInformation("Resent verification email to: {Email}", email);
+        var resent = await _emailService.SendEmailVerificationAsync(email, verificationLink);
+        if (resent)
+        {
+            _logger.LogInformation("Resent verification email to: {Email}", email);
+        }
+        else
+        {
+            _logger.LogWarning("VERIFICATION EMAIL FAILED to resend to {Email}", email);
+        }
 
         return Ok(new { message = "If an account exists with this email, a verification link has been sent." });
     }
