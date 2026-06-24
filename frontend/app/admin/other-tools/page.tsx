@@ -358,7 +358,7 @@ function OtherToolsContent() {
               <select
                 value={activityType}
                 onChange={(e) => { setActivityType(e.target.value); setActivityPage(1); }}
-                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-[#020E1C]"
+                className="h-9 rounded-md border border-gray-300 bg-[#FFFFF3] px-3 text-sm text-[#020E1C]"
               >
                 {ACTIVITY_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>{t.label}</option>
@@ -368,7 +368,7 @@ function OtherToolsContent() {
               <select
                 value={activitySort}
                 onChange={(e) => { setActivitySort(e.target.value as 'newest' | 'oldest'); setActivityPage(1); }}
-                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-[#020E1C]"
+                className="h-9 rounded-md border border-gray-300 bg-[#FFFFF3] px-3 text-sm text-[#020E1C]"
               >
                 <option value="newest">Newest first</option>
                 <option value="oldest">Oldest first</option>
@@ -387,7 +387,7 @@ function OtherToolsContent() {
               {activityUserId && (
                 <button
                   onClick={() => { setActivityUserId(null); setActivityPage(1); }}
-                  className="inline-flex items-center gap-1 h-9 rounded-md border border-gray-300 bg-white px-3 text-sm text-[#6E0114] hover:bg-gray-50"
+                  className="inline-flex items-center gap-1 h-9 rounded-md border border-gray-300 bg-[#FFFFF3] px-3 text-sm text-[#6E0114] hover:bg-gray-50"
                 >
                   <X className="h-3.5 w-3.5" />
                   Clear user filter
