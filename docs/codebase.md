@@ -37,6 +37,7 @@ G:\Projects\lgs\
 | `Controllers/MessagesController.cs` | Messaging and offer management (requires auth) |
 | `Controllers/MessagesController.cs` | Direct messaging to admin (requires auth); regular users can only message admin |
 | `Controllers/CartController.cs` | Pending cart items from accepted offers (requires auth) |
+| `Controllers/ActivityController.cs` | Records client-side user activity events (add-to-cart) via POST /api/activity (requires auth) |
 
 ### Models
 
@@ -47,6 +48,7 @@ G:\Projects\lgs\
 | `Models/Review.cs` | Customer review (guitar_name, reviewer_name, review_date, rating, review_text) |
 | `Models/User.cs` | User profile (email, password_hash, full_name, is_guest, is_admin, email_verified) |
 | `Models/Favorite.cs` | User favorite (user_id, listing_id, created_at) |
+| `Models/UserActivity.cs` | Per-user activity event (user_id, type, description, listing_id, created_at); 180-day TTL |
 | `Models/Conversation.cs` | Conversation with offer state (listing_id, participant_ids, offer_status, amounts) |
 | `Models/Message.cs` | Direct message (conversation_id, sender_id, recipient_id, message_text) |
 | `Models/Conversation.cs` | Conversation (participant_ids, listing_id, last_message) |
@@ -145,6 +147,9 @@ GET    /api/admin/pending-cart-items - Get all pending cart items for admin with
 DELETE /api/admin/pending-cart-items/{id} - Cancel pending cart item and re-enable listing (requires admin auth)
 
 GET    /api/cart/pending             - Get pending cart items for current user (locked items from accepted offers, requires auth)
+
+POST   /api/activity                 - Record a client-side activity event (add_to_cart) for current user (requires auth)
+GET    /api/admin/users/{id}/activity - Get recent activity feed for a user (requires admin auth)
 ```
 
 ---
@@ -241,6 +246,7 @@ GET    /api/cart/pending             - Get pending cart items for current user (
 | `pending_cart_items` | Locked cart items from accepted offers | `user_id_idx`, `expires_at_idx` (TTL) |
 | `password_reset_tokens` | Password reset tokens | `token_idx` (unique), `expires_at_idx` (TTL) |
 | `email_verification_tokens` | Email verification tokens | `token_idx` (unique), `expires_at_idx` (TTL) |
+| `user_activities` | Per-user activity feed (login, add_to_cart, favorite, unfavorite, order_placed) shown in admin user page | `user_created_idx` (compound), `activity_ttl_idx` (TTL, 180 days) |
 
 ### Order Schema
 

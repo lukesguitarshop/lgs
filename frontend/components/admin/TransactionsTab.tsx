@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '@/lib/api';
 import { Transaction, CreateTransactionRequest } from '@/lib/types/transaction';
 import { Button } from '@/components/ui/button';
@@ -126,6 +126,10 @@ export default function TransactionsTab() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [form, setForm] = useState<TransactionFormData>(emptyForm);
 
+  // Deep-link (?editTxn=<id>) and "action needed" toast
+  const [pendingEditTxnId, setPendingEditTxnId] = useState<string | null>(null);
+  const initialToastShown = useRef(false);
+
   // Import dialog
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [csvData, setCsvData] = useState<CreateTransactionRequest[]>([]);
@@ -216,6 +220,17 @@ export default function TransactionsTab() {
       const data = await api.authGet<Transaction[]>('/admin/transactions');
       setTransactions(data);
       setCurrentPage(1);
+      if (!initialToastShown.current) {
+        initialToastShown.current = true;
+        const needCount = data.filter((t) => t.needsReview).length;
+        if (needCount > 0) {
+          showToast(
+            `${needCount} transaction${needCount === 1 ? '' : 's'} need attention — finish payout details`,
+            'info',
+            8000
+          );
+        }
+      }
     } catch (err) {
       console.error('Failed to fetch transactions:', err);
       showToast('Failed to load transactions', 'error');
@@ -227,6 +242,27 @@ export default function TransactionsTab() {
   useEffect(() => {
     fetchTransactions();
   }, [fetchTransactions]);
+
+  // Read ?editTxn=<id> on mount, then strip it from the URL so refreshes don't reopen.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const editId = params.get('editTxn');
+    if (editId) {
+      setPendingEditTxnId(editId);
+      params.delete('editTxn');
+      const qs = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    }
+  }, []);
+
+  // Once transactions are loaded, open the edit modal for the deep-linked id.
+  useEffect(() => {
+    if (!pendingEditTxnId || transactions.length === 0) return;
+    const txn = transactions.find((t) => t.id === pendingEditTxnId);
+    if (txn) openEditDialog(txn);
+    setPendingEditTxnId(null);
+  }, [pendingEditTxnId, transactions]);
 
   // Auto-calculate profit when revenue, purchasePrice, or shippingCost change
   const updateProfit = (updates: Partial<TransactionFormData>, current: TransactionFormData) => {
@@ -549,14 +585,23 @@ export default function TransactionsTab() {
               {paginatedTransactions.map((txn) => (
                 <tr
                   key={txn.id}
-                  className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
+                  className={`border-b border-gray-100 cursor-pointer ${
+                    txn.needsReview ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'
+                  }`}
                   onClick={() => openEditDialog(txn)}
                 >
                   <td className="py-3 px-3 text-sm text-gray-700">
                     {formatDate(txn.date)}
                   </td>
                   <td className="py-3 px-3 text-sm font-medium text-[#020E1C]">
-                    {txn.guitarName}
+                    <div className="flex items-center gap-2">
+                      <span>{txn.guitarName}</span>
+                      {txn.needsReview && (
+                        <span className="inline-flex items-center px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full text-xs font-medium whitespace-nowrap">
+                          Action needed
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-3 text-sm text-gray-700 text-right">
                     {formatCurrency(txn.purchasePrice)}

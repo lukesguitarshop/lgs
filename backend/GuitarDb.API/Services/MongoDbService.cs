@@ -24,6 +24,7 @@ public class MongoDbService
     private readonly IMongoCollection<MonthlySnapshot> _monthlySnapshotsCollection;
     private readonly IMongoCollection<TradeInRequest> _tradeInRequestsCollection;
     private readonly IMongoCollection<StoreCredit> _storeCreditsCollection;
+    private readonly IMongoCollection<UserActivity> _userActivitiesCollection;
     private readonly ILogger<MongoDbService> _logger;
 
     public MongoDbService(IConfiguration configuration, ILogger<MongoDbService> logger)
@@ -56,6 +57,7 @@ public class MongoDbService
         _monthlySnapshotsCollection = database.GetCollection<MonthlySnapshot>("monthly_snapshots");
         _tradeInRequestsCollection = database.GetCollection<TradeInRequest>("trade_in_requests");
         _storeCreditsCollection = database.GetCollection<StoreCredit>("store_credits");
+        _userActivitiesCollection = database.GetCollection<UserActivity>("user_activities");
 
         CreateIndexesAsync().GetAwaiter().GetResult();
     }
@@ -121,6 +123,20 @@ public class MongoDbService
             var favoriteUserIndex = Builders<Favorite>.IndexKeys.Ascending(f => f.UserId);
             await _favoritesCollection.Indexes.CreateOneAsync(
                 new CreateIndexModel<Favorite>(favoriteUserIndex, new CreateIndexOptions { Name = "user_id_idx" })
+            );
+
+            // User activity indexes
+            var activityUserCreatedIndex = Builders<UserActivity>.IndexKeys
+                .Ascending(a => a.UserId)
+                .Descending(a => a.CreatedAt);
+            await _userActivitiesCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<UserActivity>(activityUserCreatedIndex, new CreateIndexOptions { Name = "user_created_idx" })
+            );
+
+            // Auto-expire activity records after 180 days to keep the collection small
+            var activityTtlIndex = Builders<UserActivity>.IndexKeys.Ascending(a => a.CreatedAt);
+            await _userActivitiesCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<UserActivity>(activityTtlIndex, new CreateIndexOptions { Name = "activity_ttl_idx", ExpireAfter = TimeSpan.FromDays(180) })
             );
 
             // Offers indexes
@@ -820,6 +836,90 @@ public class MongoDbService
         var filter = Builders<Favorite>.Filter.Eq(f => f.UserId, userId);
         var favorites = await _favoritesCollection.Find(filter).ToListAsync();
         return favorites.Select(f => f.ListingId).ToList();
+    }
+
+    // User activity operations
+    public async Task LogActivityAsync(string userId, string type, string description, string? listingId = null)
+    {
+        if (string.IsNullOrEmpty(userId)) return;
+
+        try
+        {
+            var activity = new UserActivity
+            {
+                UserId = userId,
+                Type = type,
+                Description = description,
+                ListingId = listingId,
+                CreatedAt = DateTime.UtcNow
+            };
+            await _userActivitiesCollection.InsertOneAsync(activity);
+        }
+        catch (Exception ex)
+        {
+            // Activity logging must never break the main request
+            _logger.LogWarning(ex, "Failed to log activity '{Type}' for user {UserId}", type, userId);
+        }
+    }
+
+    public async Task<List<UserActivity>> GetUserActivityAsync(string userId, int limit = 100)
+    {
+        var filter = Builders<UserActivity>.Filter.Eq(a => a.UserId, userId);
+        return await _userActivitiesCollection.Find(filter)
+            .SortByDescending(a => a.CreatedAt)
+            .Limit(limit)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Global, paginated, filterable activity feed for the admin dashboard.
+    /// </summary>
+    public async Task<(List<UserActivity> Items, long Total)> GetActivityFeedAsync(
+        string? type, string? userId, bool descending, int page, int perPage, bool includeAdmin = false)
+    {
+        var builder = Builders<UserActivity>.Filter;
+        var filter = builder.Empty;
+        if (!string.IsNullOrWhiteSpace(type))
+            filter &= builder.Eq(a => a.Type, type);
+        if (!string.IsNullOrWhiteSpace(userId))
+            filter &= builder.Eq(a => a.UserId, userId);
+
+        // By default, hide activity from admin accounts so the owner isn't
+        // wading through their own logs.
+        if (!includeAdmin)
+        {
+            var adminIds = await _usersCollection
+                .Find(Builders<User>.Filter.Eq(u => u.IsAdmin, true))
+                .Project(u => u.Id!)
+                .ToListAsync();
+            if (adminIds.Count > 0)
+                filter &= builder.Nin(a => a.UserId, adminIds);
+        }
+
+        var total = await _userActivitiesCollection.CountDocumentsAsync(filter);
+
+        var sort = descending
+            ? Builders<UserActivity>.Sort.Descending(a => a.CreatedAt)
+            : Builders<UserActivity>.Sort.Ascending(a => a.CreatedAt);
+
+        if (page < 1) page = 1;
+        if (perPage < 1) perPage = 50;
+
+        var items = await _userActivitiesCollection.Find(filter)
+            .Sort(sort)
+            .Skip((page - 1) * perPage)
+            .Limit(perPage)
+            .ToListAsync();
+
+        return (items, total);
+    }
+
+    public async Task<List<User>> GetUsersByIdsAsync(IEnumerable<string> ids)
+    {
+        var idList = ids.Distinct().ToList();
+        if (idList.Count == 0) return new List<User>();
+        var filter = Builders<User>.Filter.In(u => u.Id, idList);
+        return await _usersCollection.Find(filter).ToListAsync();
     }
 
     // Offers operations
@@ -1910,6 +2010,69 @@ public class MongoDbService
 
     public async Task<Transaction?> GetTransactionByIdAsync(string id) =>
         await _transactionsCollection.Find(t => t.Id == id).FirstOrDefaultAsync();
+
+    /// <summary>
+    /// Finds the transaction linked to a listing. Matches by listing_id first,
+    /// then falls back to guitar_name == listing title for legacy rows that
+    /// predate the listing_id link.
+    /// </summary>
+    public async Task<Transaction?> GetTransactionByListingIdAsync(string listingId, string? listingTitle = null)
+    {
+        var byId = await _transactionsCollection
+            .Find(t => t.ListingId == listingId)
+            .FirstOrDefaultAsync();
+        if (byId != null) return byId;
+
+        if (!string.IsNullOrWhiteSpace(listingTitle))
+        {
+            return await _transactionsCollection
+                .Find(t => t.ListingId == null && t.GuitarName == listingTitle)
+                .FirstOrDefaultAsync();
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Auto-updates the transaction for each sold listing after a website order:
+    /// for_sale -> sold, sets the sale date and platform, and flags it for the
+    /// admin to finish payout details. Creates a transaction if none is linked.
+    /// </summary>
+    public async Task MarkListingsSoldInTransactionsAsync(IEnumerable<string> listingIds, DateTime saleDate)
+    {
+        foreach (var listingId in listingIds)
+        {
+            var listing = await GetMyListingByIdAsync(listingId);
+            var txn = await GetTransactionByListingIdAsync(listingId, listing?.ListingTitle);
+
+            if (txn != null)
+            {
+                var update = Builders<Transaction>.Update
+                    .Set(t => t.ListingId, listingId)
+                    .Set(t => t.TransactionType, "sold")
+                    .Set(t => t.Date, saleDate)
+                    .Set(t => t.SoldVia, "lukesguitarshop.com")
+                    .Set(t => t.NeedsReview, true)
+                    .Set(t => t.UpdatedAt, DateTime.UtcNow);
+                await _transactionsCollection.UpdateOneAsync(t => t.Id == txn.Id, update);
+            }
+            else
+            {
+                var created = new Transaction
+                {
+                    Date = saleDate,
+                    GuitarName = listing?.ListingTitle ?? "Unknown listing",
+                    ListingId = listingId,
+                    PurchasePrice = listing?.Price,
+                    TransactionType = "sold",
+                    SoldVia = "lukesguitarshop.com",
+                    NeedsReview = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _transactionsCollection.InsertOneAsync(created);
+            }
+        }
+    }
 
     public async Task CreateTransactionAsync(Transaction transaction) =>
         await _transactionsCollection.InsertOneAsync(transaction);

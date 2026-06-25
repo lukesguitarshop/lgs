@@ -333,7 +333,14 @@ public class CheckoutController : ControllerBase
             await _mongoDbService.CreateOrderAsync(order);
             _logger.LogInformation("Created order {OrderId} for session {SessionId}", order.Id, session.Id);
 
+            if (userId != null)
+            {
+                await _mongoDbService.LogActivityAsync(userId, "order_placed",
+                    $"Placed an order — ${order.TotalAmount:N2} ({order.Items.Count} item{(order.Items.Count == 1 ? "" : "s")}, card)");
+            }
+
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
+            await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
             _logger.LogInformation("Disabled {Count} listings after successful checkout", listingIds.Count);
 
             // Remove pending cart items for purchased listings (from accepted offers)
@@ -770,7 +777,14 @@ public class CheckoutController : ControllerBase
             await _mongoDbService.CreateOrderAsync(order);
             _logger.LogInformation("Created order {OrderId} for PayPal order {PayPalOrderId}", order.Id, request.OrderId);
 
+            if (userId != null)
+            {
+                await _mongoDbService.LogActivityAsync(userId, "order_placed",
+                    $"Placed an order — ${order.TotalAmount:N2} ({order.Items.Count} item{(order.Items.Count == 1 ? "" : "s")}, PayPal)");
+            }
+
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
+            await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
             _logger.LogInformation("Disabled {Count} listings after successful PayPal checkout", listingIds.Count);
 
             // Remove pending cart items for purchased listings (from accepted offers)
@@ -1071,6 +1085,7 @@ public class CheckoutController : ControllerBase
             _logger.LogInformation("Webhook: Created order {OrderId} for session {SessionId}", order.Id, session.Id);
 
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
+            await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
             _logger.LogInformation("Webhook: Disabled {Count} listings", listingIds.Count);
 
             // Remove pending cart items

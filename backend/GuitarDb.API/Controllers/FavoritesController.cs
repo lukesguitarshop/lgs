@@ -72,6 +72,7 @@ public class FavoritesController : ControllerBase
         }
 
         var favorite = await _mongoDbService.AddFavoriteAsync(userId, listingId);
+        await _mongoDbService.LogActivityAsync(userId, "favorite", $"Favorited {listing.ListingTitle}", listingId);
 
         return Ok(new FavoriteDto
         {
@@ -96,6 +97,9 @@ public class FavoritesController : ControllerBase
         {
             return NotFound(new { error = "Favorite not found" });
         }
+
+        var listing = await _mongoDbService.GetMyListingByIdAsync(listingId);
+        await _mongoDbService.LogActivityAsync(userId, "unfavorite", $"Unfavorited {listing?.ListingTitle ?? "a listing"}", listingId);
 
         return Ok(new { message = "Favorite removed" });
     }

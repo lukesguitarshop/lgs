@@ -16,6 +16,10 @@ public class Transaction
     [BsonElement("guitar_name")]
     public string GuitarName { get; set; } = string.Empty;
 
+    [BsonElement("listing_id")]
+    [BsonIgnoreIfNull]
+    public string? ListingId { get; set; }
+
     [BsonElement("purchase_price")]
     [BsonIgnoreIfNull]
     public decimal? PurchasePrice { get; set; }
@@ -50,6 +54,11 @@ public class Transaction
     [BsonElement("tracking_number")]
     [BsonIgnoreIfNull]
     public string? TrackingNumber { get; set; }
+
+    // True when an order auto-created/updated this transaction and the admin
+    // still needs to fill in payout details (revenue, shipping, fees, etc.).
+    [BsonElement("needs_review")]
+    public bool NeedsReview { get; set; } = false;
 
     [BsonElement("created_at")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]

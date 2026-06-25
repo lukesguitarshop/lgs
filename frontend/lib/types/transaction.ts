@@ -2,6 +2,7 @@ export interface Transaction {
   id: string;
   date: string;
   guitarName: string;
+  listingId: string | null;
   purchasePrice: number | null;
   transactionType: 'sold' | 'traded' | 'for_sale';
   soldVia: string | null;
@@ -11,6 +12,7 @@ export interface Transaction {
   profit: number | null;
   trackingCarrier: string | null;
   trackingNumber: string | null;
+  needsReview: boolean;
   createdAt: string;
   updatedAt: string;
 }

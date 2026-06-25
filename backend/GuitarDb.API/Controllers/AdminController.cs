@@ -1391,6 +1391,76 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Global activity feed across all users (admin only).
+    /// Supports filtering by type and user, sorting, and pagination.
+    /// </summary>
+    [HttpGet("activity")]
+    public async Task<IActionResult> GetActivityFeed(
+        [FromQuery] string? type = null,
+        [FromQuery] string? userId = null,
+        [FromQuery] string sort = "newest",
+        [FromQuery] int page = 1,
+        [FromQuery] int perPage = 50,
+        [FromQuery] bool includeAdmin = false)
+    {
+        if (perPage > 200) perPage = 200;
+        var descending = !string.Equals(sort, "oldest", StringComparison.OrdinalIgnoreCase);
+
+        var (items, total) = await _mongoDbService.GetActivityFeedAsync(type, userId, descending, page, perPage, includeAdmin);
+
+        var users = await _mongoDbService.GetUsersByIdsAsync(items.Select(a => a.UserId));
+        var userMap = users.ToDictionary(u => u.Id!, u => u);
+
+        var result = items.Select(a =>
+        {
+            userMap.TryGetValue(a.UserId, out var u);
+            return new
+            {
+                id = a.Id,
+                userId = a.UserId,
+                userName = u?.FullName ?? "Unknown user",
+                userEmail = u?.Email,
+                type = a.Type,
+                description = a.Description,
+                listingId = a.ListingId,
+                createdAt = a.CreatedAt
+            };
+        });
+
+        return Ok(new
+        {
+            items = result,
+            total,
+            page,
+            perPage
+        });
+    }
+
+    /// <summary>
+    /// Get recent activity log for a specific user (admin only)
+    /// </summary>
+    [HttpGet("users/{id}/activity")]
+    public async Task<IActionResult> GetUserActivity(string id)
+    {
+        var user = await _mongoDbService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { error = "User not found" });
+        }
+
+        var activity = await _mongoDbService.GetUserActivityAsync(id, 100);
+
+        return Ok(activity.Select(a => new
+        {
+            id = a.Id,
+            type = a.Type,
+            description = a.Description,
+            listingId = a.ListingId,
+            createdAt = a.CreatedAt
+        }));
+    }
+
+    /// <summary>
     /// Get store credit for a specific user (admin only)
     /// </summary>
     [HttpGet("users/{id}/store-credit")]
@@ -1640,6 +1710,7 @@ public class AdminController : ControllerBase
                 id = t.Id,
                 date = t.Date,
                 guitarName = t.GuitarName,
+                listingId = t.ListingId,
                 purchasePrice = t.PurchasePrice,
                 transactionType = t.TransactionType,
                 soldVia = t.SoldVia,
@@ -1649,6 +1720,7 @@ public class AdminController : ControllerBase
                 profit = t.Profit,
                 trackingCarrier = t.TrackingCarrier,
                 trackingNumber = t.TrackingNumber,
+                needsReview = t.NeedsReview,
                 createdAt = t.CreatedAt,
                 updatedAt = t.UpdatedAt
             }));
@@ -1657,6 +1729,31 @@ public class AdminController : ControllerBase
         {
             _logger.LogError(ex, "Failed to fetch transactions");
             return StatusCode(500, new { error = "Failed to fetch transactions" });
+        }
+    }
+
+    [HttpGet("transactions/by-listing/{listingId}")]
+    public async Task<IActionResult> GetTransactionByListing(string listingId)
+    {
+        try
+        {
+            var listing = await _mongoDbService.GetMyListingByIdAsync(listingId);
+            var txn = await _mongoDbService.GetTransactionByListingIdAsync(listingId, listing?.ListingTitle);
+            if (txn == null) return NotFound(new { error = "No transaction found for this listing" });
+
+            return Ok(new
+            {
+                id = txn.Id,
+                listingId = txn.ListingId,
+                guitarName = txn.GuitarName,
+                transactionType = txn.TransactionType,
+                needsReview = txn.NeedsReview
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to fetch transaction for listing {ListingId}", listingId);
+            return StatusCode(500, new { error = "Failed to fetch transaction" });
         }
     }
 
@@ -1710,6 +1807,8 @@ public class AdminController : ControllerBase
             existing.Profit = request.Profit;
             existing.TrackingCarrier = request.TrackingCarrier;
             existing.TrackingNumber = request.TrackingNumber;
+            // Saving resolves the "action needed" flag set by an auto order update.
+            existing.NeedsReview = false;
 
             await _mongoDbService.UpdateTransactionAsync(id, existing);
             return Ok(new { message = "Transaction updated" });

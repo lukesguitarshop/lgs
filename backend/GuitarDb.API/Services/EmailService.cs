@@ -288,14 +288,14 @@ public class EmailService
     /// <summary>
     /// Send email verification email
     /// </summary>
-    public async Task SendEmailVerificationAsync(
+    public async Task<bool> SendEmailVerificationAsync(
         string recipientEmail,
         string verificationLink)
     {
         if (!_isEnabled || string.IsNullOrEmpty(recipientEmail))
         {
             _logger.LogDebug("Skipping email verification - email not configured");
-            return;
+            return false;
         }
 
         var subject = "Verify Your Email - Luke's Guitar Shop";
@@ -316,7 +316,7 @@ public class EmailService
 <p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
-        await SendEmailAsync(recipientEmail, subject, body);
+        return await SendEmailAsync(recipientEmail, subject, body);
     }
 
     /// <summary>
@@ -881,12 +881,16 @@ public class EmailService
         };
     }
 
-    private async Task SendEmailAsync(string toEmail, string subject, string htmlBody)
+    /// <summary>
+    /// Sends an email. Returns true on success, false if disabled or the send failed.
+    /// Never throws - email failures shouldn't break the main functionality.
+    /// </summary>
+    private async Task<bool> SendEmailAsync(string toEmail, string subject, string htmlBody)
     {
         if (!_isEnabled)
         {
             _logger.LogDebug("Email service disabled, not sending: {Subject} to {Email}", subject, toEmail);
-            return;
+            return false;
         }
 
         try
@@ -906,11 +910,13 @@ public class EmailService
 
             await client.SendMailAsync(message);
             _logger.LogInformation("Email sent successfully: {Subject} to {Email}", subject, toEmail);
+            return true;
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to send email: {Subject} to {Email}", subject, toEmail);
             // Don't throw - email failures shouldn't break the main functionality
+            return false;
         }
     }
 }

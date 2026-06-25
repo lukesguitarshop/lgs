@@ -3,8 +3,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, Users, Trash2, Download, FileSpreadsheet } from 'lucide-react';
@@ -126,6 +134,8 @@ function formatTimeAgo(dateString: string | null): string {
 export default function AdminPage() {
   const { isAdmin, isLoading, isAuthenticated, setShowLoginModal } = useAuth();
   const { showToast } = useToast();
+  const router = useRouter();
+  const [deactivatePrompt, setDeactivatePrompt] = useState<{ transactionId: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScraperResponse | null>(null);
   const [listings, setListings] = useState<AdminListing[]>([]);
@@ -372,6 +382,15 @@ export default function AdminPage() {
       setListings(prev =>
         prev.map(l => (l.id === id ? { ...l, disabled: response.disabled } : l))
       );
+      // Only when deactivating (active -> disabled), offer to edit the linked transaction.
+      if (response.disabled) {
+        try {
+          const txn = await api.authGet<{ id: string }>(`/admin/transactions/by-listing/${id}`);
+          setDeactivatePrompt({ transactionId: txn.id });
+        } catch {
+          showToast('No finance transaction found for this listing', 'info');
+        }
+      }
     } catch (err) {
       console.error('Failed to toggle listing:', err);
     } finally {
@@ -1776,6 +1795,36 @@ export default function AdminPage() {
           <UsersTab />
         </TabsContent>
       </Tabs>
+
+      {/* Deactivate -> edit transaction prompt */}
+      <Dialog
+        open={deactivatePrompt !== null}
+        onOpenChange={(open) => { if (!open) setDeactivatePrompt(null); }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Edit this listing&apos;s transaction?</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-gray-600 py-2">
+            The listing was deactivated. Would you like to edit its transaction in Finances?
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeactivatePrompt(null)}>
+              No
+            </Button>
+            <Button
+              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+              onClick={() => {
+                const txnId = deactivatePrompt?.transactionId;
+                setDeactivatePrompt(null);
+                if (txnId) router.push(`/finances?editTxn=${txnId}`);
+              }}
+            >
+              Yes, edit transaction
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

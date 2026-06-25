@@ -421,4 +421,41 @@ export async function getMyStoreCredit(): Promise<StoreCreditDto> {
   return api.authGet<StoreCreditDto>('/store-credit/me');
 }
 
+// Admin activity feed API
+export interface AdminActivityEntry {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail: string | null;
+  type: string;
+  description: string;
+  listingId: string | null;
+  createdAt: string;
+}
+
+export interface AdminActivityPage {
+  items: AdminActivityEntry[];
+  total: number;
+  page: number;
+  perPage: number;
+}
+
+export async function getAdminActivity(opts: {
+  type?: string;
+  userId?: string;
+  sort?: string;
+  page?: number;
+  perPage?: number;
+  includeAdmin?: boolean;
+} = {}): Promise<AdminActivityPage> {
+  const params = new URLSearchParams();
+  if (opts.type) params.set('type', opts.type);
+  if (opts.userId) params.set('userId', opts.userId);
+  if (opts.sort) params.set('sort', opts.sort);
+  params.set('page', String(opts.page ?? 1));
+  params.set('perPage', String(opts.perPage ?? 50));
+  if (opts.includeAdmin) params.set('includeAdmin', 'true');
+  return api.authGet<AdminActivityPage>(`/admin/activity?${params}`);
+}
+
 export default api;

@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Co
 import JSZip from 'jszip';
 import DOMPurify from 'dompurify';
 import { addToCart, isInCart, CartItem } from '@/lib/cart';
+import { logAddToCart } from '@/lib/activity';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
@@ -250,6 +251,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
       image: images[0] || '',
     };
     addToCart(cartItem);
+    logAddToCart(listing.id, listing.listing_title);
     trackAddToCart({
       id: listing.id,
       name: listing.listing_title,
