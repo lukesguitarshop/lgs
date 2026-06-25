@@ -340,6 +340,7 @@ public class CheckoutController : ControllerBase
             }
 
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
+            await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
             _logger.LogInformation("Disabled {Count} listings after successful checkout", listingIds.Count);
 
             // Remove pending cart items for purchased listings (from accepted offers)
@@ -783,6 +784,7 @@ public class CheckoutController : ControllerBase
             }
 
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
+            await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
             _logger.LogInformation("Disabled {Count} listings after successful PayPal checkout", listingIds.Count);
 
             // Remove pending cart items for purchased listings (from accepted offers)
@@ -1083,6 +1085,7 @@ public class CheckoutController : ControllerBase
             _logger.LogInformation("Webhook: Created order {OrderId} for session {SessionId}", order.Id, session.Id);
 
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
+            await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
             _logger.LogInformation("Webhook: Disabled {Count} listings", listingIds.Count);
 
             // Remove pending cart items

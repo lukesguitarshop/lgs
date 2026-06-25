@@ -2011,6 +2011,69 @@ public class MongoDbService
     public async Task<Transaction?> GetTransactionByIdAsync(string id) =>
         await _transactionsCollection.Find(t => t.Id == id).FirstOrDefaultAsync();
 
+    /// <summary>
+    /// Finds the transaction linked to a listing. Matches by listing_id first,
+    /// then falls back to guitar_name == listing title for legacy rows that
+    /// predate the listing_id link.
+    /// </summary>
+    public async Task<Transaction?> GetTransactionByListingIdAsync(string listingId, string? listingTitle = null)
+    {
+        var byId = await _transactionsCollection
+            .Find(t => t.ListingId == listingId)
+            .FirstOrDefaultAsync();
+        if (byId != null) return byId;
+
+        if (!string.IsNullOrWhiteSpace(listingTitle))
+        {
+            return await _transactionsCollection
+                .Find(t => t.ListingId == null && t.GuitarName == listingTitle)
+                .FirstOrDefaultAsync();
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Auto-updates the transaction for each sold listing after a website order:
+    /// for_sale -> sold, sets the sale date and platform, and flags it for the
+    /// admin to finish payout details. Creates a transaction if none is linked.
+    /// </summary>
+    public async Task MarkListingsSoldInTransactionsAsync(IEnumerable<string> listingIds, DateTime saleDate)
+    {
+        foreach (var listingId in listingIds)
+        {
+            var listing = await GetMyListingByIdAsync(listingId);
+            var txn = await GetTransactionByListingIdAsync(listingId, listing?.ListingTitle);
+
+            if (txn != null)
+            {
+                var update = Builders<Transaction>.Update
+                    .Set(t => t.ListingId, listingId)
+                    .Set(t => t.TransactionType, "sold")
+                    .Set(t => t.Date, saleDate)
+                    .Set(t => t.SoldVia, "lukesguitarshop.com")
+                    .Set(t => t.NeedsReview, true)
+                    .Set(t => t.UpdatedAt, DateTime.UtcNow);
+                await _transactionsCollection.UpdateOneAsync(t => t.Id == txn.Id, update);
+            }
+            else
+            {
+                var created = new Transaction
+                {
+                    Date = saleDate,
+                    GuitarName = listing?.ListingTitle ?? "Unknown listing",
+                    ListingId = listingId,
+                    PurchasePrice = listing?.Price,
+                    TransactionType = "sold",
+                    SoldVia = "lukesguitarshop.com",
+                    NeedsReview = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _transactionsCollection.InsertOneAsync(created);
+            }
+        }
+    }
+
     public async Task CreateTransactionAsync(Transaction transaction) =>
         await _transactionsCollection.InsertOneAsync(transaction);
 

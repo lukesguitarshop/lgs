@@ -287,6 +287,7 @@ public class ScraperService
             {
                 Date = DateTime.UtcNow,
                 GuitarName = listing.ListingTitle,
+                ListingId = listing.Id,
                 PurchasePrice = listing.Price,
                 TransactionType = "for_sale",
                 CreatedAt = DateTime.UtcNow,
