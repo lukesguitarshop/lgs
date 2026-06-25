@@ -257,10 +257,16 @@ export default function TransactionsTab() {
   }, []);
 
   // Once transactions are loaded, open the edit modal for the deep-linked id.
+  // Arriving via the deactivate "Yes" prompt, pre-set the form to sold + today's
+  // date so it's already reflected the moment the modal appears (not yet saved).
   useEffect(() => {
     if (!pendingEditTxnId || transactions.length === 0) return;
     const txn = transactions.find((t) => t.id === pendingEditTxnId);
-    if (txn) openEditDialog(txn);
+    if (txn) {
+      openEditDialog(txn);
+      const today = new Date().toISOString().split('T')[0];
+      setForm((prev) => ({ ...prev, transactionType: 'sold', date: today }));
+    }
     setPendingEditTxnId(null);
   }, [pendingEditTxnId, transactions]);
 
