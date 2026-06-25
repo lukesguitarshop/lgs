@@ -658,6 +658,13 @@ public class AdminController : ControllerBase
             return NotFound(new { error = "Failed to update order" });
         }
 
+        // Sync the same tracking onto each item's linked finance transaction.
+        foreach (var item in order.Items)
+        {
+            await _mongoDbService.SetTransactionTrackingByListingAsync(
+                item.ListingId, item.ListingTitle, request.TrackingCarrier, request.TrackingNumber);
+        }
+
         // Send shipping notification email if tracking is being added
         if (!string.IsNullOrEmpty(request.TrackingCarrier) && !string.IsNullOrEmpty(request.TrackingNumber))
         {

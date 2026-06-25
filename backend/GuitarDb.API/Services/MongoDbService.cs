@@ -2033,6 +2033,23 @@ public class MongoDbService
     }
 
     /// <summary>
+    /// Syncs tracking (carrier + number) onto the transaction linked to a
+    /// listing. Used when an admin adds/edits tracking on a website order so the
+    /// finance transaction matches. No-op if no linked transaction is found.
+    /// </summary>
+    public async Task SetTransactionTrackingByListingAsync(string listingId, string? listingTitle, string? trackingCarrier, string? trackingNumber)
+    {
+        var txn = await GetTransactionByListingIdAsync(listingId, listingTitle);
+        if (txn == null) return;
+
+        var update = Builders<Transaction>.Update
+            .Set(t => t.TrackingCarrier, trackingCarrier)
+            .Set(t => t.TrackingNumber, trackingNumber)
+            .Set(t => t.UpdatedAt, DateTime.UtcNow);
+        await _transactionsCollection.UpdateOneAsync(t => t.Id == txn.Id, update);
+    }
+
+    /// <summary>
     /// Auto-updates the transaction for each sold listing after a website order:
     /// for_sale -> sold, sets the sale date and platform, and flags it for the
     /// admin to finish payout details. Creates a transaction if none is linked.
