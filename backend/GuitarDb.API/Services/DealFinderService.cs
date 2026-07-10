@@ -78,7 +78,8 @@ public class DealFinderService
                 };
             }
 
-            int totalWithPriceGuide = 0, totalWithoutPriceGuide = 0, totalDealsFound = 0, totalErrors = 0;
+            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 100);
+            int totalWithPriceGuide = 0, totalWithoutPriceGuide = 0, totalDealsFound = 0, totalErrors = 0, totalLookupErrors = 0;
 
             // Process each filter set
             foreach (var filterSet in filterSets)
@@ -99,14 +100,16 @@ public class DealFinderService
                 result.ListingsChecked += listings.Count;
                 _logger.LogInformation("Fetched {Count} listings for {Name}", listings.Count, filterSet.Name);
 
-                int withPriceGuide = 0, withoutPriceGuide = 0, dealsFound = 0, errors = 0;
+                int withPriceGuide = 0, withoutPriceGuide = 0, dealsFound = 0, errors = 0, lookupErrors = 0;
 
                 foreach (var listing in listings)
                 {
                     try
                     {
-                        var potentialBuy = await ProcessListingAsync(listing, cancellationToken);
+                        var (potentialBuy, priceResult) = await ProcessListingAsync(listing, dealThresholdPercent, cancellationToken);
                         await _mongoDbService.UpsertPotentialBuyAsync(potentialBuy, cancellationToken);
+
+                        if (priceResult.LookupError) lookupErrors++;
 
                         if (potentialBuy.HasPriceGuide)
                         {
@@ -127,13 +130,14 @@ public class DealFinderService
                     await Task.Delay(200, cancellationToken); // Rate limiting
                 }
 
-                _logger.LogInformation("{Name}: {Deals} deals, {WithGuide} with price guide, {WithoutGuide} without, {Errors} errors",
-                    filterSet.Name, dealsFound, withPriceGuide, withoutPriceGuide, errors);
+                _logger.LogInformation("{Name}: {Deals} deals, {WithGuide} with price data, {WithoutGuide} without, {Errors} errors, {LookupErrors} lookup errors",
+                    filterSet.Name, dealsFound, withPriceGuide, withoutPriceGuide, errors, lookupErrors);
 
                 totalWithPriceGuide += withPriceGuide;
                 totalWithoutPriceGuide += withoutPriceGuide;
                 totalDealsFound += dealsFound;
                 totalErrors += errors;
+                totalLookupErrors += lookupErrors;
             }
 
             // Cleanup
@@ -153,10 +157,25 @@ public class DealFinderService
 
             var totalInDb = await _mongoDbService.GetPotentialBuysTotalCountAsync(cancellationToken);
 
+            result.DealsFound = totalDealsFound;
+            result.WithPriceData = totalWithPriceGuide;
+            result.LookupErrors = totalLookupErrors;
+            result.Duration = DateTime.UtcNow - startTime;
+
+            // Fail loudly if the price data source is systematically broken (e.g. Reverb
+            // retires the CSP API like it did the priceguide API) instead of silently
+            // reporting a successful run with zero deals.
+            if (result.ListingsChecked >= 20 && totalWithPriceGuide == 0 && totalLookupErrors > result.ListingsChecked / 2)
+            {
+                result.Success = false;
+                result.Message = $"Price data lookups are failing ({totalLookupErrors}/{result.ListingsChecked} errors) — the Reverb CSP API may have changed";
+                result.Error = result.Message;
+                _logger.LogError("{Message}", result.Message);
+                return result;
+            }
+
             result.Success = true;
             result.Message = "Deal finder completed successfully";
-            result.DealsFound = totalDealsFound;
-            result.Duration = DateTime.UtcNow - startTime;
 
             _logger.LogInformation("===== DEAL FINDER SUMMARY =====");
             _logger.LogInformation("Filter Sets Processed: {Count}", filterSets.Count);
@@ -190,7 +209,8 @@ public class DealFinderService
         }
     }
 
-    private async Task<PotentialBuy> ProcessListingAsync(ReverbListing listing, CancellationToken ct)
+    private async Task<(PotentialBuy Buy, CspPriceResult PriceResult)> ProcessListingAsync(
+        ReverbListing listing, decimal dealThresholdPercent, CancellationToken ct)
     {
         var potentialBuy = new PotentialBuy
         {
@@ -207,49 +227,36 @@ public class DealFinderService
             ListingCreatedAt = listing.PublishedAt
         };
 
-        var priceGuideResult = await _priceGuideCache.SearchAsync(
-            listing.Make,
-            listing.Model,
-            listing.Finish,
-            listing.ComparisonShoppingPageId,
-            listing.ParsedYear,
-            ct);
+        var priceResult = await _priceGuideCache.SearchAsync(listing.Make, listing.Model, ct);
 
-        var priceGuide = priceGuideResult.PriceGuide;
-        if (priceGuide?.EstimatedValue != null)
+        if (priceResult.HasPrice)
         {
+            var usedLow = priceResult.UsedLowPrice!.Value;
+
             potentialBuy.HasPriceGuide = true;
-            potentialBuy.PriceGuideLow = priceGuide.EstimatedValue.PriceLow?.Amount;
-            potentialBuy.PriceGuideHigh = priceGuide.EstimatedValue.PriceHigh?.Amount;
+            potentialBuy.PriceGuideId = priceResult.CspId ?? potentialBuy.PriceGuideId;
+            potentialBuy.PriceGuideLow = usedLow;                    // lowest current used ask on Reverb
+            potentialBuy.PriceGuideHigh = priceResult.NewLowPrice;   // lowest current new ask (may be null)
+            potentialBuy.DiscountPercent = (usedLow - potentialBuy.Price) / usedLow * 100;
 
-            if (potentialBuy.PriceGuideLow.HasValue && potentialBuy.PriceGuideLow > 0)
-            {
-                potentialBuy.DiscountPercent =
-                    (potentialBuy.PriceGuideLow.Value - potentialBuy.Price)
-                    / potentialBuy.PriceGuideLow.Value * 100;
+            var isBelowMarket = potentialBuy.Price <= usedLow * dealThresholdPercent / 100m;
+            var isWithinBudget = usedLow <= 3500;
+            var canShip = !listing.IsLocalPickupOnly;
+            potentialBuy.IsDeal = isBelowMarket && isWithinBudget && priceResult.IsReliable && canShip;
 
-                var priceHigh = potentialBuy.PriceGuideHigh ?? potentialBuy.PriceGuideLow.Value;
-                var midpoint = (potentialBuy.PriceGuideLow.Value + priceHigh) / 2;
-
-                var isInBottomHalf = potentialBuy.Price <= midpoint;
-                var isWithinBudget = potentialBuy.PriceGuideLow.Value <= 3500;
-                var canShip = !listing.IsLocalPickupOnly;
-                potentialBuy.IsDeal = isInBottomHalf && isWithinBudget && priceGuideResult.IsReliable && canShip;
-
-                string matchLabel = potentialBuy.IsDeal ? "DEAL!" : (priceGuideResult.IsReliable ? "     " : "SKIP ");
-                _logger.LogInformation(
-                    "{Deal} {Title}: ${Price} vs ${Low}-${High} (mid: ${Mid}) [{MatchType}]",
-                    matchLabel,
-                    listing.Title.Length > 50 ? listing.Title[..50] + "..." : listing.Title,
-                    potentialBuy.Price,
-                    potentialBuy.PriceGuideLow,
-                    potentialBuy.PriceGuideHigh,
-                    midpoint,
-                    priceGuideResult.MatchType);
-            }
+            string matchLabel = potentialBuy.IsDeal ? "DEAL!" : (priceResult.IsReliable ? "     " : "SKIP ");
+            _logger.LogInformation(
+                "{Deal} {Title}: ${Price} vs used low ${UsedLow} (new: ${NewLow}) [{MatchType}: {CspTitle}]",
+                matchLabel,
+                listing.Title.Length > 50 ? listing.Title[..50] + "..." : listing.Title,
+                potentialBuy.Price,
+                usedLow,
+                priceResult.NewLowPrice,
+                priceResult.MatchType,
+                priceResult.CspTitle);
         }
 
-        return potentialBuy;
+        return (potentialBuy, priceResult);
     }
 }
 
@@ -260,6 +267,8 @@ public class DealFinderResult
     public string? Error { get; set; }
     public int ListingsChecked { get; set; }
     public int DealsFound { get; set; }
+    public int WithPriceData { get; set; }
+    public int LookupErrors { get; set; }
     public TimeSpan Duration { get; set; }
 }
 

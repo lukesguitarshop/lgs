@@ -1019,6 +1019,8 @@ public class AdminController : ControllerBase
                     message = result.Message,
                     listingsChecked = result.ListingsChecked,
                     dealsFound = result.DealsFound,
+                    withPriceData = result.WithPriceData,
+                    lookupErrors = result.LookupErrors,
                     duration = result.Duration.ToString()
                 });
             }
@@ -1208,6 +1210,8 @@ public class AdminController : ControllerBase
                     message = result.Message,
                     listingsChecked = result.ListingsChecked,
                     dealsFound = result.DealsFound,
+                    withPriceData = result.WithPriceData,
+                    lookupErrors = result.LookupErrors,
                     duration = result.Duration.ToString()
                 });
             }

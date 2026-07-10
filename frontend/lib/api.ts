@@ -214,6 +214,8 @@ export interface DealFinderResult {
   message: string;
   listingsChecked?: number;
   dealsFound?: number;
+  withPriceData?: number;
+  lookupErrors?: number;
   duration?: string;
   error?: string;
 }

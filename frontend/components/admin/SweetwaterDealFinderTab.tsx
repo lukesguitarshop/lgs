@@ -73,7 +73,7 @@ export function SweetwaterDealFinderTab() {
       setScraperResult({
         success: result.success,
         message: result.success
-          ? `Found ${result.dealsFound} deals from ${result.listingsChecked} listings (${result.duration})`
+          ? `Found ${result.dealsFound} deals from ${result.listingsChecked} listings, ${result.withPriceData ?? 0} with price data${result.lookupErrors ? `, ${result.lookupErrors} lookup errors` : ''} (${result.duration})`
           : result.message
       });
       if (result.success) {
@@ -202,7 +202,7 @@ export function SweetwaterDealFinderTab() {
             Sweetwater Deal Finder
           </h2>
           <p className="text-gray-600 text-sm mt-1">
-            Sweetwater Gear Exchange guitars priced below Reverb Price Guide value
+            Sweetwater Gear Exchange guitars priced at or below the lowest used price on Reverb
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -400,9 +400,10 @@ export function SweetwaterDealFinderTab() {
                       <span className="font-bold text-lg text-[#6E0114]">
                         {formatPrice(deal.price, deal.currency)}
                       </span>
-                      {deal.hasPriceGuide && deal.priceGuideLow && deal.priceGuideHigh && (
+                      {deal.hasPriceGuide && deal.priceGuideLow && (
                         <span className="text-gray-500">
-                          Guide: {formatPrice(deal.priceGuideLow)} - {formatPrice(deal.priceGuideHigh)}
+                          Used low: {formatPrice(deal.priceGuideLow)}
+                          {deal.priceGuideHigh ? ` · New: ${formatPrice(deal.priceGuideHigh)}` : ''}
                         </span>
                       )}
                       {deal.condition && (
