@@ -31,7 +31,7 @@ public class DealFinderOrchestrator
     {
         var startTime = DateTime.UtcNow;
         _logger.LogInformation("===== Starting Deal Finder =====");
-        _logger.LogInformation("Threshold: {Threshold}% below price guide low", _settings.DealThresholdPercent);
+        _logger.LogInformation("Deal threshold: price <= {Threshold}% of lowest used ask", _settings.DealThresholdPercent);
 
         var stats = new DealFinderStats();
 
@@ -56,8 +56,10 @@ public class DealFinderOrchestrator
             {
                 try
                 {
-                    var potentialBuy = await ProcessListingAsync(listing, cancellationToken);
+                    var (potentialBuy, priceResult) = await ProcessListingAsync(listing, cancellationToken);
                     await _repository.UpsertAsync(potentialBuy, cancellationToken);
+
+                    if (priceResult.LookupError) stats.LookupErrors++;
 
                     if (potentialBuy.HasPriceGuide)
                     {
@@ -82,6 +84,15 @@ public class DealFinderOrchestrator
             await RunCleanupAsync(startTime, stats, cancellationToken);
 
             PrintSummary(startTime, stats);
+
+            // Fail loudly if the price data source is systematically broken (e.g. Reverb
+            // retires the CSP API like it did the priceguide API) instead of silently
+            // completing a run with zero deals.
+            if (stats.ListingsChecked >= 20 && stats.WithPriceGuide == 0 && stats.LookupErrors > stats.ListingsChecked / 2)
+            {
+                throw new InvalidOperationException(
+                    $"Price data lookups are failing ({stats.LookupErrors}/{stats.ListingsChecked} errors) — the Reverb CSP API may have changed");
+            }
         }
         catch (Exception ex)
         {
@@ -90,7 +101,7 @@ public class DealFinderOrchestrator
         }
     }
 
-    private async Task<PotentialBuy> ProcessListingAsync(ReverbListing listing, CancellationToken ct)
+    private async Task<(PotentialBuy Buy, CspPriceResult PriceResult)> ProcessListingAsync(ReverbListing listing, CancellationToken ct)
     {
         var potentialBuy = new PotentialBuy
         {
@@ -106,72 +117,57 @@ public class DealFinderOrchestrator
             LastCheckedAt = DateTime.UtcNow
         };
 
-        // Search for price guide using make/model/finish/CSP ID/year
-        var priceGuideResult = await _priceGuideCache.SearchAsync(
-            listing.Make,
-            listing.Model,
-            listing.Finish,
-            listing.ComparisonShoppingPageId,
-            listing.ParsedYear,
-            ct);
+        // Benchmark against Reverb market prices via the CSP API
+        var priceResult = await _priceGuideCache.SearchAsync(listing.Make, listing.Model, ct);
 
-        var priceGuide = priceGuideResult.PriceGuide;
-        if (priceGuide?.EstimatedValue != null)
+        if (priceResult.HasPrice)
         {
+            var usedLow = priceResult.UsedLowPrice!.Value;
+
             potentialBuy.HasPriceGuide = true;
-            potentialBuy.PriceGuideLow = priceGuide.EstimatedValue.PriceLow?.Amount;
-            potentialBuy.PriceGuideHigh = priceGuide.EstimatedValue.PriceHigh?.Amount;
+            potentialBuy.PriceGuideId = priceResult.CspId ?? potentialBuy.PriceGuideId;
+            potentialBuy.PriceGuideLow = usedLow;                    // lowest current used ask on Reverb
+            potentialBuy.PriceGuideHigh = priceResult.NewLowPrice;   // lowest current new ask (may be null)
+            potentialBuy.DiscountPercent = (usedLow - potentialBuy.Price) / usedLow * 100;
 
-            if (potentialBuy.PriceGuideLow.HasValue && potentialBuy.PriceGuideLow > 0)
-            {
-                // Calculate discount from low price
-                potentialBuy.DiscountPercent =
-                    (potentialBuy.PriceGuideLow.Value - potentialBuy.Price)
-                    / potentialBuy.PriceGuideLow.Value * 100;
+            // Deal criteria:
+            // 1. Price at or below the lowest used ask x threshold percent
+            // 2. Used low must be <= $3500 (within budget)
+            // 3. CSP match must be reliable
+            // 4. Must offer shipping (not local pickup only)
+            var isBelowMarket = potentialBuy.Price <= usedLow * _settings.DealThresholdPercent / 100m;
+            var isWithinBudget = usedLow <= 3500;
+            var canShip = !listing.IsLocalPickupOnly;
+            potentialBuy.IsDeal = isBelowMarket && isWithinBudget && priceResult.IsReliable && canShip;
 
-                // Calculate midpoint of price range (bottom 50% threshold)
-                var priceHigh = potentialBuy.PriceGuideHigh ?? potentialBuy.PriceGuideLow.Value;
-                var midpoint = (potentialBuy.PriceGuideLow.Value + priceHigh) / 2;
+            string matchLabel;
+            if (!priceResult.IsReliable)
+                matchLabel = "SKIP ";
+            else if (listing.IsLocalPickupOnly)
+                matchLabel = "LOCAL";
+            else if (!isWithinBudget)
+                matchLabel = "$$$$$ ";
+            else if (potentialBuy.IsDeal)
+                matchLabel = "DEAL!";
+            else
+                matchLabel = "     ";
 
-                // Deal criteria:
-                // 1. Price must be at or below the midpoint (bottom 50% of range)
-                // 2. Price guide low must be <= $3500 (within budget)
-                // 3. Price guide match must be reliable
-                // 4. Must offer shipping (not local pickup only)
-                var isInBottomHalf = potentialBuy.Price <= midpoint;
-                var isWithinBudget = potentialBuy.PriceGuideLow.Value <= 3500;
-                var canShip = !listing.IsLocalPickupOnly;
-                potentialBuy.IsDeal = isInBottomHalf && isWithinBudget && priceGuideResult.IsReliable && canShip;
-
-                string matchLabel;
-                if (!priceGuideResult.IsReliable)
-                    matchLabel = "SKIP ";
-                else if (listing.IsLocalPickupOnly)
-                    matchLabel = "LOCAL";
-                else if (!isWithinBudget)
-                    matchLabel = "$$$$$ ";
-                else if (potentialBuy.IsDeal)
-                    matchLabel = "DEAL!";
-                else
-                    matchLabel = "     ";
-
-                _logger.LogInformation(
-                    "{Deal} {Title}: ${Price} vs ${Low}-${High} (mid: ${Mid}) [{MatchType}]",
-                    matchLabel,
-                    listing.Title.Length > 50 ? listing.Title[..50] + "..." : listing.Title,
-                    potentialBuy.Price,
-                    potentialBuy.PriceGuideLow,
-                    potentialBuy.PriceGuideHigh,
-                    midpoint,
-                    priceGuideResult.MatchType);
-            }
+            _logger.LogInformation(
+                "{Deal} {Title}: ${Price} vs used low ${UsedLow} (new: ${NewLow}) [{MatchType}: {CspTitle}]",
+                matchLabel,
+                listing.Title.Length > 50 ? listing.Title[..50] + "..." : listing.Title,
+                potentialBuy.Price,
+                usedLow,
+                priceResult.NewLowPrice,
+                priceResult.MatchType,
+                priceResult.CspTitle);
         }
-        else
+        else if (!priceResult.LookupError)
         {
-            _logger.LogDebug("No price guide found for {Make} {Model}", listing.Make, listing.Model);
+            _logger.LogDebug("No CSP price data found for {Make} {Model}", listing.Make, listing.Model);
         }
 
-        return potentialBuy;
+        return (potentialBuy, priceResult);
     }
 
     private void PrintSummary(DateTime startTime, DealFinderStats stats)
@@ -184,6 +180,7 @@ public class DealFinderOrchestrator
         _logger.LogInformation("Without Price Guide: {Count}", stats.WithoutPriceGuide);
         _logger.LogInformation("Deals Found: {Count}", stats.DealsFound);
         _logger.LogInformation("Errors: {Count}", stats.Errors);
+        _logger.LogInformation("Lookup Errors: {Count}", stats.LookupErrors);
         _logger.LogInformation("Price Guides Cached: {Count}", _priceGuideCache.CacheSize);
         if (stats.StaleRemoved > 0 || stats.OldResolvedRemoved > 0)
         {
@@ -234,6 +231,7 @@ public class DealFinderOrchestrator
         public int WithoutPriceGuide { get; set; }
         public int DealsFound { get; set; }
         public int Errors { get; set; }
+        public int LookupErrors { get; set; }
         public long StaleRemoved { get; set; }
         public long OldResolvedRemoved { get; set; }
         public long TotalInDatabase { get; set; }

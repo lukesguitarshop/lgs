@@ -3,7 +3,12 @@ namespace GuitarDb.Scraper.Configuration;
 public class DealFinderSettings
 {
     public SearchFilters SearchFilters { get; set; } = new();
-    public decimal DealThresholdPercent { get; set; } = 10;
+
+    /// <summary>
+    /// A listing is a deal when its price is at or below this percentage of the
+    /// lowest current used ask on Reverb (100 = at or below the lowest used ask).
+    /// </summary>
+    public decimal DealThresholdPercent { get; set; } = 100;
     public int PriceGuideCacheMinutes { get; set; } = 1440;
     public CleanupSettings Cleanup { get; set; } = new();
 }

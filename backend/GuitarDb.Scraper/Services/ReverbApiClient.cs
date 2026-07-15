@@ -142,6 +142,7 @@ public class ReverbApiClient
         CancellationToken cancellationToken = default)
     {
         var allListings = new List<ReverbListing>();
+        var allowedMakes = new HashSet<string>(makes, StringComparer.OrdinalIgnoreCase);
         var makeParams = string.Join("&", makes.Select(m => $"make[]={Uri.EscapeDataString(m)}"));
         var baseUrl = $"{_settings.BaseUrl}/listings/all?{makeParams}&price_max={priceMax}&accepts_offers={acceptsOffers.ToString().ToLower()}&sort=created_at-desc&per_page={perPage}";
 
@@ -174,10 +175,12 @@ public class ReverbApiClient
 
                 var liveListings = response.Listings
                     .Where(l => l.State.Slug.Equals("live", StringComparison.OrdinalIgnoreCase))
+                    .Where(l => l.OffersEnabled)
+                    .Where(l => allowedMakes.Contains(l.Make))
                     .ToList();
 
                 allListings.AddRange(liveListings);
-                _logger.LogInformation("Page {Page}: {Count} live listings (total: {Total})", page, liveListings.Count, allListings.Count);
+                _logger.LogInformation("Page {Page}: {Count} live offer-enabled listings (total: {Total})", page, liveListings.Count, allListings.Count);
 
                 // Check if we've reached the max
                 if (allListings.Count >= maxListings)
@@ -205,173 +208,127 @@ public class ReverbApiClient
         }
     }
 
-    public async Task<PriceGuideResponse?> FetchPriceGuideAsync(string priceGuideId, CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Like ExecuteCurlAsync but also returns the HTTP status code, so callers can
+    /// distinguish API failures (e.g. 403 from a retired endpoint) from empty results —
+    /// curl itself exits 0 on any HTTP status.
+    /// </summary>
+    private async Task<(string Body, int StatusCode)> ExecuteCurlWithStatusAsync(string url, CancellationToken cancellationToken)
     {
-        var url = $"{_settings.BaseUrl}/priceguide/{priceGuideId}";
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "curl",
+            Arguments = $"-s -w \"\\n%{{http_code}}\" -H \"Authorization: Bearer {_settings.ApiKey}\" -H \"Accept: application/hal+json\" -H \"Accept-Version: 3.0\" \"{url}\"",
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        };
 
-        try
+        using var process = new Process { StartInfo = startInfo };
+        process.Start();
+
+        var output = await process.StandardOutput.ReadToEndAsync(cancellationToken);
+        var error = await process.StandardError.ReadToEndAsync(cancellationToken);
+
+        await process.WaitForExitAsync(cancellationToken);
+
+        if (process.ExitCode != 0)
         {
-            var content = await ExecuteCurlAsync(url, cancellationToken);
-            return JsonSerializer.Deserialize<PriceGuideResponse>(content, _jsonOptions);
+            _logger.LogError("cURL failed with exit code {ExitCode}: {Error}", process.ExitCode, error);
+            throw new HttpRequestException($"cURL request failed: {error}");
         }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Failed to fetch price guide {Id}", priceGuideId);
-            return null;
-        }
+
+        var idx = output.LastIndexOf('\n');
+        var statusCode = idx >= 0 && int.TryParse(output[(idx + 1)..].Trim(), out var code) ? code : 0;
+        var body = idx >= 0 ? output[..idx] : output;
+        return (body, statusCode);
     }
 
-    public async Task<PriceGuideResult> SearchPriceGuideAsync(
+    /// <summary>
+    /// Resolves a make/model to market price data via the CSP (Comparison Shopping Page)
+    /// search API. The /priceguide API was retired by Reverb (403) in July 2026; CSPs
+    /// expose used_low_price / new_low_price instead of an estimated value range.
+    /// </summary>
+    public async Task<CspPriceResult> SearchCspPriceAsync(
         string make,
         string model,
-        string? finish,
-        string? cspId,
-        int? year = null,
         CancellationToken cancellationToken = default)
     {
-        var query = Uri.EscapeDataString($"{make} {model}");
-        var url = $"{_settings.BaseUrl}/priceguide?query={query}&per_page=50";
+        var query = Uri.EscapeDataString($"{make} {model}".Trim());
+        var url = $"{_settings.BaseUrl}/csps?query={query}&per_page=24";
 
         try
         {
-            var content = await ExecuteCurlAsync(url, cancellationToken);
-            var response = JsonSerializer.Deserialize<PriceGuideSearchResponse>(content, _jsonOptions);
-
-            if (response?.PriceGuides == null || response.PriceGuides.Count == 0)
+            var (body, statusCode) = await ExecuteCurlWithStatusAsync(url, cancellationToken);
+            if (statusCode < 200 || statusCode >= 300)
             {
-                _logger.LogDebug("No price guides found for {Make} {Model}", make, model);
-                return new PriceGuideResult { PriceGuide = null, MatchType = PriceGuideMatchType.Fallback };
+                _logger.LogWarning("CSP search returned HTTP {Status} for {Make} {Model}", statusCode, make, model);
+                return new CspPriceResult { LookupError = true };
             }
 
-            // Filter to only guides with estimated values
-            var guidesWithValues = response.PriceGuides
-                .Where(g => g.EstimatedValue?.PriceLow != null)
+            var searchResponse = JsonSerializer.Deserialize<CspSearchResponse>(body, _jsonOptions);
+
+            var candidates = (searchResponse?.ComparisonShoppingPages ?? new List<CspResponse>())
+                .Where(c => c.UsedLowPrice?.Amount > 0)
                 .ToList();
 
-            if (guidesWithValues.Count == 0)
+            if (candidates.Count == 0)
             {
-                _logger.LogDebug("No price guides with values for {Make} {Model}", make, model);
-                return new PriceGuideResult { PriceGuide = null, MatchType = PriceGuideMatchType.Fallback };
+                _logger.LogDebug("No CSPs with used prices found for {Make} {Model}", make, model);
+                return new CspPriceResult();
             }
 
-            _logger.LogDebug("Found {Count} price guides for {Make} {Model}", guidesWithValues.Count, make, model);
-
-            // Priority 1: Match by CSP ID (most reliable)
-            if (!string.IsNullOrEmpty(cspId))
-            {
-                var cspMatches = guidesWithValues.Where(g => g.ComparisonShoppingPageId == cspId).ToList();
-
-                if (cspMatches.Count > 0)
-                {
-                    // If year provided, try to find matching year range
-                    if (year.HasValue)
-                    {
-                        var yearMatch = cspMatches.FirstOrDefault(g => IsYearInRange(year.Value, g.Year));
-                        if (yearMatch != null)
-                        {
-                            _logger.LogInformation("Price guide match: CSP+Year for {Make} {Model} {Year} -> {Title} ({GuideYear}) ${Low}-${High}",
-                                make, model, year, yearMatch.Title, yearMatch.Year,
-                                yearMatch.EstimatedValue?.PriceLow?.Amount, yearMatch.EstimatedValue?.PriceHigh?.Amount);
-                            return new PriceGuideResult { PriceGuide = yearMatch, MatchType = PriceGuideMatchType.CspAndYear };
-                        }
-                    }
-
-                    // Return first CSP match
-                    var cspMatch = cspMatches.First();
-                    _logger.LogInformation("Price guide match: CSP for {Make} {Model} -> {Title} ({GuideYear}) ${Low}-${High}",
-                        make, model, cspMatch.Title, cspMatch.Year,
-                        cspMatch.EstimatedValue?.PriceLow?.Amount, cspMatch.EstimatedValue?.PriceHigh?.Amount);
-                    return new PriceGuideResult { PriceGuide = cspMatch, MatchType = PriceGuideMatchType.Csp };
-                }
-            }
-
-            // Priority 2: Match by model name (model accuracy is more important than year)
-            var modelMatches = guidesWithValues
-                .Where(g => g.Model.Equals(model, StringComparison.OrdinalIgnoreCase) ||
-                           g.Title.Contains(model, StringComparison.OrdinalIgnoreCase))
+            // Makes may be configured as slugs (e.g. "esp-ltd" for brand "ESP LTD")
+            var makeName = make.Replace('-', ' ');
+            var brandMatches = candidates
+                .Where(c => c.Brand != null && c.Brand.Name.Replace('-', ' ').Equals(makeName, StringComparison.OrdinalIgnoreCase))
                 .ToList();
 
-            if (modelMatches.Count > 0)
+            // CSP titles usually include the brand, e.g. "Fender American Professional II Stratocaster"
+            var fullName = $"{make} {model}".Trim();
+
+            // Priority 1: exact title match
+            var exact = brandMatches.FirstOrDefault(c =>
+                c.Title.Equals(fullName, StringComparison.OrdinalIgnoreCase) ||
+                c.Title.Equals(model, StringComparison.OrdinalIgnoreCase));
+            if (exact != null)
+                return ToResult(exact, PriceGuideMatchType.Csp);
+
+            // Priority 2: CSP title contains the listing's model name
+            var contains = brandMatches.FirstOrDefault(c =>
+                c.Title.Contains(model, StringComparison.OrdinalIgnoreCase));
+            if (contains != null)
+                return ToResult(contains, PriceGuideMatchType.Model);
+
+            // Priority 3: listing model contains the CSP title (minus brand prefix),
+            // e.g. model "Les Paul Standard '60s Figured Top" vs CSP "Gibson Les Paul Standard '60s"
+            var reverse = brandMatches.FirstOrDefault(c =>
             {
-                // If we have year, prefer model matches that also match year
-                if (year.HasValue)
-                {
-                    var modelYearMatch = modelMatches.FirstOrDefault(g => IsYearInRange(year.Value, g.Year));
-                    if (modelYearMatch != null)
-                    {
-                        _logger.LogInformation("Price guide match: Model+Year for {Make} {Model} {Year} -> {Title} ({GuideYear}) ${Low}-${High}",
-                            make, model, year, modelYearMatch.Title, modelYearMatch.Year,
-                            modelYearMatch.EstimatedValue?.PriceLow?.Amount, modelYearMatch.EstimatedValue?.PriceHigh?.Amount);
-                        return new PriceGuideResult { PriceGuide = modelYearMatch, MatchType = PriceGuideMatchType.ModelAndYear };
-                    }
-                }
+                var coreTitle = c.Title.StartsWith(make, StringComparison.OrdinalIgnoreCase)
+                    ? c.Title[make.Length..].Trim()
+                    : c.Title;
+                return coreTitle.Length >= 5 && model.Contains(coreTitle, StringComparison.OrdinalIgnoreCase);
+            });
+            if (reverse != null)
+                return ToResult(reverse, PriceGuideMatchType.Model);
 
-                // Return best model match (prefer exact model match over title contains)
-                var exactModelMatch = modelMatches.FirstOrDefault(g => g.Model.Equals(model, StringComparison.OrdinalIgnoreCase));
-                var match = exactModelMatch ?? modelMatches.First();
-                _logger.LogInformation("Price guide match: Model for {Make} {Model} -> {Title} ({GuideYear}) ${Low}-${High}",
-                    make, model, match.Title, match.Year,
-                    match.EstimatedValue?.PriceLow?.Amount, match.EstimatedValue?.PriceHigh?.Amount);
-                return new PriceGuideResult { PriceGuide = match, MatchType = PriceGuideMatchType.Model };
-            }
-
-            // Priority 3: Match by year only (less reliable - may match wrong variant)
-            if (year.HasValue)
-            {
-                var yearMatches = guidesWithValues
-                    .Where(g => IsYearInRange(year.Value, g.Year))
-                    .ToList();
-
-                if (yearMatches.Count > 0)
-                {
-                    var match = yearMatches.First();
-                    _logger.LogWarning("Price guide match: Year-only for {Make} {Model} {Year} -> {Title} ({GuideYear}) ${Low}-${High} (model mismatch possible)",
-                        make, model, year, match.Title, match.Year,
-                        match.EstimatedValue?.PriceLow?.Amount, match.EstimatedValue?.PriceHigh?.Amount);
-                    return new PriceGuideResult { PriceGuide = match, MatchType = PriceGuideMatchType.YearOnly };
-                }
-            }
-
-            // Priority 4: First result (least reliable)
-            var fallback = guidesWithValues.First();
-            _logger.LogWarning("Price guide fallback: Using first result for {Make} {Model} -> {Title} ({GuideYear}) ${Low}-${High}",
-                make, model, fallback.Title, fallback.Year,
-                fallback.EstimatedValue?.PriceLow?.Amount, fallback.EstimatedValue?.PriceHigh?.Amount);
-            return new PriceGuideResult { PriceGuide = fallback, MatchType = PriceGuideMatchType.Fallback };
+            // Fallback: record the first result's prices but flag as unreliable so it's never a deal
+            return ToResult(brandMatches.FirstOrDefault() ?? candidates.First(), PriceGuideMatchType.Fallback);
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "Failed to search price guide for {Make} {Model}", make, model);
-            return new PriceGuideResult { PriceGuide = null, MatchType = PriceGuideMatchType.Fallback };
+            _logger.LogWarning(ex, "CSP search failed for {Make} {Model}", make, model);
+            return new CspPriceResult { LookupError = true };
         }
     }
 
-    private static bool IsYearInRange(int year, string? yearRange)
+    private static CspPriceResult ToResult(CspResponse csp, PriceGuideMatchType matchType) => new()
     {
-        if (string.IsNullOrEmpty(yearRange))
-            return false;
-
-        // Handle single year (e.g., "1984")
-        if (int.TryParse(yearRange, out var singleYear))
-            return year == singleYear;
-
-        // Handle year range (e.g., "1981-1984" or "1981 - 1984")
-        var parts = yearRange.Split(new[] { '-', '–' }, StringSplitOptions.TrimEntries);
-        if (parts.Length == 2 &&
-            int.TryParse(parts[0], out var startYear) &&
-            int.TryParse(parts[1], out var endYear))
-        {
-            return year >= startYear && year <= endYear;
-        }
-
-        // Handle "Present" (e.g., "2020-Present")
-        if (parts.Length == 2 &&
-            int.TryParse(parts[0], out var fromYear) &&
-            parts[1].Equals("Present", StringComparison.OrdinalIgnoreCase))
-        {
-            return year >= fromYear;
-        }
-
-        return false;
-    }
+        CspId = csp.Id.ToString(),
+        CspTitle = csp.Title,
+        UsedLowPrice = csp.UsedLowPrice?.Amount,
+        NewLowPrice = csp.NewLowPrice?.Amount,
+        MatchType = matchType
+    };
 }

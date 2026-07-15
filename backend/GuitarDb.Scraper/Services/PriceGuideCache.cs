@@ -9,7 +9,6 @@ public class PriceGuideCache
     private readonly ReverbApiClient _apiClient;
     private readonly ILogger<PriceGuideCache> _logger;
     private readonly int _cacheMinutes;
-    private readonly Dictionary<string, CachedPriceGuide> _cache = new();
     private readonly Dictionary<string, CachedPriceGuideResult> _resultCache = new();
 
     public PriceGuideCache(
@@ -22,77 +21,44 @@ public class PriceGuideCache
         _cacheMinutes = settings.PriceGuideCacheMinutes;
     }
 
-    public async Task<PriceGuideResponse?> GetAsync(string priceGuideId, CancellationToken ct = default)
-    {
-        if (_cache.TryGetValue(priceGuideId, out var cached))
-        {
-            if (cached.ExpiresAt > DateTime.UtcNow)
-            {
-                _logger.LogDebug("Price guide {Id} found in cache", priceGuideId);
-                return cached.Data;
-            }
-            _cache.Remove(priceGuideId);
-        }
-
-        _logger.LogDebug("Fetching price guide {Id} from API", priceGuideId);
-        var priceGuide = await _apiClient.FetchPriceGuideAsync(priceGuideId, ct);
-
-        if (priceGuide != null)
-        {
-            _cache[priceGuideId] = new CachedPriceGuide
-            {
-                Data = priceGuide,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(_cacheMinutes)
-            };
-        }
-
-        return priceGuide;
-    }
-
-    public async Task<PriceGuideResult> SearchAsync(
+    public async Task<CspPriceResult> SearchAsync(
         string make,
         string model,
-        string? finish,
-        string? cspId,
-        int? year = null,
         CancellationToken ct = default)
     {
-        // Create cache key from make/model/cspId/year
-        var cacheKey = $"search:{make}:{model}:{cspId ?? "none"}:{year?.ToString() ?? "none"}";
+        var cacheKey = $"csp:{make.ToLowerInvariant()}:{model.ToLowerInvariant()}";
 
         if (_resultCache.TryGetValue(cacheKey, out var cached))
         {
             if (cached.ExpiresAt > DateTime.UtcNow)
             {
-                _logger.LogDebug("Price guide search cached for {Make} {Model} {Year}", make, model, year);
+                _logger.LogDebug("CSP price search cached for {Make} {Model}", make, model);
                 return cached.Data;
             }
             _resultCache.Remove(cacheKey);
         }
 
-        _logger.LogDebug("Searching price guide for {Make} {Model} {Year}", make, model, year);
-        var result = await _apiClient.SearchPriceGuideAsync(make, model, finish, cspId, year, ct);
+        _logger.LogDebug("Searching CSP prices for {Make} {Model}", make, model);
+        var result = await _apiClient.SearchCspPriceAsync(make, model, ct);
 
-        _resultCache[cacheKey] = new CachedPriceGuideResult
+        // Don't cache transient HTTP failures; do cache legitimate "no match" results
+        if (!result.LookupError)
         {
-            Data = result,
-            ExpiresAt = DateTime.UtcNow.AddMinutes(_cacheMinutes)
-        };
+            _resultCache[cacheKey] = new CachedPriceGuideResult
+            {
+                Data = result,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(_cacheMinutes)
+            };
+        }
 
         return result;
     }
 
-    public int CacheSize => _cache.Count + _resultCache.Count;
-
-    private class CachedPriceGuide
-    {
-        public PriceGuideResponse Data { get; set; } = null!;
-        public DateTime ExpiresAt { get; set; }
-    }
+    public int CacheSize => _resultCache.Count;
 
     private class CachedPriceGuideResult
     {
-        public PriceGuideResult Data { get; set; } = null!;
+        public CspPriceResult Data { get; set; } = null!;
         public DateTime ExpiresAt { get; set; }
     }
 }
