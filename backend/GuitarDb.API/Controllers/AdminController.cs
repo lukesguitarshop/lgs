@@ -888,11 +888,14 @@ public class AdminController : ControllerBase
         [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null,
         CancellationToken ct = default)
     {
         try
         {
-            var (potentialBuys, totalCount) = await _mongoDbService.GetPotentialBuysAsync(status, sort, page, perPage, ct);
+            var (potentialBuys, totalCount) = await _mongoDbService.GetPotentialBuysAsync(status, sort, page, perPage, search, minPrice, maxPrice, ct);
             return Ok(new
             {
                 items = potentialBuys,
@@ -1115,11 +1118,14 @@ public class AdminController : ControllerBase
         [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null,
         CancellationToken ct = default)
     {
         try
         {
-            var (potentialBuys, totalCount) = await _mongoDbService.GetSweetwaterPotentialBuysAsync(status, sort, page, perPage, ct);
+            var (potentialBuys, totalCount) = await _mongoDbService.GetSweetwaterPotentialBuysAsync(status, sort, page, perPage, search, minPrice, maxPrice, ct);
             return Ok(new
             {
                 items = potentialBuys,

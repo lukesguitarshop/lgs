@@ -169,13 +169,19 @@ export async function getPotentialBuys(
   status?: string,
   sort?: string,
   page = 1,
-  perPage = 20
+  perPage = 20,
+  search?: string,
+  minPrice?: number,
+  maxPrice?: number
 ): Promise<PaginatedPotentialBuys> {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (sort) params.set('sort', sort);
   params.set('page', String(page));
   params.set('perPage', String(perPage));
+  if (search) params.set('search', search);
+  if (minPrice != null) params.set('minPrice', String(minPrice));
+  if (maxPrice != null) params.set('maxPrice', String(maxPrice));
 
   return api.authGet<PaginatedPotentialBuys>(`/admin/potential-buys?${params}`);
 }
@@ -239,13 +245,19 @@ export async function getSweetwaterPotentialBuys(
   status?: string,
   sort?: string,
   page = 1,
-  perPage = 20
+  perPage = 20,
+  search?: string,
+  minPrice?: number,
+  maxPrice?: number
 ): Promise<PaginatedSweetwaterPotentialBuys> {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (sort) params.set('sort', sort);
   params.set('page', String(page));
   params.set('perPage', String(perPage));
+  if (search) params.set('search', search);
+  if (minPrice != null) params.set('minPrice', String(minPrice));
+  if (maxPrice != null) params.set('maxPrice', String(maxPrice));
 
   return api.authGet<PaginatedSweetwaterPotentialBuys>(`/admin/sweetwater-potential-buys?${params}`);
 }
