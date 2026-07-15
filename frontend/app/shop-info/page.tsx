@@ -82,7 +82,9 @@ function ReviewCard({ review }: { review: Review }) {
         <p className="text-sm text-muted-foreground mb-3">
           {review.reviewer_name} • {formatDate(review.review_date)}
         </p>
-        <p className="text-[#020E1C] leading-relaxed">{review.review_text}</p>
+        {review.review_text && (
+          <p className="text-[#020E1C] leading-relaxed">{review.review_text}</p>
+        )}
       </CardContent>
     </Card>
   );
@@ -128,8 +130,8 @@ function ReviewsTab() {
       const query = searchQuery.toLowerCase();
       result = result.filter(
         (review) =>
-          review.guitar_name.toLowerCase().includes(query) ||
-          review.reviewer_name.toLowerCase().includes(query)
+          review.guitar_name?.toLowerCase().includes(query) ||
+          review.reviewer_name?.toLowerCase().includes(query)
       );
     }
     if (dateFilter !== 'all') {
@@ -184,11 +186,16 @@ function ReviewsTab() {
               <div className="flex items-center gap-4">
                 <div className="flex gap-1">
                   {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="h-6 w-6 fill-yellow-400 text-yellow-400" />
+                    <Star
+                      key={i}
+                      className={`h-6 w-6 ${
+                        i < Math.round(stats.average_rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
+                      }`}
+                    />
                   ))}
                 </div>
                 <div>
-                  <p className="text-xl font-bold">5.0</p>
+                  <p className="text-xl font-bold">{stats.average_rating.toFixed(1)}</p>
                   <p className="text-sm text-muted-foreground">Average Rating</p>
                 </div>
               </div>

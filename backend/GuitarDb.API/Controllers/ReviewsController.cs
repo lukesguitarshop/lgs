@@ -52,14 +52,14 @@ public class ReviewsController : ControllerBase
     {
         if (recentDays < 1) recentDays = 30;
 
-        var (totalCount, recentCount) = await _mongoDbService.GetReviewStatsAsync(recentDays);
+        var (totalCount, recentCount, averageRating) = await _mongoDbService.GetReviewStatsAsync(recentDays);
 
         return Ok(new
         {
             total_count = totalCount,
             recent_count = recentCount,
             recent_days = recentDays,
-            average_rating = 5
+            average_rating = Math.Round(averageRating, 1)
         });
     }
 }

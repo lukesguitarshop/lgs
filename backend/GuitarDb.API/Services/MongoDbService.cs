@@ -644,7 +644,7 @@ public class MongoDbService
         return (reviews, totalCount);
     }
 
-    public async Task<(long totalCount, long recentCount)> GetReviewStatsAsync(int recentDays = 30)
+    public async Task<(long totalCount, long recentCount, double averageRating)> GetReviewStatsAsync(int recentDays = 30)
     {
         var totalCount = await _reviewsCollection.CountDocumentsAsync(_ => true);
 
@@ -652,7 +652,16 @@ public class MongoDbService
         var recentFilter = Builders<Review>.Filter.Gte(r => r.ReviewDate, recentDate);
         var recentCount = await _reviewsCollection.CountDocumentsAsync(recentFilter);
 
-        return (totalCount, recentCount);
+        double averageRating = 0;
+        if (totalCount > 0)
+        {
+            var avgResult = await _reviewsCollection.Aggregate()
+                .Group(r => 1, g => new { Average = g.Average(r => r.Rating) })
+                .FirstOrDefaultAsync();
+            averageRating = avgResult?.Average ?? 0;
+        }
+
+        return (totalCount, recentCount, averageRating);
     }
 
     public async Task InsertReviewAsync(Review review)
@@ -675,20 +684,6 @@ public class MongoDbService
     {
         var result = await _reviewsCollection.DeleteManyAsync(_ => true);
         return result.DeletedCount;
-    }
-
-    public async Task<HashSet<string>> GetAllReviewOrderIdsAsync()
-    {
-        var filter = Builders<Review>.Filter.Ne(r => r.ReverbOrderId, null);
-        var projection = Builders<Review>.Projection.Include(r => r.ReverbOrderId);
-        var reviews = await _reviewsCollection.Find(filter)
-            .Project<Review>(projection)
-            .ToListAsync();
-
-        return reviews
-            .Where(r => !string.IsNullOrEmpty(r.ReverbOrderId))
-            .Select(r => r.ReverbOrderId!)
-            .ToHashSet();
     }
 
     public async Task<long> DeleteManualReviewsAsync()
@@ -1506,6 +1501,9 @@ public class MongoDbService
         string? sort = null,
         int page = 1,
         int perPage = 20,
+        string? search = null,
+        decimal? minPrice = null,
+        decimal? maxPrice = null,
         CancellationToken ct = default)
     {
         var filter = Builders<PotentialBuy>.Filter.Empty;
@@ -1527,6 +1525,26 @@ public class MongoDbService
             case "purchased":
                 filter = Builders<PotentialBuy>.Filter.Eq(x => x.Purchased, true);
                 break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var regex = new MongoDB.Bson.BsonRegularExpression(
+                System.Text.RegularExpressions.Regex.Escape(search.Trim()), "i");
+            filter = Builders<PotentialBuy>.Filter.And(filter,
+                Builders<PotentialBuy>.Filter.Regex(x => x.ListingTitle, regex));
+        }
+
+        if (minPrice.HasValue)
+        {
+            filter = Builders<PotentialBuy>.Filter.And(filter,
+                Builders<PotentialBuy>.Filter.Gte(x => x.Price, minPrice.Value));
+        }
+
+        if (maxPrice.HasValue)
+        {
+            filter = Builders<PotentialBuy>.Filter.And(filter,
+                Builders<PotentialBuy>.Filter.Lte(x => x.Price, maxPrice.Value));
         }
 
         var sortDef = sort?.ToLower() switch
@@ -1724,6 +1742,9 @@ public class MongoDbService
         string? sort = null,
         int page = 1,
         int perPage = 20,
+        string? search = null,
+        decimal? minPrice = null,
+        decimal? maxPrice = null,
         CancellationToken ct = default)
     {
         var filter = Builders<SweetwaterPotentialBuy>.Filter.Empty;
@@ -1745,6 +1766,26 @@ public class MongoDbService
             case "purchased":
                 filter = Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, true);
                 break;
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            var regex = new MongoDB.Bson.BsonRegularExpression(
+                System.Text.RegularExpressions.Regex.Escape(search.Trim()), "i");
+            filter = Builders<SweetwaterPotentialBuy>.Filter.And(filter,
+                Builders<SweetwaterPotentialBuy>.Filter.Regex(x => x.ListingTitle, regex));
+        }
+
+        if (minPrice.HasValue)
+        {
+            filter = Builders<SweetwaterPotentialBuy>.Filter.And(filter,
+                Builders<SweetwaterPotentialBuy>.Filter.Gte(x => x.Price, minPrice.Value));
+        }
+
+        if (maxPrice.HasValue)
+        {
+            filter = Builders<SweetwaterPotentialBuy>.Filter.And(filter,
+                Builders<SweetwaterPotentialBuy>.Filter.Lte(x => x.Price, maxPrice.Value));
         }
 
         var sortDef = sort?.ToLower() switch
