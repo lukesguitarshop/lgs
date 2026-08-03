@@ -25,6 +25,7 @@ public class MongoDbService
     private readonly IMongoCollection<TradeInRequest> _tradeInRequestsCollection;
     private readonly IMongoCollection<StoreCredit> _storeCreditsCollection;
     private readonly IMongoCollection<UserActivity> _userActivitiesCollection;
+    private readonly IMongoCollection<ScheduledJobRun> _scheduledJobRunsCollection;
     private readonly ILogger<MongoDbService> _logger;
 
     public MongoDbService(IConfiguration configuration, ILogger<MongoDbService> logger)
@@ -58,6 +59,7 @@ public class MongoDbService
         _tradeInRequestsCollection = database.GetCollection<TradeInRequest>("trade_in_requests");
         _storeCreditsCollection = database.GetCollection<StoreCredit>("store_credits");
         _userActivitiesCollection = database.GetCollection<UserActivity>("user_activities");
+        _scheduledJobRunsCollection = database.GetCollection<ScheduledJobRun>("scheduled_job_runs");
 
         CreateIndexesAsync().GetAwaiter().GetResult();
     }
@@ -282,6 +284,18 @@ public class MongoDbService
             var storeCreditUserIndex = Builders<StoreCredit>.IndexKeys.Ascending(s => s.UserId);
             await _storeCreditsCollection.Indexes.CreateOneAsync(
                 new CreateIndexModel<StoreCredit>(storeCreditUserIndex, new CreateIndexOptions { Name = "user_id_idx", Unique = true })
+            );
+
+            // Scheduled job run indexes
+            // Unique on (job_name, run_date) - this is what makes a scheduled job
+            // idempotent. Two instances racing during a deploy both try to insert;
+            // exactly one wins and the loser skips.
+            var scheduledJobRunIndex = Builders<ScheduledJobRun>.IndexKeys
+                .Ascending(r => r.JobName)
+                .Ascending(r => r.RunDate);
+            await _scheduledJobRunsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<ScheduledJobRun>(scheduledJobRunIndex,
+                    new CreateIndexOptions { Name = "job_name_run_date_uniq", Unique = true })
             );
 
             _logger.LogInformation("MongoDB indexes created successfully");
@@ -2329,6 +2343,64 @@ public class MongoDbService
             Builders<StoreCredit>.Filter.Gte(s => s.Balance, amount));
         var result = await _storeCreditsCollection.UpdateOneAsync(filter, update);
         return result.ModifiedCount > 0;
+    }
+
+    // ==================== SCHEDULED JOB RUNS ====================
+
+    /// <summary>
+    /// True if a run has already been recorded for this job on this date, whether it
+    /// succeeded, failed, or is still in flight.
+    /// </summary>
+    public async Task<bool> HasScheduledJobRunAsync(string jobName, string runDate, CancellationToken ct = default)
+    {
+        var filter = Builders<ScheduledJobRun>.Filter.And(
+            Builders<ScheduledJobRun>.Filter.Eq(r => r.JobName, jobName),
+            Builders<ScheduledJobRun>.Filter.Eq(r => r.RunDate, runDate));
+
+        return await _scheduledJobRunsCollection.Find(filter).AnyAsync(ct);
+    }
+
+    /// <summary>
+    /// Attempts to claim this job/date pair. Returns false if another instance already
+    /// claimed it, which the unique index enforces via a duplicate key error.
+    /// </summary>
+    public async Task<bool> TryClaimScheduledJobRunAsync(string jobName, string runDate, CancellationToken ct = default)
+    {
+        try
+        {
+            await _scheduledJobRunsCollection.InsertOneAsync(new ScheduledJobRun
+            {
+                JobName = jobName,
+                RunDate = runDate,
+                StartedAt = DateTime.UtcNow,
+                Outcome = "running"
+            }, cancellationToken: ct);
+
+            return true;
+        }
+        catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            return false;
+        }
+    }
+
+    public async Task CompleteScheduledJobRunAsync(
+        string jobName,
+        string runDate,
+        string outcome,
+        string? details,
+        CancellationToken ct = default)
+    {
+        var filter = Builders<ScheduledJobRun>.Filter.And(
+            Builders<ScheduledJobRun>.Filter.Eq(r => r.JobName, jobName),
+            Builders<ScheduledJobRun>.Filter.Eq(r => r.RunDate, runDate));
+
+        var update = Builders<ScheduledJobRun>.Update
+            .Set(r => r.CompletedAt, DateTime.UtcNow)
+            .Set(r => r.Outcome, outcome)
+            .Set(r => r.Details, details);
+
+        await _scheduledJobRunsCollection.UpdateOneAsync(filter, update, cancellationToken: ct);
     }
 
 }

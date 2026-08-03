@@ -79,6 +79,7 @@ builder.Services.AddSingleton<UpsTrackingService>();
 // Register background services
 builder.Services.AddHostedService<OfferExpirationService>();
 builder.Services.AddHostedService<DeliveryTrackingService>();
+builder.Services.AddHostedService<ScheduledDealFinderService>();
 
 // Configure JWT Authentication
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]
