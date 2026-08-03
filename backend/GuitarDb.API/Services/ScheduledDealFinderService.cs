@@ -131,6 +131,7 @@ public class ScheduledDealFinderService : BackgroundService
         var details = new List<string>();
         var attempted = 0;
         var failures = 0;
+        var skips = 0;
 
         if (options.RunReverb)
         {
@@ -138,19 +139,27 @@ public class ScheduledDealFinderService : BackgroundService
             try
             {
                 var result = await _dealFinder.RunAsync(ct);
-                details.Add($"Reverb: {result.Message}");
 
                 if (result.Success)
                 {
+                    details.Add($"Reverb: {result.Message}");
                     _logger.LogInformation(
                         "Scheduled Reverb deal finder: {Checked} checked, {Deals} deals, took {Duration}",
                         result.ListingsChecked, result.DealsFound, result.Duration);
                 }
+                else if (result.Error is null)
+                {
+                    // The "already running" case when an admin triggered a manual run.
+                    // A skip, not a crash - the service leaves Error null there, and sets
+                    // it on every genuine failure.
+                    skips++;
+                    details.Add($"Reverb: skipped - {result.Message}");
+                    _logger.LogInformation("Scheduled Reverb deal finder skipped: {Message}", result.Message);
+                }
                 else
                 {
-                    // Includes the "already running" case when an admin triggered a
-                    // manual run - a skip, not a crash.
                     failures++;
+                    details.Add($"Reverb: {result.Message}");
                     _logger.LogWarning("Scheduled Reverb deal finder did not complete: {Message}", result.Message);
                 }
             }
@@ -169,17 +178,24 @@ public class ScheduledDealFinderService : BackgroundService
             try
             {
                 var result = await _sweetwaterDealFinder.RunAsync(ct);
-                details.Add($"Sweetwater: {result.Message}");
 
                 if (result.Success)
                 {
+                    details.Add($"Sweetwater: {result.Message}");
                     _logger.LogInformation(
                         "Scheduled Sweetwater deal finder: {Checked} checked, {Deals} deals, took {Duration}",
                         result.ListingsChecked, result.DealsFound, result.Duration);
                 }
+                else if (result.Error is null)
+                {
+                    skips++;
+                    details.Add($"Sweetwater: skipped - {result.Message}");
+                    _logger.LogInformation("Scheduled Sweetwater deal finder skipped: {Message}", result.Message);
+                }
                 else
                 {
                     failures++;
+                    details.Add($"Sweetwater: {result.Message}");
                     _logger.LogWarning("Scheduled Sweetwater deal finder did not complete: {Message}", result.Message);
                 }
             }
@@ -191,9 +207,11 @@ public class ScheduledDealFinderService : BackgroundService
             }
         }
 
-        var outcome = failures == 0 ? "success"
-            : failures == attempted ? "failed"
-            : "partial";
+        var outcome = failures > 0
+            ? (failures == attempted ? "failed" : "partial")
+            : skips > 0
+                ? (skips == attempted ? "skipped" : "success")
+                : "success";
 
         await _mongoDbService.CompleteScheduledJobRunAsync(
             JobName, runDateKey, outcome, string.Join(" | ", details), CancellationToken.None);

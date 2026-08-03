@@ -31,7 +31,7 @@ public class ScheduledJobRun
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime? CompletedAt { get; set; }
 
-    /// <summary>running | success | partial | failed</summary>
+    /// <summary>running | success | partial | skipped | failed</summary>
     [BsonElement("outcome")]
     public string Outcome { get; set; } = "running";
 
