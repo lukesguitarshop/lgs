@@ -21,6 +21,7 @@ import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
 import { SweetwaterExportModal } from '@/components/admin/SweetwaterExportModal';
+import { EbayExportModal } from '@/components/admin/EbayExportModal';
 import { htmlToPlainText, getFullQualityUrl } from '@/lib/html-text';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
@@ -173,6 +174,7 @@ export default function AdminPage() {
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
   const [swExportOpen, setSwExportOpen] = useState(false);
+  const [ebayExportOpen, setEbayExportOpen] = useState(false);
   const [initPricesLoading, setInitPricesLoading] = useState(false);
   const lastKnownOrderCountRef = useRef<number | null>(null);
   const initialLoadDoneRef = useRef(false);
@@ -1014,6 +1016,14 @@ export default function AdminPage() {
                         <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
                         SW Export
                       </Button>
+                      <Button
+                        variant="outline"
+                        className="text-sm h-8"
+                        onClick={() => setEbayExportOpen(true)}
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
+                        eBay Export
+                      </Button>
                       <button
                         onClick={() => setSelectedListingIds(new Set())}
                         className="ml-auto text-xs text-blue-600 hover:text-blue-800"
@@ -1818,6 +1828,12 @@ export default function AdminPage() {
       <SweetwaterExportModal
         open={swExportOpen}
         onOpenChange={setSwExportOpen}
+        listings={listings.filter(l => selectedListingIds.has(l.id))}
+      />
+
+      <EbayExportModal
+        open={ebayExportOpen}
+        onOpenChange={setEbayExportOpen}
         listings={listings.filter(l => selectedListingIds.has(l.id))}
       />
     </div>
