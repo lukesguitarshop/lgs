@@ -20,6 +20,8 @@ import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
+import { SweetwaterExportModal } from '@/components/admin/SweetwaterExportModal';
+import { htmlToPlainText, getFullQualityUrl } from '@/lib/html-text';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
@@ -170,6 +172,7 @@ export default function AdminPage() {
   const [selectedListingIds, setSelectedListingIds] = useState<Set<string>>(new Set());
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [swExportOpen, setSwExportOpen] = useState(false);
   const [initPricesLoading, setInitPricesLoading] = useState(false);
   const lastKnownOrderCountRef = useRef<number | null>(null);
   const initialLoadDoneRef = useRef(false);
@@ -453,28 +456,6 @@ export default function AdminPage() {
         return next;
       });
     }
-  };
-
-  const htmlToPlainText = (html: string): string => {
-    // Strip return policy section and everything after it
-    const cleaned = html.replace(/(<b>|<strong>)*\s*Return Policy\s*:?\s*(<\/b>|<\/strong>)*[\s\S]*/i, '');
-    let text = cleaned;
-    text = text.replace(/<br\s*\/?>/gi, '\n');
-    text = text.replace(/<\/p>/gi, '\n\n');
-    text = text.replace(/<li>/gi, '- ');
-    text = text.replace(/<\/li>/gi, '\n');
-    text = text.replace(/<\/?(ul|ol)>/gi, '\n');
-    text = text.replace(/<[^>]+>/g, '');
-    text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
-    text = text.replace(/\n{3,}/g, '\n\n');
-    return text.trim();
-  };
-
-  const getFullQualityUrl = (url: string): string => {
-    if (url.includes('rvb-img.reverb.com')) {
-      return url.replace(/\/[^/]*=[^/]*/g, '');
-    }
-    return url;
   };
 
   const handleBulkFbExport = () => {
@@ -1024,6 +1005,14 @@ export default function AdminPage() {
                       >
                         {bulkExporting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />}
                         FB Export
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="text-sm h-8"
+                        onClick={() => setSwExportOpen(true)}
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
+                        SW Export
                       </Button>
                       <button
                         onClick={() => setSelectedListingIds(new Set())}
@@ -1825,6 +1814,12 @@ export default function AdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SweetwaterExportModal
+        open={swExportOpen}
+        onOpenChange={setSwExportOpen}
+        listings={listings.filter(l => selectedListingIds.has(l.id))}
+      />
     </div>
   );
 }
