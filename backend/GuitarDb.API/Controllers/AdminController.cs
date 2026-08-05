@@ -20,6 +20,7 @@ public class AdminController : ControllerBase
     private readonly EmailService _emailService;
     private readonly DealFinderService _dealFinderService;
     private readonly SweetwaterDealFinderService _sweetwaterDealFinderService;
+    private readonly AuthService _authService;
 
     public AdminController(
         ILogger<AdminController> logger,
@@ -29,8 +30,10 @@ public class AdminController : ControllerBase
         ReviewScraperService reviewScraperService,
         EmailService emailService,
         DealFinderService dealFinderService,
-        SweetwaterDealFinderService sweetwaterDealFinderService)
+        SweetwaterDealFinderService sweetwaterDealFinderService,
+        AuthService authService)
     {
+        _authService = authService;
         _logger = logger;
         _configuration = configuration;
         _mongoDbService = mongoDbService;
@@ -1359,6 +1362,60 @@ public class AdminController : ControllerBase
                 postalCode = user.ShippingAddress.PostalCode,
                 country = user.ShippingAddress.Country
             } : null
+        });
+    }
+
+    /// <summary>
+    /// Issue a short-lived token that authenticates as the given user, so an admin can
+    /// see the site exactly as that customer sees it. Admin only.
+    /// </summary>
+    [HttpPost("users/{id}/impersonate")]
+    public async Task<IActionResult> ImpersonateUser(string id)
+    {
+        var adminId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Unauthorized(new { error = "Invalid token" });
+        }
+
+        var user = await _mongoDbService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { error = "User not found" });
+        }
+
+        if (user.Id == adminId)
+        {
+            return BadRequest(new { error = "You are already signed in as this user" });
+        }
+
+        var admin = await _mongoDbService.GetUserByIdAsync(adminId);
+        var lifetime = TimeSpan.FromHours(1);
+        var token = _authService.GenerateJwtToken(user, lifetime, adminId);
+
+        _logger.LogWarning("IMPERSONATION: admin {AdminId} ({AdminEmail}) is now acting as user {UserId} ({UserEmail})",
+            adminId, admin?.Email, user.Id, user.Email);
+
+        // Audit trail on the customer's own activity feed, visible on their admin detail page
+        await _mongoDbService.LogActivityAsync(
+            user.Id!,
+            "admin_impersonation",
+            $"Admin ({admin?.Email ?? adminId}) signed in as this user");
+
+        return Ok(new
+        {
+            token,
+            expiresAt = DateTime.UtcNow.Add(lifetime),
+            user = new
+            {
+                id = user.Id,
+                email = user.Email,
+                fullName = user.FullName,
+                isGuest = user.IsGuest,
+                isAdmin = user.IsAdmin,
+                emailVerified = user.EmailVerified,
+                createdAt = user.CreatedAt
+            }
         });
     }
 

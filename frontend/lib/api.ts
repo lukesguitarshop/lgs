@@ -329,6 +329,19 @@ export async function deleteAdminUser(
   return api.authDelete<{ success: boolean; message: string }>(`/admin/users/${id}`);
 }
 
+export interface ImpersonateResponse {
+  token: string;
+  expiresAt: string;
+  user: import('./auth').User;
+}
+
+/**
+ * Get a short-lived token that authenticates as the given customer
+ */
+export async function impersonateUser(id: string): Promise<ImpersonateResponse> {
+  return api.authPost<ImpersonateResponse>(`/admin/users/${id}/impersonate`);
+}
+
 // Trade-in API
 import type { TradeInRequestDto, AdminTradeInListItem, AdminTradeInDetail } from './types/trade-in';
 import type { StoreCreditDto } from './types/store-credit';
