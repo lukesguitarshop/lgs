@@ -170,9 +170,20 @@ export function EbayExportModal({ open, onOpenChange, listings }: EbayExportModa
                     </select>
                   </td>
                   <td className="py-2 px-1">
-                    <select value={row.type} onChange={e => update(row.id, { type: e.target.value })} className={`${cell} w-40`}>
-                      {aspectOptions(row.categoryId, 'Type').map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+                    {aspectOptions(row.categoryId, 'Type').length > 0 ? (
+                      <select value={row.type} onChange={e => update(row.id, { type: e.target.value })} className={`${cell} w-40`}>
+                        {aspectOptions(row.categoryId, 'Type').map(t => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    ) : (
+                      // No published list for this category, so Type has to be
+                      // typed. eBay requires it in accessory categories.
+                      <input
+                        value={row.type}
+                        placeholder="Type"
+                        onChange={e => update(row.id, { type: e.target.value })}
+                        className={`${cell} w-40`}
+                      />
+                    )}
                   </td>
                   <td className="py-2 px-1">
                     <select value={row.bodyType} onChange={e => update(row.id, { bodyType: e.target.value })} className={`${cell} w-32`}>

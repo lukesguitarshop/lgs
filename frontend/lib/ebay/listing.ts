@@ -80,8 +80,37 @@ function snap(categoryId: string, aspect: string, value: string, ...fallbacks: s
   return options[0];
 }
 
+/**
+ * Best-effort Type for categories the downloaded template does not cover.
+ * eBay requires Type in accessory categories and rejects a blank, so a
+ * plausible starting value beats nothing -- these are editable in the review
+ * table, and re-running the template parser with the accessory categories
+ * selected replaces the guesswork with eBay's published list.
+ */
+const UNMAPPED_TYPE_RULES: [RegExp, string][] = [
+  [/\bgig ?bag\b/i, 'Gig Bag'],
+  [/\bsoft ?case\b/i, 'Soft Case'],
+  [/\b(hard ?shell|hard ?case|flight case)\b/i, 'Hard Case'],
+  [/\bhumbucker\b/i, 'Humbucker'],
+  [/\bsingle[- ]coil\b/i, 'Single Coil'],
+  [/\bpickup\b/i, 'Humbucker'],
+];
+
+function unmappedType(title: string): string {
+  for (const [pattern, value] of UNMAPPED_TYPE_RULES) {
+    if (pattern.test(title)) return value;
+  }
+  return '';
+}
+
 export function deriveType(categoryId: string, title: string): string {
   const options = allowed(categoryId, 'Type');
+
+  if (!options.length) {
+    // No published list: either the category needs no Type, or the template
+    // never covered it. Amps genuinely have no Type aspect.
+    return CATEGORY_ASPECTS[categoryId] ? '' : unmappedType(title);
+  }
   if (options.length === 1) return options[0];
 
   if (categoryId === '4713') {
@@ -89,7 +118,7 @@ export function deriveType(categoryId: string, title: string): string {
     if (/\bacoustic\b/i.test(title)) return snap(categoryId, 'Type', 'Acoustic Bass Guitar');
     return snap(categoryId, 'Type', 'Electric Bass Guitar');
   }
-  return options[0] ?? '';
+  return options[0];
 }
 
 export function deriveBodyType(categoryId: string, title: string): string {

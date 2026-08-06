@@ -244,6 +244,17 @@ describe('deriveListingRow', () => {
     expect(deriveListingRow({ ...base, listing_title: title }).categoryId).toBe(categoryId);
   });
 
+  test('supplies a Type for accessory categories, which eBay requires and rejects blank', () => {
+    // eBay error 21919303: "The item specific Type is missing."
+    expect(deriveListingRow({ ...base, listing_title: 'Kiesel Gig Bag Soft Case' }).type).toBe('Gig Bag');
+    expect(deriveListingRow({ ...base, listing_title: 'Fender Hardshell Case' }).type).toBe('Hard Case');
+    expect(deriveListingRow({ ...base, listing_title: 'Seymour Duncan JB Humbucker Pickup' }).type).toBe('Humbucker');
+  });
+
+  test('leaves Type blank for amps, which genuinely have no Type aspect', () => {
+    expect(deriveListingRow({ ...base, listing_title: 'Marshall JCM800 Amp Head' }).type).toBe('');
+  });
+
   test('still treats a slide guitar as an instrument, not a slide', () => {
     expect(deriveListingRow({ ...base, listing_title: 'Gretsch slide guitar resonator' }).categoryId).not.toBe('7266');
   });
