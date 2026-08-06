@@ -340,8 +340,7 @@ describe('buildListingCsv', () => {
   });
 
   test('writes every required column', () => {
-    // eBay rejects "Draft" in this template; VerifyAdd is the safe dry run.
-    expect(at('*Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8)')).toBe('VerifyAdd');
+    expect(at('*Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8)')).toBe('Add');
     expect(at('*Category')).toBe('33034');
     expect(at('*Title')).toBe(base.listing_title);
     expect(at('*ConditionID')).toBe('3000');
@@ -381,10 +380,13 @@ describe('buildListingCsv', () => {
     expect(csv).not.toContain('Draft');
   });
 
-  test('honours an Add action when the seller wants listings live', () => {
-    const live = buildListingCsv([deriveListingRow(base)], { action: 'Add' });
-    const cells = parseCsv(live)[2];
-    expect(cells[0]).toBe('Add');
+  test('publishes live by default', () => {
+    expect(LISTING_DEFAULTS.action).toBe('Add');
+  });
+
+  test('still supports a VerifyAdd dry run when asked', () => {
+    const dry = buildListingCsv([deriveListingRow(base)], { action: 'VerifyAdd' });
+    expect(parseCsv(dry)[2][0]).toBe('VerifyAdd');
   });
 
   test('every row carries a cell for every template column', () => {

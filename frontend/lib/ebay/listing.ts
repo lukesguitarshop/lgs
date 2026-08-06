@@ -18,7 +18,12 @@ const PHOTO_SEPARATOR = '|';
 export type ListingAction = 'VerifyAdd' | 'Add';
 
 export const LISTING_DEFAULTS = {
-  action: 'VerifyAdd' as ListingAction,
+  /**
+   * Listings publish on upload. `VerifyAdd` stays available in the review
+   * modal as a dry run -- worth using for a batch containing categories the
+   * downloaded templates do not cover, since those fill Brand only.
+   */
+  action: 'Add' as ListingAction,
   format: 'FixedPrice',
   duration: 'GTC',
   quantity: 1,
