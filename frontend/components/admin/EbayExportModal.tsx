@@ -98,7 +98,7 @@ export function EbayExportModal({ open, onOpenChange, listings }: EbayExportModa
           <label className="flex items-center gap-2">
             Upload as
             <select value={action} onChange={e => setAction(e.target.value as ListingAction)} className={cell}>
-              <option value="Draft">Drafts (review before going live)</option>
+              <option value="VerifyAdd">Dry run (validate only, creates nothing)</option>
               <option value="Add">Live listings</option>
             </select>
           </label>
@@ -229,7 +229,9 @@ export function EbayExportModal({ open, onOpenChange, listings }: EbayExportModa
         </div>
 
         <p className="text-xs text-gray-500 border-t pt-3">
-          Payout is after eBay&apos;s final value fee &mdash; {EBAY_FEES.guitarsAndBassesPercent}% in Guitars
+          Dry run validates every row and reports errors without creating listings; switch to Live
+          once it comes back clean. Payout is after eBay&apos;s final value fee &mdash;{' '}
+          {EBAY_FEES.guitarsAndBassesPercent}% in Guitars
           &amp; Basses, {EBAY_FEES.standardPercent}% elsewhere &mdash; plus $
           {EBAY_FEES.perOrderFee.toFixed(2)} per order. It does not deduct what shipping costs you.
         </p>

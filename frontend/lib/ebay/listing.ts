@@ -9,14 +9,16 @@ export const MAX_EBAY_TITLE = 80;
 export const MAX_EBAY_PHOTOS = 24;
 const PHOTO_SEPARATOR = '|';
 
-export type ListingAction = 'Draft' | 'Add';
-
 /**
- * Applied to every row. `Draft` lands listings in Seller Hub drafts for review
- * rather than publishing them; switch to `Add` to go live on upload.
+ * The category template rejects `Draft` with "Unable to find Task Action Id
+ * for task Draft" -- that action only exists in the draft-listings template.
+ * `VerifyAdd` validates every row and reports errors without creating
+ * anything, so it is the safe first pass before switching to `Add`.
  */
+export type ListingAction = 'VerifyAdd' | 'Add';
+
 export const LISTING_DEFAULTS = {
-  action: 'Draft' as ListingAction,
+  action: 'VerifyAdd' as ListingAction,
   format: 'FixedPrice',
   duration: 'GTC',
   quantity: 1,

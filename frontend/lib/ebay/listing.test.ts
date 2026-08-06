@@ -281,7 +281,8 @@ describe('buildListingCsv', () => {
   });
 
   test('writes every required column', () => {
-    expect(at('*Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8)')).toBe('Draft');
+    // eBay rejects "Draft" in this template; VerifyAdd is the safe dry run.
+    expect(at('*Action(SiteID=US|Country=US|Currency=USD|Version=1193|CC=UTF-8)')).toBe('VerifyAdd');
     expect(at('*Category')).toBe('33034');
     expect(at('*Title')).toBe(base.listing_title);
     expect(at('*ConditionID')).toBe('3000');
@@ -311,6 +312,10 @@ describe('buildListingCsv', () => {
   test('keeps HTML in the description and appends the return policy', () => {
     expect(at('*Description')).toContain('<p>Great player.</p>');
     expect(at('*Description')).toContain('15% restocking fee');
+  });
+
+  test('never emits Draft, which this template rejects', () => {
+    expect(csv).not.toContain('Draft');
   });
 
   test('honours an Add action when the seller wants listings live', () => {
