@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { api, impersonateUser } from '@/lib/api';
+import { api } from '@/lib/api';
+import { openImpersonationTab, impersonationErrorMessage } from '@/lib/impersonation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -176,33 +177,13 @@ export default function AdminUserDetailPage() {
   }, [userId]);
 
   const handleImpersonate = async () => {
-    // Open the tab synchronously so the browser does not treat it as a popup,
-    // then point it at the handoff page once the token comes back.
-    const tab = window.open('about:blank', '_blank');
     setImpersonating(true);
     setImpersonateError(null);
     try {
-      const res = await impersonateUser(userId);
-      const params = new URLSearchParams({
-        token: res.token,
-        expiresAt: res.expiresAt,
-        user: JSON.stringify(res.user),
-      });
-      // Token goes in the fragment so it never reaches the server or its logs
-      const url = `/impersonate#${params.toString()}`;
-      if (tab) {
-        tab.location.href = url;
-      } else {
-        window.open(url, '_blank');
-      }
+      await openImpersonationTab(userId, user?.isGuest ? '/' : undefined);
     } catch (err) {
-      tab?.close();
       console.error('Failed to impersonate user:', err);
-      setImpersonateError(
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: unknown }).message)
-          : 'Failed to start session'
-      );
+      setImpersonateError(impersonationErrorMessage(err));
     } finally {
       setImpersonating(false);
     }
