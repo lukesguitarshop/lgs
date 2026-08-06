@@ -113,13 +113,46 @@ export function deriveType(categoryId: string, title: string): string {
   }
   if (options.length === 1) return options[0];
 
-  if (categoryId === '4713') {
-    if (/\bacoustic[- ]electric\b/i.test(title)) return snap(categoryId, 'Type', 'Acoustic-Electric Bass Guitar');
-    if (/\bacoustic\b/i.test(title)) return snap(categoryId, 'Type', 'Acoustic Bass Guitar');
-    return snap(categoryId, 'Type', 'Electric Bass Guitar');
+  for (const [pattern, value] of TYPE_RULES[categoryId] ?? []) {
+    if (pattern.test(title)) return snap(categoryId, 'Type', value);
   }
-  return options[0];
+  return snap(categoryId, 'Type', TYPE_FALLBACKS[categoryId] ?? options[0]);
 }
+
+/**
+ * Title patterns to Type values, per category. Values come from the generated
+ * template, so a Sweetwater-style rename breaks the tests rather than the
+ * upload.
+ */
+const TYPE_RULES: Record<string, [RegExp, string][]> = {
+  // Bass Guitars
+  '4713': [
+    [/\bacoustic[- ]electric\b/i, 'Acoustic-Electric Bass Guitar'],
+    [/\bacoustic\b/i, 'Acoustic Bass Guitar'],
+  ],
+  // Guitar Cases -- eBay accepts only Cover, Gig Bag and Hard Case.
+  '41408': [
+    [/\b(gig ?bag|soft ?case|padded bag)\b/i, 'Gig Bag'],
+    [/\b(hard ?shell|hard ?case|flight case|tolex)\b/i, 'Hard Case'],
+    [/\bcover\b/i, 'Cover'],
+  ],
+  // Guitar Pickups
+  '22670': [
+    [/\bmini[- ]?humbucker\b/i, 'Mini-Humbucker Pickup'],
+    [/\b(p-?90|soapbar)\b/i, 'Soapbar Pickup'],
+    [/\bpiezo\b/i, 'Piezo Pickup'],
+    [/\bsoundhole\b/i, 'Soundhole Pickup'],
+    [/\blipstick\b/i, 'Lipstick Pickup'],
+    [/\bsingle[- ]coil\b/i, 'Single Coil Pickup'],
+    [/\bhumbucker\b/i, 'Humbucker Pickup'],
+  ],
+};
+
+const TYPE_FALLBACKS: Record<string, string> = {
+  '4713': 'Electric Bass Guitar',
+  '41408': 'Hard Case',
+  '22670': 'Humbucker Pickup',
+};
 
 export function deriveBodyType(categoryId: string, title: string): string {
   if (/\b(semi-hollow|semi hollow|es-335|es335|es-339|casino)\b/i.test(title)) {

@@ -111,19 +111,47 @@ function render({ columns, categories, brands }, sourceName) {
   return out.join('\n');
 }
 
-const source = process.argv[2];
-if (!source) {
-  console.error('Usage: node scripts/parse-ebay-template.mjs <downloaded-template.csv>');
+/**
+ * eBay emits a template per category selection, and the aspect columns differ
+ * between them, so several downloads are merged. File Exchange maps fields by
+ * header name, so a union header carrying unused columns is fine.
+ */
+function merge(parsedFiles) {
+  const columns = [];
+  const seen = new Set();
+  // Widest file first, so the common listing columns keep their natural order.
+  for (const file of [...parsedFiles].sort((a, b) => b.columns.length - a.columns.length)) {
+    for (const column of file.columns) {
+      if (!seen.has(column)) {
+        seen.add(column);
+        columns.push(column);
+      }
+    }
+  }
+
+  const categories = {};
+  let brands = [];
+  for (const file of parsedFiles) {
+    Object.assign(categories, file.categories);
+    if (file.brands.length > brands.length) brands = file.brands;
+  }
+
+  return { columns, categories, brands };
+}
+
+const sources = process.argv.slice(2);
+if (!sources.length) {
+  console.error('Usage: node scripts/parse-ebay-template.mjs <template.csv> [more-templates.csv ...]');
   process.exit(1);
 }
 
-const parsed = parse(readFileSync(source, 'utf8'));
+const parsed = merge(sources.map(s => parse(readFileSync(s, 'utf8'))));
 const outPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'frontend', 'lib', 'ebay', 'template.ts');
-writeFileSync(outPath, render(parsed, source.split(/[\\/]/).pop()), 'utf8');
+writeFileSync(outPath, render(parsed, sources.map(s => s.split(/[\\/]/).pop()).join(' + ')), 'utf8');
 
 console.log(`Wrote ${outPath}`);
-console.log(`  ${parsed.columns.length} columns`);
-console.log(`  ${Object.keys(parsed.categories).length} categories: ${Object.keys(parsed.categories).join(', ')}`);
+console.log(`  ${parsed.columns.length} columns (union of ${sources.length} template${sources.length > 1 ? 's' : ''})`);
+console.log(`  ${Object.keys(parsed.categories).length} categories`);
 console.log(`  ${parsed.brands.length} brands`);
 for (const [id, c] of Object.entries(parsed.categories)) {
   console.log(`    ${id} requires: ${c.required.join(', ') || '(none)'}`);

@@ -248,7 +248,27 @@ describe('deriveListingRow', () => {
     // eBay error 21919303: "The item specific Type is missing."
     expect(deriveListingRow({ ...base, listing_title: 'Kiesel Gig Bag Soft Case' }).type).toBe('Gig Bag');
     expect(deriveListingRow({ ...base, listing_title: 'Fender Hardshell Case' }).type).toBe('Hard Case');
-    expect(deriveListingRow({ ...base, listing_title: 'Seymour Duncan JB Humbucker Pickup' }).type).toBe('Humbucker');
+  });
+
+  test.each([
+    ['Seymour Duncan JB Humbucker Pickup', 'Humbucker Pickup'],
+    ['Fender Vintage Single-Coil Pickup Set', 'Single Coil Pickup'],
+    ['Gibson P-90 Pickup', 'Soapbar Pickup'],
+    ['Fishman Piezo Pickup', 'Piezo Pickup'],
+  ])('uses eBay\'s full pickup Type wording for %s', (title, expected) => {
+    // "Humbucker" alone is not accepted; the value is "Humbucker Pickup".
+    expect(deriveListingRow({ ...base, listing_title: title }).type).toBe(expected);
+  });
+
+  test('every derived Type is a value the category publishes', () => {
+    for (const title of [
+      'Kiesel Gig Bag', 'Fender Hardshell Case', 'Seymour Duncan Humbucker Pickup',
+      'Fender Stratocaster', 'Martin D-28 Acoustic', 'Fender Jazz Bass',
+    ]) {
+      const row = deriveListingRow({ ...base, listing_title: title });
+      const published = CATEGORY_ASPECTS[row.categoryId]?.values['Type'];
+      if (published?.length && row.type) expect(published, title).toContain(row.type);
+    }
   });
 
   test('leaves Type blank for amps, which genuinely have no Type aspect', () => {
@@ -259,8 +279,15 @@ describe('deriveListingRow', () => {
     expect(deriveListingRow({ ...base, listing_title: 'Gretsch slide guitar resonator' }).categoryId).not.toBe('7266');
   });
 
-  test('flags an accessory row for review, since the template carries no aspects for it', () => {
-    expect(deriveListingRow({ ...base, listing_title: 'Kiesel Gig Bag Soft Case' }).needsReview).toBe(true);
+  test('does not flag a gig bag now that the cases category is mapped', () => {
+    expect(deriveListingRow({ ...base, listing_title: 'Kiesel Gig Bag Soft Case' }).needsReview).toBe(false);
+  });
+
+  test('still flags a category the templates never covered', () => {
+    // Capos (33050) are not in either downloaded template.
+    const row = deriveListingRow({ ...base, listing_title: 'Kyser Quick-Change Capo' });
+    expect(row.categoryId).toBe('33050');
+    expect(row.needsReview).toBe(true);
   });
 
   test('omits guitar-only aspects on an amp, which does not define them', () => {
@@ -360,9 +387,9 @@ describe('buildListingCsv', () => {
     expect(cells[0]).toBe('Add');
   });
 
-  test('every row carries all 97 columns', () => {
-    expect(header).toHaveLength(97);
-    expect(data).toHaveLength(97);
+  test('every row carries a cell for every template column', () => {
+    expect(header).toHaveLength(EBAY_COLUMNS.length);
+    expect(data).toHaveLength(EBAY_COLUMNS.length);
   });
 
   test('leaves the amplifier aspect blank for a guitar so eBay does not reject it', () => {
