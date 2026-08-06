@@ -37,8 +37,12 @@ const {
   startImpersonation,
   endImpersonation,
   isImpersonating,
+  isImpersonationExpired,
   getImpersonation,
 } = await import('./auth');
+
+const inAnHour = () => new Date(Date.now() + 3600_000).toISOString();
+const anHourAgo = () => new Date(Date.now() - 3600_000).toISOString();
 
 const customer = {
   id: 'cust-1',
@@ -107,6 +111,24 @@ describe('impersonation session storage', () => {
 
     expect(getToken()).toBeNull();
     expect(getStoredUser()).toBeNull();
+  });
+
+  it('reports expiry from the token timestamp, not from API failures', () => {
+    expect(isImpersonationExpired()).toBe(false); // not impersonating at all
+
+    startImpersonation('customer-token', customer, inAnHour());
+    expect(isImpersonationExpired()).toBe(false);
+
+    startImpersonation('customer-token', customer, anHourAgo());
+    expect(isImpersonationExpired()).toBe(true);
+  });
+
+  it('treats a missing or unparseable expiry as not expired', () => {
+    startImpersonation('customer-token', customer, '');
+    expect(isImpersonationExpired()).toBe(false);
+
+    startImpersonation('customer-token', customer, 'not-a-date');
+    expect(isImpersonationExpired()).toBe(false);
   });
 
   it('writes during impersonation do not overwrite the admin session', () => {

@@ -12,6 +12,7 @@ import {
   getCurrentUser,
   isAuthenticated as checkIsAuthenticated,
   getImpersonation,
+  isImpersonationExpired,
   endImpersonation as authEndImpersonation,
   removeToken,
   removeStoredUser,
@@ -71,11 +72,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(currentUser);
         } catch {
           if (getImpersonation()) {
-            // Impersonation token expired. Clear it but keep the tab flagged as an
-            // impersonation tab so it can never be mistaken for the admin's own session.
-            removeToken();
-            removeStoredUser();
-            setUser(null);
+            // Don't tear down an impersonated session just because this call failed.
+            // The handoff page navigates away immediately after storing the token,
+            // which aborts this very request - that is not an expired token. Only the
+            // token's own expiry is trusted; until then keep the stored session.
+            if (isImpersonationExpired()) {
+              removeToken();
+              removeStoredUser();
+              setUser(null);
+            }
           } else {
             // Token invalid, clear auth
             authLogout();
@@ -141,6 +146,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentUser = await getCurrentUser();
         setUser(currentUser);
       } catch {
+        // Same reasoning as initAuth: a failed refresh is not proof the
+        // impersonation token is dead, so don't drop the session over it.
+        if (getImpersonation() && !isImpersonationExpired()) return;
         authLogout();
         setUser(null);
       }

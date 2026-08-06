@@ -45,6 +45,18 @@ export function isImpersonating(): boolean {
 }
 
 /**
+ * Whether the impersonation token's own expiry has passed. This is the only
+ * reliable expiry signal: a failed API call is not, because the request can be
+ * aborted by navigation or fail on a cold backend while the token is still good.
+ */
+export function isImpersonationExpired(): boolean {
+  const info = getImpersonation();
+  if (!info?.expiresAt) return false;
+  const expiresAt = Date.parse(info.expiresAt);
+  return Number.isFinite(expiresAt) && Date.now() > expiresAt;
+}
+
+/**
  * Start impersonating a customer in this tab only
  */
 export function startImpersonation(token: string, user: User, expiresAt: string): void {

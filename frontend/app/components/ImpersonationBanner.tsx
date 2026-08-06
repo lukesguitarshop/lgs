@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Eye, X } from 'lucide-react';
 
@@ -9,11 +10,21 @@ import { Eye, X } from 'lucide-react';
  * taken in this tab happens as the customer.
  */
 export default function ImpersonationBanner() {
-  const { impersonation, user, endImpersonation } = useAuth();
+  const { impersonation, endImpersonation } = useAuth();
+  const [now, setNow] = useState(() => Date.now());
+
+  // The token dies on a fixed schedule, so tick often enough that the banner
+  // tells the truth without the user having to reload to find out.
+  useEffect(() => {
+    if (!impersonation) return;
+    const timer = setInterval(() => setNow(Date.now()), 30_000);
+    return () => clearInterval(timer);
+  }, [impersonation]);
 
   if (!impersonation) return null;
 
-  const expired = !user;
+  const expiresAt = Date.parse(impersonation.expiresAt);
+  const expired = Number.isFinite(expiresAt) && now > expiresAt;
 
   return (
     <div

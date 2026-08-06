@@ -19,7 +19,7 @@ export default function ImpersonatePage() {
     const params = new URLSearchParams(hash);
     const token = params.get('token');
     const userJson = params.get('user');
-    const next = params.get('next') || '/account';
+    const next = params.get('next') || '/profile';
 
     let user: User | null = null;
     if (userJson) {
