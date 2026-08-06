@@ -299,6 +299,10 @@ describe('buildListingCsv', () => {
     expect(at('BestOfferEnabled')).toBe('1');
   });
 
+  test('does not require immediate payment, which eBay warns conflicts with offers', () => {
+    expect(at('ImmediatePayRequired')).toBe('0');
+  });
+
   test('sets free shipping paid by the seller', () => {
     expect(at('ShippingType')).toBe('Flat');
     expect(at('ShippingService-1:Cost')).toBe('0');

@@ -26,7 +26,12 @@ export const LISTING_DEFAULTS = {
   /** Handling days before dispatch. */
   dispatchTimeMax: 3,
   bestOfferEnabled: 1,
-  immediatePayRequired: 1,
+  /**
+   * Mutually exclusive with Best Offer -- setting both earns eBay warning
+   * 23015, "If this item sells by a Best Offer, you will not be able to
+   * require immediate payment." Offers win, so this stays off.
+   */
+  immediatePayRequired: 0,
   shippingType: 'Flat',
   shippingService: 'UPSGround',
   shippingCost: 0,
