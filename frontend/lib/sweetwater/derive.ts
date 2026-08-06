@@ -112,6 +112,22 @@ export interface CategoryGuess {
  * build rather than silently producing a rejected CSV row.
  */
 const CATEGORY_RULES: { pattern: RegExp; top: string; sub: string }[] = [
+  // Accessories and parts first. A "Fender Stratocaster hard case" names an
+  // instrument but is not one, and marketplaces reject an accessory listed in
+  // an instrument category.
+  { pattern: /\b(gig ?bag|hard ?(shell )?case|soft ?case|guitar case|bass case|tolex case|flight case)\b/i, top: 'guitars', sub: 'guitar-cases-and-gig-bags' },
+  { pattern: /\b(pickup|humbucker|single[- ]coil|p-?90|pafs?)\b/i, top: 'guitars', sub: 'guitar-pickups' },
+  { pattern: /\b(pedalboard|pedal board|power supply)\b/i, top: 'effects-and-pedals', sub: 'pedalboards-and-power-supplies' },
+  { pattern: /\bpickguard\b/i, top: 'guitars', sub: 'guitar-pickguards' },
+  { pattern: /\b(replacement neck|neck only|loaded neck)\b/i, top: 'guitars', sub: 'replacement-guitar-necks' },
+  { pattern: /\b(guitar strap|strap locks?)\b/i, top: 'guitars', sub: 'guitar-straps' },
+  { pattern: /\b(capo)\b/i, top: 'guitars', sub: 'guitar-capos' },
+  { pattern: /\b(guitar stand|wall hanger|guitar hanger)\b/i, top: 'guitars', sub: 'guitar-stands' },
+  { pattern: /\b(instrument cable|patch cable|guitar cable)\b/i, top: 'guitars', sub: 'guitar-cables' },
+  { pattern: /\b(clip[- ]on tuner|guitar tuner|polytune|snark)\b/i, top: 'guitars', sub: 'guitar-tuners' },
+  // "slide guitar" is an instrument, so require the accessory sense.
+  { pattern: /\b(guitar slide|bottleneck slide|slide set)\b/i, top: 'guitars', sub: 'guitar-slides' },
+
   // Bass gear before guitars: "bass guitar" must not match the guitar rules.
   { pattern: /\bbass\b.*\b(head|amp head)\b|\bbass head\b/i, top: 'amplifiers', sub: 'bass-amp-heads' },
   { pattern: /\bbass\b.*\b(combo|amp)\b/i, top: 'amplifiers', sub: 'bass-combo-amps' },

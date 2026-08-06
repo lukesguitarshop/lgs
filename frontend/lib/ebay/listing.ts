@@ -200,7 +200,13 @@ export function deriveListingRow(listing: ExportListing): EbayListingRow {
     price: listing.price,
     description: `${stripReturnPolicyHtml(listing.description ?? '')}${returnPolicyHtml()}`,
     images: (listing.images ?? []).slice(0, MAX_EBAY_PHOTOS).map(getFullQualityUrl),
-    needsReview: category.guessed || brand === null || rawTitle.length > MAX_EBAY_TITLE,
+    needsReview:
+      category.guessed ||
+      brand === null ||
+      rawTitle.length > MAX_EBAY_TITLE ||
+      // Accessory and parts categories were not in the downloaded template, so
+      // their required aspects are unknown and only Brand gets filled.
+      !CATEGORY_ASPECTS[categoryId],
   };
 }
 

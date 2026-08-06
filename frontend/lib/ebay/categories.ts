@@ -21,6 +21,15 @@ export const EBAY_CATEGORIES: readonly EbayCategory[] = [
   { id: '621', label: 'Other Guitars' },
   { id: '38072', label: 'Guitar Amplifiers' },
   { id: '181222', label: 'Guitar Effects Pedals' },
+  { id: '41408', label: 'Guitar Cases & Gig Bags' },
+  { id: '22670', label: 'Guitar Pickups' },
+  { id: '41424', label: 'Guitar Pickguards' },
+  { id: '41423', label: 'Guitar Necks' },
+  { id: '46677', label: 'Guitar Straps' },
+  { id: '33050', label: 'Guitar Capos' },
+  { id: '22671', label: 'Guitar Stands & Hangers' },
+  { id: '22672', label: 'Guitar Tuners' },
+  { id: '7266', label: 'Other Guitar & Bass Accessories' },
   { id: '180009', label: 'Guitar Parts & Accessories' },
   { id: '180016', label: 'String Instruments' },
   { id: '180010', label: 'Pianos, Keyboards & Organs' },
@@ -82,6 +91,22 @@ const BY_SWEETWATER_SUBCATEGORY: Record<string, string> = {
   mandolins: '180016',
   banjos: '180016',
   ukuleles: '180016',
+
+  // Accessories and parts. eBay rejects these outright when listed in an
+  // instrument category ("It looks like you're listing an accessory or other
+  // item in a category meant for guitars").
+  'guitar-cases-and-gig-bags': '41408',
+  'bass-guitar-cases': '41408',
+  'guitar-pickups': '22670',
+  'guitar-pickguards': '41424',
+  'replacement-guitar-necks': '41423',
+  'guitar-straps': '46677',
+  'guitar-capos': '33050',
+  'guitar-stands': '22671',
+  'guitar-tuners': '22672',
+  'guitar-cables': '7266',
+  'guitar-slides': '7266',
+  'pedalboards-and-power-supplies': '181222',
 };
 
 export function ebayCategoryForSubcategory(subCategory: string): string {

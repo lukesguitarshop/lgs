@@ -231,6 +231,27 @@ describe('deriveListingRow', () => {
     expect(deriveListingRow(base).amplifierType).toBe('');
   });
 
+  test.each([
+    // eBay rejected a Kiesel gig bag listed under Electric Guitars.
+    ['Kiesel Gig Bag Soft Case', '41408'],
+    ['Fender Stratocaster Hardshell Case', '41408'],
+    ['Seymour Duncan JB Humbucker Pickup', '22670'],
+    ['Gibson Les Paul Pickguard', '41424'],
+    ['Ernie Ball Guitar Strap', '46677'],
+    ['Temple Audio Pedalboard', '181222'],
+    ['Kyser Quick-Change Capo', '33050'],
+  ])('routes the accessory %s out of the instrument categories', (title, categoryId) => {
+    expect(deriveListingRow({ ...base, listing_title: title }).categoryId).toBe(categoryId);
+  });
+
+  test('still treats a slide guitar as an instrument, not a slide', () => {
+    expect(deriveListingRow({ ...base, listing_title: 'Gretsch slide guitar resonator' }).categoryId).not.toBe('7266');
+  });
+
+  test('flags an accessory row for review, since the template carries no aspects for it', () => {
+    expect(deriveListingRow({ ...base, listing_title: 'Kiesel Gig Bag Soft Case' }).needsReview).toBe(true);
+  });
+
   test('omits guitar-only aspects on an amp, which does not define them', () => {
     const amp = deriveListingRow({ ...base, listing_title: 'Marshall JCM800 Amp Head' });
     expect(amp.stringConfiguration).toBe('');

@@ -41,8 +41,15 @@ const SHIPPING_SERVICES = ['UPSGround', 'FedExHomeDelivery', 'USPSPriority', 'US
 const currency = (v: number) =>
   v.toLocaleString('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 });
 
-/** Only categories the downloaded template actually covers can be exported safely. */
-const SUPPORTED = EBAY_CATEGORIES.filter(c => CATEGORY_ASPECTS[c.id]);
+/**
+ * Categories the downloaded template covers come with their required aspects.
+ * The rest (accessories, parts) are still selectable -- eBay rejects an
+ * accessory listed under an instrument -- but only Brand gets auto-filled.
+ */
+const CATEGORY_OPTIONS = EBAY_CATEGORIES.map(c => ({
+  ...c,
+  label: CATEGORY_ASPECTS[c.id] ? c.label : `${c.label} (specifics not mapped)`,
+}));
 
 export function EbayExportModal({ open, onOpenChange, listings }: EbayExportModalProps) {
   const selectionKey = listings.map(l => l.id).join(',');
@@ -148,7 +155,7 @@ export function EbayExportModal({ open, onOpenChange, listings }: EbayExportModa
                       onChange={e => update(row.id, { categoryId: e.target.value })}
                       className={`${cell} w-40`}
                     >
-                      {SUPPORTED.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                      {CATEGORY_OPTIONS.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                     </select>
                     <span className={GUITARS_AND_BASSES_IDS.has(row.categoryId) ? 'text-green-700' : 'text-gray-400'}>
                       {GUITARS_AND_BASSES_IDS.has(row.categoryId)
