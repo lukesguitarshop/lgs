@@ -13,8 +13,10 @@ public class ScheduledDealFinderService : BackgroundService
     private readonly ILogger<ScheduledDealFinderService> _logger;
     private readonly TimeSpan _tickInterval = TimeSpan.FromSeconds(60);
 
-    // Avoids a Mongo round trip on every tick once we know today is handled.
-    private DateOnly? _lastRunDate;
+    // Slot keys ("yyyy-MM-dd HH:mm") already handled by this process. Avoids a Mongo
+    // round trip on every tick once a slot is known to be done. Pruned to the last two
+    // local days so it cannot grow without bound.
+    private readonly HashSet<string> _handledSlots = new();
 
     public ScheduledDealFinderService(
         DealFinderService dealFinder,
@@ -52,21 +54,37 @@ public class ScheduledDealFinderService : BackgroundService
             return;
         }
 
-        if (!TimeOnly.TryParse(options.TimeOfDay, CultureInfo.InvariantCulture, out var timeOfDay))
+        var timesOfDay = new List<TimeOnly>();
+        foreach (var raw in options.TimesOfDay)
         {
-            _logger.LogError("Invalid TimeOfDay '{TimeOfDay}' - Scheduled Deal Finder will not run", options.TimeOfDay);
+            if (!TimeOnly.TryParse(raw, CultureInfo.InvariantCulture, out var parsed))
+            {
+                _logger.LogError("Invalid TimesOfDay entry '{TimeOfDay}' - Scheduled Deal Finder will not run", raw);
+                return;
+            }
+
+            if (!timesOfDay.Contains(parsed))
+                timesOfDay.Add(parsed);
+        }
+
+        if (timesOfDay.Count == 0)
+        {
+            _logger.LogError("TimesOfDay is empty or missing - Scheduled Deal Finder will not run");
             return;
         }
 
+        timesOfDay.Sort();
+
         _logger.LogInformation(
-            "Scheduled Deal Finder starting - daily at {TimeOfDay} {TimeZone} (Reverb: {Reverb}, Sweetwater: {Sweetwater})",
-            options.TimeOfDay, timeZone.Id, options.RunReverb, options.RunSweetwater);
+            "Scheduled Deal Finder starting - daily at {TimesOfDay} {TimeZone} (Reverb: {Reverb}, Sweetwater: {Sweetwater})",
+            string.Join(", ", timesOfDay.Select(t => t.ToString("HH\\:mm", CultureInfo.InvariantCulture))),
+            timeZone.Id, options.RunReverb, options.RunSweetwater);
 
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await TickAsync(options, timeZone, timeOfDay, stoppingToken);
+                await TickAsync(options, timeZone, timesOfDay, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
@@ -93,40 +111,61 @@ public class ScheduledDealFinderService : BackgroundService
     private async Task TickAsync(
         DealFinderScheduleOptions options,
         TimeZoneInfo timeZone,
-        TimeOnly timeOfDay,
+        IReadOnlyList<TimeOnly> timesOfDay,
         CancellationToken ct)
     {
-        var dueDate = DealFinderSchedule.GetDueRunDate(
-            DateTime.UtcNow, timeZone, timeOfDay, options.CatchUpWindowHours);
+        var utcNow = DateTime.UtcNow;
+        var openSlots = DealFinderSchedule.GetOpenSlots(
+            utcNow, timeZone, timesOfDay, options.CatchUpWindowHours);
 
-        if (dueDate is not { } runDate)
-            return;
+        PruneHandledSlots(DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(utcNow, timeZone)));
 
-        if (_lastRunDate == runDate)
-            return;
-
-        var runDateKey = runDate.ToString("yyyy-MM-dd");
-
-        if (await _mongoDbService.HasScheduledJobRunAsync(JobName, runDateKey, ct))
+        foreach (var slot in openSlots)
         {
-            _lastRunDate = runDate;
+            var handledKey = slot.ToString();
+
+            if (_handledSlots.Contains(handledKey))
+                continue;
+
+            if (await _mongoDbService.HasScheduledJobRunAsync(JobName, slot.RunDateKey, slot.SlotKey, ct))
+            {
+                _handledSlots.Add(handledKey);
+                continue;
+            }
+
+            if (!await _mongoDbService.TryClaimScheduledJobRunAsync(JobName, slot.RunDateKey, slot.SlotKey, ct))
+            {
+                _logger.LogInformation("Deal finder run for {Slot} was claimed by another instance", handledKey);
+                _handledSlots.Add(handledKey);
+                continue;
+            }
+
+            _handledSlots.Add(handledKey);
+            await RunJobAsync(options, slot, ct);
+
+            // One run per tick. These jobs are long, and any other open slot is still
+            // open on the next tick.
             return;
         }
-
-        if (!await _mongoDbService.TryClaimScheduledJobRunAsync(JobName, runDateKey, ct))
-        {
-            _logger.LogInformation("Deal finder run for {RunDate} was claimed by another instance", runDateKey);
-            _lastRunDate = runDate;
-            return;
-        }
-
-        _lastRunDate = runDate;
-        await RunJobAsync(options, runDateKey, ct);
     }
 
-    private async Task RunJobAsync(DealFinderScheduleOptions options, string runDateKey, CancellationToken ct)
+    private void PruneHandledSlots(DateOnly localToday)
     {
-        _logger.LogInformation("===== Scheduled Deal Finder starting run for {RunDate} =====", runDateKey);
+        if (_handledSlots.Count == 0)
+            return;
+
+        var keep = new[]
+        {
+            localToday.AddDays(-1).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            localToday.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        };
+
+        _handledSlots.RemoveWhere(key => !keep.Any(d => key.StartsWith(d, StringComparison.Ordinal)));
+    }
+
+    private async Task RunJobAsync(DealFinderScheduleOptions options, ScheduledSlot slot, CancellationToken ct)
+    {
+        _logger.LogInformation("===== Scheduled Deal Finder starting run for {Slot} =====", slot);
 
         var details = new List<string>();
         var attempted = 0;
@@ -214,8 +253,8 @@ public class ScheduledDealFinderService : BackgroundService
                 : "success";
 
         await _mongoDbService.CompleteScheduledJobRunAsync(
-            JobName, runDateKey, outcome, string.Join(" | ", details), CancellationToken.None);
+            JobName, slot.RunDateKey, slot.SlotKey, outcome, string.Join(" | ", details), CancellationToken.None);
 
-        _logger.LogInformation("===== Scheduled Deal Finder finished: {Outcome} =====", outcome);
+        _logger.LogInformation("===== Scheduled Deal Finder finished {Slot}: {Outcome} =====", slot, outcome);
     }
 }

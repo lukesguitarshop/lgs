@@ -287,15 +287,30 @@ public class MongoDbService
             );
 
             // Scheduled job run indexes
-            // Unique on (job_name, run_date) - this is what makes a scheduled job
+            // Migration: the first version of this index was unique on (job_name, run_date)
+            // alone, which would block a second run later the same day. Drop it before
+            // creating the slot-aware replacement. Guarded separately so the usual case -
+            // no such index on a fresh database - doesn't abort the rest of this method.
+            try
+            {
+                await _scheduledJobRunsCollection.Indexes.DropOneAsync("job_name_run_date_uniq");
+                _logger.LogInformation("Dropped superseded index job_name_run_date_uniq");
+            }
+            catch (MongoCommandException)
+            {
+                // IndexNotFound - nothing to migrate.
+            }
+
+            // Unique on (job_name, run_date, slot) - this is what makes a scheduled job
             // idempotent. Two instances racing during a deploy both try to insert;
             // exactly one wins and the loser skips.
             var scheduledJobRunIndex = Builders<ScheduledJobRun>.IndexKeys
                 .Ascending(r => r.JobName)
-                .Ascending(r => r.RunDate);
+                .Ascending(r => r.RunDate)
+                .Ascending(r => r.Slot);
             await _scheduledJobRunsCollection.Indexes.CreateOneAsync(
                 new CreateIndexModel<ScheduledJobRun>(scheduledJobRunIndex,
-                    new CreateIndexOptions { Name = "job_name_run_date_uniq", Unique = true })
+                    new CreateIndexOptions { Name = "job_name_run_date_slot_uniq", Unique = true })
             );
 
             _logger.LogInformation("MongoDB indexes created successfully");
@@ -2348,23 +2363,21 @@ public class MongoDbService
     // ==================== SCHEDULED JOB RUNS ====================
 
     /// <summary>
-    /// True if a run has already been recorded for this job on this date, whether it
+    /// True if a run has already been recorded for this job, date, and slot, whether it
     /// succeeded, failed, or is still in flight.
     /// </summary>
-    public async Task<bool> HasScheduledJobRunAsync(string jobName, string runDate, CancellationToken ct = default)
+    public async Task<bool> HasScheduledJobRunAsync(string jobName, string runDate, string slot, CancellationToken ct = default)
     {
-        var filter = Builders<ScheduledJobRun>.Filter.And(
-            Builders<ScheduledJobRun>.Filter.Eq(r => r.JobName, jobName),
-            Builders<ScheduledJobRun>.Filter.Eq(r => r.RunDate, runDate));
+        var filter = ScheduledJobRunFilter(jobName, runDate, slot);
 
         return await _scheduledJobRunsCollection.Find(filter).AnyAsync(ct);
     }
 
     /// <summary>
-    /// Attempts to claim this job/date pair. Returns false if another instance already
-    /// claimed it, which the unique index enforces via a duplicate key error.
+    /// Attempts to claim this job/date/slot triple. Returns false if another instance
+    /// already claimed it, which the unique index enforces via a duplicate key error.
     /// </summary>
-    public async Task<bool> TryClaimScheduledJobRunAsync(string jobName, string runDate, CancellationToken ct = default)
+    public async Task<bool> TryClaimScheduledJobRunAsync(string jobName, string runDate, string slot, CancellationToken ct = default)
     {
         try
         {
@@ -2372,6 +2385,7 @@ public class MongoDbService
             {
                 JobName = jobName,
                 RunDate = runDate,
+                Slot = slot,
                 StartedAt = DateTime.UtcNow,
                 Outcome = "running"
             }, cancellationToken: ct);
@@ -2387,13 +2401,12 @@ public class MongoDbService
     public async Task CompleteScheduledJobRunAsync(
         string jobName,
         string runDate,
+        string slot,
         string outcome,
         string? details,
         CancellationToken ct = default)
     {
-        var filter = Builders<ScheduledJobRun>.Filter.And(
-            Builders<ScheduledJobRun>.Filter.Eq(r => r.JobName, jobName),
-            Builders<ScheduledJobRun>.Filter.Eq(r => r.RunDate, runDate));
+        var filter = ScheduledJobRunFilter(jobName, runDate, slot);
 
         var update = Builders<ScheduledJobRun>.Update
             .Set(r => r.CompletedAt, DateTime.UtcNow)
@@ -2403,6 +2416,11 @@ public class MongoDbService
         await _scheduledJobRunsCollection.UpdateOneAsync(filter, update, cancellationToken: ct);
     }
 
+    private static FilterDefinition<ScheduledJobRun> ScheduledJobRunFilter(string jobName, string runDate, string slot) =>
+        Builders<ScheduledJobRun>.Filter.And(
+            Builders<ScheduledJobRun>.Filter.Eq(r => r.JobName, jobName),
+            Builders<ScheduledJobRun>.Filter.Eq(r => r.RunDate, runDate),
+            Builders<ScheduledJobRun>.Filter.Eq(r => r.Slot, slot));
 }
 
 public class PlatformStat
