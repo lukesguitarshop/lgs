@@ -43,6 +43,13 @@ public class EmailService
     }
 
     /// <summary>
+    /// Deep link to a conversation thread. Offers live inside conversations, so
+    /// offer emails point here too. The frontend route is /messages/{id} -- there
+    /// is no /conversations route (it was folded into messages).
+    /// </summary>
+    private string ConversationUrl(string conversationId) => $"{_frontendUrl}/messages/{conversationId}";
+
+    /// <summary>
     /// Send email notification to seller when a new offer is received
     /// </summary>
     public async Task SendNewOfferNotificationAsync(
@@ -340,7 +347,7 @@ public class EmailService
             : $"New Message from {senderName}";
 
         var conversationLink = !string.IsNullOrEmpty(conversationId) && !string.IsNullOrEmpty(_frontendUrl)
-            ? $@"<p><a href=""{_frontendUrl}/messages/{conversationId}"" style=""display: inline-block; background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"">View Conversation</a></p>"
+            ? $@"<p><a href=""{ConversationUrl(conversationId)}"" style=""display: inline-block; background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"">View Conversation</a></p>"
             : "";
 
         var body = $@"
@@ -385,7 +392,7 @@ public class EmailService
             ? $"Counter Offer: ${offerAmount:N2} for {listingTitle}"
             : $"New Offer: ${offerAmount:N2} for {listingTitle}";
 
-        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+        var conversationUrl = ConversationUrl(conversationId);
 
         var body = $@"
 <h2>{(isCounter ? "Counter Offer Received" : "New Offer Received")}</h2>
@@ -425,7 +432,7 @@ public class EmailService
         }
 
         var subject = $"Offer Declined: {listingTitle}";
-        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+        var conversationUrl = ConversationUrl(conversationId);
 
         var body = $@"
 <h2>Offer Declined</h2>
@@ -460,7 +467,7 @@ public class EmailService
         }
 
         var subject = $"Offer Expired: {listingTitle}";
-        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+        var conversationUrl = ConversationUrl(conversationId);
 
         var body = $@"
 <h2>Offer Expired</h2>
@@ -492,7 +499,7 @@ public class EmailService
         }
 
         var subject = $"Offer Accepted: {listingTitle}";
-        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+        var conversationUrl = ConversationUrl(conversationId);
         var cartUrl = $"{_frontendUrl}/cart";
 
         var body = isBuyer
