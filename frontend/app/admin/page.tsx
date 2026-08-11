@@ -35,6 +35,33 @@ interface ScraperResponse {
   error?: string;
 }
 
+// ONE-OFF MAINTENANCE: remove with the sold-listing backfill button below.
+interface SoldBackfillItem {
+  title: string;
+  reverbLink: string | null;
+  price: number;
+  listedAt: string | null;
+  photos: number;
+  state: string;
+}
+
+interface SoldBackfillResponse {
+  success: boolean;
+  confirmed: boolean;
+  message: string;
+  totalReverbListings?: number;
+  soldOnReverb?: number;
+  alreadyOnSite?: number;
+  duplicatesInFeed?: number;
+  skippedNoLink?: number;
+  imported?: number;
+  totalPhotos?: number;
+  stateTally?: Record<string, number>;
+  items?: SoldBackfillItem[];
+  output?: string[];
+  error?: string;
+}
+
 interface AdminListing {
   id: string;
   listing_title: string;
@@ -176,6 +203,9 @@ export default function AdminPage() {
   const [swExportOpen, setSwExportOpen] = useState(false);
   const [ebayExportOpen, setEbayExportOpen] = useState(false);
   const [initPricesLoading, setInitPricesLoading] = useState(false);
+  // ONE-OFF MAINTENANCE: sold-listing backfill state. Remove with the button below.
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<SoldBackfillResponse | null>(null);
   const lastKnownOrderCountRef = useRef<number | null>(null);
   const initialLoadDoneRef = useRef(false);
 
@@ -651,6 +681,37 @@ export default function AdminPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ONE-OFF MAINTENANCE: import pre-site sold Reverb listings into the /sold gallery.
+  // Preview first (confirm=false), then commit. Never touches transactions.
+  const backfillSoldListings = async (confirm: boolean) => {
+    if (confirm && !window.confirm(
+      `Import ${backfillResult?.items?.length ?? 0} sold listings into the Sold gallery? ` +
+      'This only adds listings — no transactions or finance data are changed.'
+    )) {
+      return;
+    }
+
+    setBackfillLoading(true);
+    if (!confirm) setBackfillResult(null);
+
+    try {
+      const response = await api.authPost<SoldBackfillResponse>(
+        `/admin/backfill-sold-listings${confirm ? '?confirm=true' : ''}`,
+        {}
+      );
+      setBackfillResult(response);
+    } catch (err) {
+      setBackfillResult({
+        success: false,
+        confirmed: confirm,
+        message: 'Failed to run sold-listing backfill',
+        error: err instanceof Error ? err.message : 'Unknown error',
+      });
+    } finally {
+      setBackfillLoading(false);
     }
   };
 
@@ -1162,6 +1223,120 @@ export default function AdminPage() {
                     <h3 className="text-sm font-semibold text-red-700 mb-2">Error Details:</h3>
                     <pre className="bg-red-50 text-red-800 p-4 rounded-lg text-sm">{result.error}</pre>
                   </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ONE-OFF MAINTENANCE: backfill sold Reverb listings that predate this site.
+              Remove this whole card once the backfill has been run. */}
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6 mt-6">
+            <h2 className="text-xl font-semibold text-[#020E1C] mb-4">
+              One-Time: Import Old Sold Listings
+            </h2>
+            <p className="text-gray-600 mb-2">
+              Pulls every listing marked <strong>sold</strong> on Reverb that isn&apos;t already on
+              the site and adds it to the Sold gallery. Listings already here are skipped, so
+              running it twice imports nothing.
+            </p>
+            <p className="text-gray-600 mb-6 text-sm">
+              This only writes listings — <strong>no transactions are created and no finance
+              numbers change.</strong> Preview first, then import.
+            </p>
+
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={() => backfillSoldListings(false)}
+                disabled={backfillLoading}
+                variant="outline"
+                className="font-semibold px-6 py-3"
+              >
+                {backfillLoading && !backfillResult?.confirmed ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Checking Reverb...
+                  </>
+                ) : (
+                  'Preview Sold Listings'
+                )}
+              </Button>
+              {backfillResult?.success && !backfillResult.confirmed && (backfillResult.items?.length ?? 0) > 0 && (
+                <Button
+                  onClick={() => backfillSoldListings(true)}
+                  disabled={backfillLoading}
+                  className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-6 py-3"
+                >
+                  {backfillLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    `Import ${backfillResult.items?.length ?? 0} Listings`
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {backfillResult && (
+              <div className="mt-6">
+                <div
+                  className={`flex items-center gap-2 p-4 rounded-lg ${
+                    backfillResult.success
+                      ? 'bg-green-50 border border-green-200 text-green-800'
+                      : 'bg-red-50 border border-red-200 text-red-800'
+                  }`}
+                >
+                  {backfillResult.success ? (
+                    <CheckCircle className="h-5 w-5 flex-shrink-0" />
+                  ) : (
+                    <XCircle className="h-5 w-5 flex-shrink-0" />
+                  )}
+                  <span className="font-medium">{backfillResult.message}</span>
+                </div>
+
+                {backfillResult.output && backfillResult.output.length > 0 && (
+                  <pre className="mt-4 bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto max-h-60 overflow-y-auto">
+                    {backfillResult.output.join('\n')}
+                  </pre>
+                )}
+
+                {backfillResult.items && backfillResult.items.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      {backfillResult.confirmed ? 'Imported:' : 'Would import:'}
+                    </h3>
+                    <div className="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="text-left p-2 font-semibold">Title</th>
+                            <th className="text-right p-2 font-semibold">Price</th>
+                            <th className="text-left p-2 font-semibold">Listed</th>
+                            <th className="text-right p-2 font-semibold">Photos</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {backfillResult.items.map((item, i) => (
+                            <tr key={item.reverbLink ?? i} className="border-t border-gray-100">
+                              <td className="p-2">{item.title}</td>
+                              <td className="p-2 text-right">${item.price.toLocaleString()}</td>
+                              <td className="p-2">
+                                {item.listedAt ? new Date(item.listedAt).toLocaleDateString() : '—'}
+                              </td>
+                              <td className="p-2 text-right">{item.photos}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {backfillResult.error && (
+                  <pre className="mt-4 bg-red-50 text-red-800 p-4 rounded-lg text-sm">
+                    {backfillResult.error}
+                  </pre>
                 )}
               </div>
             )}

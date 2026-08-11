@@ -83,6 +83,52 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// ONE-OFF MAINTENANCE: import Reverb listings that sold before this site existed so they
+    /// appear in the /sold gallery. Writes only to my_listings — never to transactions.
+    /// Call without confirm to preview; call with confirm=true to write. Remove once run.
+    /// </summary>
+    [HttpPost("backfill-sold-listings")]
+    public async Task<IActionResult> BackfillSoldListings([FromQuery] bool confirm = false)
+    {
+        _logger.LogInformation("Sold-listing backfill requested (confirm={Confirm})", confirm);
+
+        try
+        {
+            var result = await _scraperService.BackfillSoldListingsAsync(confirm);
+
+            return Ok(new
+            {
+                success = true,
+                confirmed = result.Confirmed,
+                message = result.Confirmed
+                    ? $"Imported {result.Imported} sold listings"
+                    : $"Preview only — {result.Items.Count} sold listings would be imported",
+                totalReverbListings = result.TotalReverbListings,
+                soldOnReverb = result.SoldOnReverb,
+                alreadyOnSite = result.AlreadyOnSite,
+                duplicatesInFeed = result.DuplicatesInFeed,
+                skippedNoLink = result.SkippedNoLink,
+                imported = result.Imported,
+                totalPhotos = result.TotalPhotos,
+                stateTally = result.StateTally,
+                duration = result.Duration.ToString(),
+                items = result.Items,
+                output = result.OutputLines
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Sold-listing backfill failed");
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Sold-listing backfill failed",
+                error = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
     /// Manually trigger the review scraper to fetch reviews from Reverb
     /// </summary>
     [HttpPost("run-review-scraper")]

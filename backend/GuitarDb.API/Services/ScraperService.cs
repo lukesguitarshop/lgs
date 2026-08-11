@@ -64,7 +64,9 @@ public class ScraperService
             // Step 2: Fetch my listings from Reverb (summary data)
             _logger.LogInformation("Step 2: Fetching my listings from Reverb...");
             result.OutputLines.Add("Fetching listings from Reverb...");
-            var reverbListings = await FetchMyListingsAsync(cancellationToken);
+            var reverbListings = await FetchMyListingsAsync(
+                l => l.State.Slug.Equals("live", StringComparison.OrdinalIgnoreCase),
+                cancellationToken);
             result.OutputLines.Add($"Fetched {reverbListings.Count} live listings from Reverb");
 
             // Step 3: Disable listings no longer on Reverb
@@ -163,7 +165,10 @@ public class ScraperService
         }
     }
 
-    private async Task<List<ReverbListing>> FetchMyListingsAsync(CancellationToken cancellationToken)
+    private async Task<List<ReverbListing>> FetchMyListingsAsync(
+        Func<ReverbListing, bool> keep,
+        CancellationToken cancellationToken,
+        Dictionary<string, int>? stateTally = null)
     {
         var allListings = new List<ReverbListing>();
         var currentPage = 1;
@@ -189,15 +194,21 @@ public class ScraperService
                     break;
                 }
 
-                // Get live listings only
-                var liveListings = reverbResponse.Listings
-                    .Where(l => l.State.Slug.Equals("live", StringComparison.OrdinalIgnoreCase))
-                    .ToList();
+                if (stateTally != null)
+                {
+                    foreach (var listing in reverbResponse.Listings)
+                    {
+                        var slug = string.IsNullOrEmpty(listing.State.Slug) ? "unknown" : listing.State.Slug;
+                        stateTally[slug] = stateTally.GetValueOrDefault(slug) + 1;
+                    }
+                }
 
-                allListings.AddRange(liveListings);
+                var matched = reverbResponse.Listings.Where(keep).ToList();
 
-                _logger.LogInformation("Page {Page}: {Count} listings ({Live} live, {Total} total)",
-                    currentPage, reverbResponse.Listings.Count, liveListings.Count, allListings.Count);
+                allListings.AddRange(matched);
+
+                _logger.LogInformation("Page {Page}: {Count} listings ({Matched} matched, {Total} total)",
+                    currentPage, reverbResponse.Listings.Count, matched.Count, allListings.Count);
 
                 nextUrl = reverbResponse.Links?.Next?.Href;
 
@@ -220,9 +231,144 @@ public class ScraperService
             }
         }
 
-        _logger.LogInformation("Fetched {Total} live listings", allListings.Count);
+        _logger.LogInformation("Fetched {Total} matching listings", allListings.Count);
 
         return allListings;
+    }
+
+    // ONE-OFF MAINTENANCE: backfills Reverb listings that sold before this site existed so
+    // they show up in the public /sold gallery. Insert-only, and deliberately never writes
+    // to the transactions collection so the finance dashboard is untouched.
+    // Remove this method, its result types, the admin endpoint, and the admin button once run.
+    public async Task<SoldBackfillResult> BackfillSoldListingsAsync(
+        bool confirm,
+        CancellationToken cancellationToken = default)
+    {
+        var startTime = DateTime.UtcNow;
+        var result = new SoldBackfillResult { Confirmed = confirm };
+
+        _logger.LogInformation("===== Sold-listing backfill ({Mode}) =====", confirm ? "COMMIT" : "PREVIEW");
+
+        // Every listing already on the site, live or disabled. These are never touched.
+        var existingLinks = (await _mongoDbService.GetAllListingsForAdminAsync())
+            .Where(l => !string.IsNullOrEmpty(l.ReverbLink))
+            .Select(l => UrlHelper.NormalizeReverbLink(l.ReverbLink)!)
+            .ToHashSet();
+        result.OutputLines.Add($"{existingLinks.Count} listings already on the site");
+
+        var stateTally = new Dictionary<string, int>();
+        var soldListings = await FetchMyListingsAsync(
+            l => l.State.Slug.Equals("sold", StringComparison.OrdinalIgnoreCase),
+            cancellationToken,
+            stateTally);
+
+        result.StateTally = stateTally;
+        result.TotalReverbListings = stateTally.Values.Sum();
+        result.SoldOnReverb = soldListings.Count;
+        result.OutputLines.Add(
+            $"Reverb returned {result.TotalReverbListings} listings: " +
+            string.Join(", ", stateTally.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key}={kv.Value}")));
+
+        // Dedupe: skip anything already on the site, and collapse repeats within the feed itself.
+        var seenLinks = new HashSet<string>();
+        var toImport = new List<ReverbListing>();
+
+        foreach (var listing in soldListings)
+        {
+            var link = UrlHelper.NormalizeReverbLink(listing.ListingUrl);
+
+            if (string.IsNullOrEmpty(link))
+            {
+                result.SkippedNoLink++;
+                continue;
+            }
+
+            if (existingLinks.Contains(link))
+            {
+                result.AlreadyOnSite++;
+                continue;
+            }
+
+            if (!seenLinks.Add(link))
+            {
+                result.DuplicatesInFeed++;
+                continue;
+            }
+
+            toImport.Add(listing);
+        }
+
+        result.OutputLines.Add(
+            $"{result.SoldOnReverb} sold on Reverb, {result.AlreadyOnSite} already on the site, " +
+            $"{result.DuplicatesInFeed} duplicates in feed, {result.SkippedNoLink} without a link");
+
+        if (!confirm)
+        {
+            result.Items = toImport.Select(l => new SoldBackfillItem
+            {
+                Title = l.Title,
+                ReverbLink = UrlHelper.NormalizeReverbLink(l.ListingUrl),
+                Price = l.Price?.Amount ?? 0,
+                ListedAt = l.PublishedAt,
+                Photos = l.AllImageUrls.Count,
+                State = l.State.Slug
+            }).ToList();
+
+            result.Duration = DateTime.UtcNow - startTime;
+            result.OutputLines.Add($"PREVIEW ONLY — nothing written. {toImport.Count} listings would be imported.");
+            return result;
+        }
+
+        // Committing. Use CancellationToken.None from here on so a browser timeout mid-run
+        // cannot abandon the import partway through a listing.
+        for (var i = 0; i < toImport.Count; i++)
+        {
+            var summary = toImport[i];
+            _logger.LogInformation("  [{Current}/{Total}] Importing sold listing: {Title}",
+                i + 1, toImport.Count, summary.Title);
+
+            // The summary payload carries few photos; the detail endpoint has the full set.
+            var detailed = await FetchListingDetailsAsync(summary.Id, CancellationToken.None) ?? summary;
+
+            var myListing = ConvertToMyListing(detailed);
+            myListing.Disabled = true;   // this, and only this, is what puts it in the /sold gallery
+            myListing.Pending = false;
+
+            var created = await _mongoDbService.CreateMyListingAsync(myListing);
+
+            // CreateMyListingAsync stamps ScrapedAt with "now", which would bury genuinely
+            // recent sales on the /sold page (it sorts by ScrapedAt). Restore the sale-era date.
+            if (!string.IsNullOrEmpty(created.Id))
+            {
+                created.ScrapedAt = detailed.PublishedAt ?? created.ScrapedAt;
+                await _mongoDbService.UpdateMyListingAsync(created.Id, created);
+            }
+
+            result.Imported++;
+            result.TotalPhotos += myListing.Images.Count;
+            result.Items.Add(new SoldBackfillItem
+            {
+                Title = myListing.ListingTitle,
+                ReverbLink = myListing.ReverbLink,
+                Price = myListing.Price,
+                ListedAt = myListing.ListedAt,
+                Photos = myListing.Images.Count,
+                State = detailed.State.Slug
+            });
+
+            if (i < toImport.Count - 1)
+            {
+                await Task.Delay(_rateLimitDelayMs, CancellationToken.None);
+            }
+        }
+
+        result.Duration = DateTime.UtcNow - startTime;
+        result.OutputLines.Add($"Imported {result.Imported} sold listings ({result.TotalPhotos} photos). No transactions written.");
+
+        _logger.LogInformation("===== Backfill imported {Count} sold listings in {Duration} =====",
+            result.Imported, result.Duration);
+
+        return result;
     }
 
     private async Task<ReverbListing?> FetchListingDetailsAsync(long listingId, CancellationToken cancellationToken)
@@ -301,6 +447,34 @@ public class ScraperService
     {
         await _mongoDbService.DisableByReverbLinksAsync(reverbLinks);
     }
+}
+
+// ONE-OFF MAINTENANCE: remove alongside BackfillSoldListingsAsync.
+public class SoldBackfillResult
+{
+    public bool Confirmed { get; set; }
+    public int TotalReverbListings { get; set; }
+    public int SoldOnReverb { get; set; }
+    public int AlreadyOnSite { get; set; }
+    public int DuplicatesInFeed { get; set; }
+    public int SkippedNoLink { get; set; }
+    public int Imported { get; set; }
+    public int TotalPhotos { get; set; }
+    public TimeSpan Duration { get; set; }
+    public Dictionary<string, int> StateTally { get; set; } = new();
+    public List<SoldBackfillItem> Items { get; set; } = new();
+    public List<string> OutputLines { get; set; } = new();
+}
+
+// ONE-OFF MAINTENANCE: remove alongside BackfillSoldListingsAsync.
+public class SoldBackfillItem
+{
+    public string Title { get; set; } = string.Empty;
+    public string? ReverbLink { get; set; }
+    public decimal Price { get; set; }
+    public DateTime? ListedAt { get; set; }
+    public int Photos { get; set; }
+    public string State { get; set; } = string.Empty;
 }
 
 public class ScraperResult
