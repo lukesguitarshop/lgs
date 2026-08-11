@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, ArrowLeftRight, BarChart3, Calendar, Receipt, Calculator } from 'lucide-react';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
+import { resolveFinanceTab, DEFAULT_FINANCE_TAB } from '@/lib/finance-tab';
 import TransactionsTab from '@/components/admin/TransactionsTab';
 import DashboardTab from '@/components/admin/DashboardTab';
 import MonthlyBreakdownTab from '@/components/admin/MonthlyBreakdownTab';
@@ -15,13 +16,12 @@ import FlipCalculatorTab from '@/components/admin/FlipCalculatorTab';
 
 export default function FinancesPage() {
   const { isAdmin, isLoading } = useAuth();
-  const [financeTab, setFinanceTab] = useState('transactions');
+  const [financeTab, setFinanceTab] = useState<string>(DEFAULT_FINANCE_TAB);
 
+  // Restore the last-used tab, unless a deep link (?editTxn=<id>) asks for a
+  // specific one -- restoring over it would unmount TransactionsTab and drop it.
   useEffect(() => {
-    const saved = localStorage.getItem('adminFinanceTab');
-    if (saved && ['transactions', 'dashboard', 'monthly', 'expenses', 'flip-calc'].includes(saved)) {
-      setFinanceTab(saved);
-    }
+    setFinanceTab(resolveFinanceTab(window.location.search, localStorage.getItem('adminFinanceTab')));
   }, []);
 
   const handleFinanceTabChange = (value: string) => {
