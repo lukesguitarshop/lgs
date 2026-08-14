@@ -3,11 +3,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ReservationDialog } from '@/components/admin/ReservationDialog';
-import {
-  CancelReservationDialog,
-  MarkDepositPaidDialog,
-} from '@/components/admin/ReservationActionDialogs';
 import { Button } from '@/components/ui/button';
 import {
   Loader2,
@@ -16,12 +11,11 @@ import {
   DollarSign,
   Bookmark,
   UserX,
+  ChevronRight,
 } from 'lucide-react';
 import {
   getAdminReservations,
   getReservationSummary,
-  extendReservation,
-  convertReservationToSale,
   migrateLegacyPending,
 } from '@/lib/api';
 import {
@@ -37,11 +31,14 @@ import {
 } from '@/lib/types/reservation';
 
 /**
- * Reservations management UI.
+ * Reservations list.
  *
- * Lives inside the Other Tools page rather than the top-level admin nav — holds
- * are occasional, so they don't warrant a permanent tab. The page hosting this
- * component is responsible for the admin gate.
+ * Deliberately read-only: every row links through to /admin/reservations/{id},
+ * where the actions live. Keeping actions off the list stops the row turning
+ * into a wall of tiny buttons and gives destructive operations room to breathe.
+ *
+ * Lives inside the Other Tools page — holds are occasional, so they don't
+ * warrant a permanent top-level tab. The host page owns the admin gate.
  */
 export function ReservationsTab() {
   const [reservations, setReservations] = useState<AdminReservation[]>([]);
@@ -49,15 +46,11 @@ export function ReservationsTab() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Filters. Active-only is on by default so the list shows what's live.
+  // Active-only is on by default so the list shows what's live.
   const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [activeOnly, setActiveOnly] = useState(true);
 
-  const [editing, setEditing] = useState<AdminReservation | null>(null);
-  const [cancelling, setCancelling] = useState<AdminReservation | null>(null);
-  const [depositing, setDepositing] = useState<AdminReservation | null>(null);
-  const [busyId, setBusyId] = useState<string | null>(null);
   const [migrating, setMigrating] = useState(false);
   const [migrationResult, setMigrationResult] = useState<string | null>(null);
 
@@ -90,56 +83,6 @@ export function ReservationsTab() {
     load();
   }, [load]);
 
-  const replaceRow = (updated: AdminReservation) => {
-    setReservations((prev) => {
-      const next = prev.map((r) => (r.id === updated.id ? updated : r));
-      // Drop rows that no longer match the active-only filter.
-      return activeOnly && !statusFilter
-        ? next.filter((r) => r.status === 'pending' || r.status === 'deposit_paid')
-        : next;
-    });
-    getReservationSummary().then(setSummary).catch(() => {});
-  };
-
-  const handleExtend = async (reservation: AdminReservation, days: number) => {
-    setBusyId(reservation.id);
-    try {
-      const updated = await extendReservation(reservation.id, days);
-      replaceRow(updated);
-    } catch (err) {
-      setError(
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: unknown }).message)
-          : 'Could not extend this hold.'
-      );
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const handleConvert = async (reservation: AdminReservation) => {
-    if (
-      !confirm(
-        `Mark "${reservation.listing_title}" as sold in person? This completes the reservation and removes the listing from inventory.`
-      )
-    ) {
-      return;
-    }
-    setBusyId(reservation.id);
-    try {
-      const updated = await convertReservationToSale(reservation.id);
-      replaceRow(updated);
-    } catch (err) {
-      setError(
-        err && typeof err === 'object' && 'message' in err
-          ? String((err as { message: unknown }).message)
-          : 'Could not convert this reservation.'
-      );
-    } finally {
-      setBusyId(null);
-    }
-  };
-
   const handleMigrate = async () => {
     setMigrating(true);
     setMigrationResult(null);
@@ -165,28 +108,28 @@ export function ReservationsTab() {
 
   return (
     <div>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="font-nav text-xl text-[#020E1C]">Reservations</h2>
           <p className="text-sm text-gray-600">
             Holds, trade-ins and accepted offers — who each guitar is promised to.
           </p>
         </div>
-        <Button variant="outline" onClick={handleMigrate} disabled={migrating}>
+        <Button variant="outline" size="sm" onClick={handleMigrate} disabled={migrating}>
           {migrating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          Migrate legacy pending listings
+          Migrate legacy pending
         </Button>
       </div>
 
       {migrationResult && (
-        <div className="mb-4 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-800">
+        <div className="mb-4 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-800">
           {migrationResult}
         </div>
       )}
 
-      {/* Dashboard counters */}
+      {/* Counters */}
       {summary && (
-        <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
           <SummaryCard
             icon={<Bookmark className="h-4 w-4" />}
             label="Active holds"
@@ -217,7 +160,7 @@ export function ReservationsTab() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-md border border-gray-300 bg-[#FFFFF3] px-3 py-1.5 text-sm"
+          className="rounded-lg border border-gray-300 bg-[#FFFFF3] px-3 py-1.5 text-sm"
         >
           <option value="">All statuses</option>
           {RESERVATION_STATUS_OPTIONS.map((opt) => (
@@ -230,7 +173,7 @@ export function ReservationsTab() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="rounded-md border border-gray-300 bg-[#FFFFF3] px-3 py-1.5 text-sm"
+          className="rounded-lg border border-gray-300 bg-[#FFFFF3] px-3 py-1.5 text-sm"
         >
           <option value="">All types</option>
           {RESERVATION_TYPE_OPTIONS.map((opt) => (
@@ -254,7 +197,7 @@ export function ReservationsTab() {
       </div>
 
       {error && (
-        <div className="mb-4 flex items-start gap-2 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{error}</span>
         </div>
@@ -265,233 +208,113 @@ export function ReservationsTab() {
           <Loader2 className="h-8 w-8 animate-spin text-[#6E0114]" />
         </div>
       ) : reservations.length === 0 ? (
-        <div className="rounded-md border border-gray-200 bg-[#FFFFF3] py-16 text-center text-gray-500">
+        <div className="rounded-xl border border-dashed border-gray-300 py-16 text-center text-gray-500">
           No reservations match these filters.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-gray-200 bg-[#FFFFF3]">
-          <table className="w-full min-w-[1000px] text-sm">
-            <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
-              <tr>
-                <th className="px-3 py-2">Guitar</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Reserved for</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2 text-right">Agreed</th>
-                <th className="px-3 py-2 text-right">Deposit</th>
-                <th className="px-3 py-2 text-right">Balance</th>
-                <th className="px-3 py-2">Created</th>
-                <th className="px-3 py-2">Expires</th>
-                <th className="px-3 py-2">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {reservations.map((r) => (
-                <tr key={r.id} className="align-top hover:bg-gray-50">
-                  <td className="px-3 py-2">
-                    <Link
-                      href={`/listing/${r.listing_id}`}
-                      className="flex items-center gap-2 hover:underline"
-                    >
-                      {r.listing_image ? (
-                        <Image
-                          src={r.listing_image}
-                          alt=""
-                          width={40}
-                          height={40}
-                          className="h-10 w-10 shrink-0 rounded object-cover"
-                        />
-                      ) : (
-                        <div className="h-10 w-10 shrink-0 rounded bg-gray-100" />
-                      )}
-                      <span className="line-clamp-2 max-w-[200px]">{r.listing_title}</span>
-                    </Link>
-                  </td>
-
-                  <td className="px-3 py-2">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs ${typeBadgeClasses(r.type)}`}
-                    >
-                      {r.type_label}
-                    </span>
-                  </td>
-
-                  <td className="px-3 py-2">
-                    {r.is_unassigned ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
-                        <AlertTriangle className="h-3 w-3" />
-                        Unassigned — needs user
-                      </span>
-                    ) : r.user_missing ? (
-                      <span className="inline-flex items-center gap-1 rounded bg-red-100 px-2 py-0.5 text-xs text-red-800">
-                        <UserX className="h-3 w-3" />
-                        Account missing
-                      </span>
-                    ) : (
-                      <div>
-                        <div className="font-medium text-gray-900">{r.user_name}</div>
-                        <div className="text-xs text-gray-500">{r.user_email}</div>
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="px-3 py-2">
-                    <span
-                      className={`inline-block rounded-full px-2 py-0.5 text-xs ${statusBadgeClasses(r.status)}`}
-                    >
-                      {r.status_label}
-                    </span>
-                    {r.needs_review && (
-                      <div
-                        className="mt-1 text-xs text-red-700"
-                        title={r.needs_review_reason || undefined}
-                      >
-                        Needs review
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {formatCurrency(r.agreed_price)}
-                    {r.trade_in_credit > 0 && (
-                      <div className="text-xs text-gray-500">
-                        -{formatCurrency(r.trade_in_credit)} trade
-                      </div>
-                    )}
-                  </td>
-
-                  <td className="px-3 py-2 text-right tabular-nums">
-                    {r.deposit_paid_amount > 0 ? (
-                      <div>
-                        <div className="text-green-700">
-                          {formatCurrency(r.deposit_paid_amount)}
-                        </div>
-                        <div className="text-xs text-gray-500">paid</div>
-                      </div>
-                    ) : r.deposit_required ? (
-                      <div>
-                        <div>{formatCurrency(r.deposit_amount)}</div>
-                        <div className="text-xs text-amber-700">unpaid</div>
-                      </div>
-                    ) : (
-                      <span className="text-gray-400">None</span>
-                    )}
-                  </td>
-
-                  <td className="px-3 py-2 text-right font-medium tabular-nums">
-                    {formatCurrency(r.balance_due)}
-                    {r.is_over_credited && (
-                      <div className="text-xs text-red-700">over-credited</div>
-                    )}
-                  </td>
-
-                  <td className="px-3 py-2 whitespace-nowrap text-xs text-gray-500">
-                    {new Date(r.created_at).toLocaleDateString()}
-                  </td>
-
-                  <td className="px-3 py-2 whitespace-nowrap text-xs">
-                    {r.expires_at ? (
-                      <>
-                        <div>{new Date(r.expires_at).toLocaleDateString()}</div>
-                        <div
-                          className={
-                            isExpiringSoon(r.expires_at) || r.is_expired
-                              ? 'font-medium text-red-600'
-                              : 'text-gray-500'
-                          }
-                        >
-                          {relativeExpiry(r.expires_at)}
-                        </div>
-                      </>
-                    ) : (
-                      <span className="text-gray-400">No expiration</span>
-                    )}
-                  </td>
-
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-1">
-                      <ActionButton onClick={() => setEditing(r)} disabled={busyId === r.id}>
-                        Edit
-                      </ActionButton>
-
-                      {(r.status === 'pending' || r.status === 'deposit_paid' || r.status === 'expired') && (
-                        <>
-                          <ActionButton
-                            onClick={() => handleExtend(r, 7)}
-                            disabled={busyId === r.id}
-                          >
-                            +7d
-                          </ActionButton>
-                          <ActionButton
-                            onClick={() => handleExtend(r, 14)}
-                            disabled={busyId === r.id}
-                          >
-                            +14d
-                          </ActionButton>
-                          <ActionButton
-                            onClick={() => handleExtend(r, 30)}
-                            disabled={busyId === r.id}
-                          >
-                            +30d
-                          </ActionButton>
-                        </>
-                      )}
-
-                      {r.deposit_paid_amount === 0 && !r.is_unassigned && (
-                        <ActionButton
-                          onClick={() => setDepositing(r)}
-                          disabled={busyId === r.id}
-                        >
-                          Deposit paid
-                        </ActionButton>
-                      )}
-
-                      {(r.status === 'pending' || r.status === 'deposit_paid') && (
-                        <ActionButton
-                          onClick={() => handleConvert(r)}
-                          disabled={busyId === r.id}
-                        >
-                          Convert to sale
-                        </ActionButton>
-                      )}
-
-                      {(r.status === 'pending' || r.status === 'deposit_paid') && (
-                        <ActionButton
-                          onClick={() => setCancelling(r)}
-                          disabled={busyId === r.id}
-                          danger
-                        >
-                          Cancel
-                        </ActionButton>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-2">
+          {reservations.map((r) => (
+            <ReservationRow key={r.id} reservation={r} />
+          ))}
         </div>
       )}
-
-      <ReservationDialog
-        isOpen={!!editing}
-        onClose={() => setEditing(null)}
-        onSaved={replaceRow}
-        reservation={editing}
-      />
-      <CancelReservationDialog
-        isOpen={!!cancelling}
-        onClose={() => setCancelling(null)}
-        onDone={replaceRow}
-        reservation={cancelling}
-      />
-      <MarkDepositPaidDialog
-        isOpen={!!depositing}
-        onClose={() => setDepositing(null)}
-        onDone={replaceRow}
-        reservation={depositing}
-      />
     </div>
+  );
+}
+
+/**
+ * One reservation as a clickable card. Everything the shop owner scans for at a
+ * glance — who, what, how much, how long left — with the detail page a click away.
+ */
+function ReservationRow({ reservation: r }: { reservation: AdminReservation }) {
+  const urgent = r.is_expired || isExpiringSoon(r.expires_at);
+  const needsAttention = r.needs_review || r.is_unassigned || r.user_missing;
+
+  return (
+    <Link
+      href={`/admin/reservations/${r.id}`}
+      className={`group flex items-center gap-4 rounded-xl border px-4 py-3 transition-colors hover:border-gray-300 hover:bg-black/[0.02] ${
+        needsAttention ? 'border-amber-300' : 'border-gray-200'
+      }`}
+    >
+      {r.listing_image ? (
+        <Image
+          src={r.listing_image}
+          alt=""
+          width={48}
+          height={48}
+          className="h-12 w-12 shrink-0 rounded-lg object-cover"
+        />
+      ) : (
+        <div className="h-12 w-12 shrink-0 rounded-lg bg-gray-100" />
+      )}
+
+      {/* Guitar + customer */}
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-medium text-[#020E1C]">{r.listing_title}</p>
+        <p className="truncate text-sm text-gray-500">
+          {r.is_unassigned ? (
+            <span className="text-amber-700">Unassigned — needs a customer</span>
+          ) : r.user_missing ? (
+            <span className="text-red-700">Account missing</span>
+          ) : (
+            <>
+              {r.user_name}
+              {r.user_email && <span className="text-gray-400"> · {r.user_email}</span>}
+            </>
+          )}
+        </p>
+      </div>
+
+      {/* Badges */}
+      <div className="hidden shrink-0 flex-col items-end gap-1 sm:flex">
+        <span
+          className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusBadgeClasses(r.status)}`}
+        >
+          {r.status_label}
+        </span>
+        <span className={`rounded-full px-2 py-0.5 text-xs ${typeBadgeClasses(r.type)}`}>
+          {r.type_label}
+        </span>
+      </div>
+
+      {/* Money */}
+      <div className="hidden shrink-0 text-right md:block">
+        <p className="font-medium tabular-nums text-[#020E1C]">
+          {formatCurrency(r.balance_due)}
+        </p>
+        <p className="text-xs text-gray-500">
+          {r.deposit_paid_amount > 0 ? (
+            <span className="text-green-700">
+              {formatCurrency(r.deposit_paid_amount)} deposit paid
+            </span>
+          ) : r.deposit_required ? (
+            <span className="text-amber-700">
+              {formatCurrency(r.deposit_amount)} deposit due
+            </span>
+          ) : (
+            'No deposit'
+          )}
+        </p>
+      </div>
+
+      {/* Expiry */}
+      <div className="hidden w-24 shrink-0 text-right lg:block">
+        <p className={`text-sm ${urgent ? 'font-medium text-red-600' : 'text-gray-600'}`}>
+          {relativeExpiry(r.expires_at)}
+        </p>
+        {r.expires_at && (
+          <p className="text-xs text-gray-400">
+            {new Date(r.expires_at).toLocaleDateString('en-US', {
+              month: 'short',
+              day: 'numeric',
+            })}
+          </p>
+        )}
+      </div>
+
+      <ChevronRight className="h-5 w-5 shrink-0 text-gray-300 transition-colors group-hover:text-gray-500" />
+    </Link>
   );
 }
 
@@ -508,7 +331,7 @@ function SummaryCard({
 }) {
   return (
     <div
-      className={`rounded-md border bg-[#FFFFF3] px-3 py-2 ${
+      className={`rounded-xl border px-4 py-3 ${
         highlight ? 'border-red-200 bg-red-50' : 'border-gray-200'
       }`}
     >
@@ -516,36 +339,13 @@ function SummaryCard({
         {icon}
         {label}
       </div>
-      <div className={`mt-0.5 text-lg font-semibold ${highlight ? 'text-red-700' : 'text-gray-900'}`}>
+      <div
+        className={`mt-1 text-2xl font-semibold tabular-nums ${
+          highlight ? 'text-red-700' : 'text-[#020E1C]'
+        }`}
+      >
         {value}
       </div>
     </div>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  disabled,
-  danger,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  danger?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className={`rounded border px-2 py-0.5 text-xs transition-colors disabled:opacity-50 ${
-        danger
-          ? 'border-red-300 text-red-700 hover:bg-red-50'
-          : 'border-gray-300 text-gray-700 hover:bg-gray-100'
-      }`}
-    >
-      {children}
-    </button>
   );
 }

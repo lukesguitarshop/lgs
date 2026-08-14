@@ -292,6 +292,34 @@ public class AdminController : ControllerBase
         }
 
         var newDisabledStatus = !listing.Disabled;
+
+        // Taking a reserved guitar out of inventory would strand its reservation and
+        // leave the customer's locked cart item orphaned. Make the admin resolve the
+        // reservation first — "Convert to sale" if this customer bought it, "Cancel"
+        // if it went elsewhere — so the record says what actually happened.
+        if (newDisabledStatus)
+        {
+            var reservation = await _mongoDbService.GetActiveReservationByListingAsync(id);
+            if (reservation != null)
+            {
+                var holder = reservation.IsUnassigned
+                    ? null
+                    : await _mongoDbService.GetUserByIdAsync(reservation.UserId!);
+
+                return Conflict(new
+                {
+                    error = "reservation_active",
+                    message = holder != null
+                        ? $"This guitar is on hold for {holder.FullName}. Resolve the reservation first — " +
+                          "\"Convert to sale\" if they bought it, or \"Cancel\" if it sold elsewhere."
+                        : "This guitar has an active reservation. Resolve it first — " +
+                          "\"Convert to sale\" or \"Cancel\" on the Reservations tab.",
+                    reservationId = reservation.Id,
+                    depositPaid = reservation.DepositPaidAmount
+                });
+            }
+        }
+
         var success = await _mongoDbService.SetListingDisabledAsync(id, newDisabledStatus);
 
         if (!success)
