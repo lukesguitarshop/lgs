@@ -234,17 +234,48 @@ public class AdminController : ControllerBase
     {
         var listings = await _mongoDbService.GetAllListingsForAdminAsync();
 
-        return Ok(listings.Select(l => new
+        // Reservation state so listing rows can show a badge with type + holder at a glance.
+        var reservations = await _mongoDbService.GetActiveReservationsByListingIdsAsync(
+            listings.Select(l => l.Id!));
+
+        var holderIds = reservations.Values
+            .Where(r => !r.IsUnassigned)
+            .Select(r => r.UserId!)
+            .Distinct()
+            .ToList();
+        var holders = holderIds.Count > 0
+            ? (await _mongoDbService.GetUsersByIdsAsync(holderIds)).ToDictionary(u => u.Id!, u => u)
+            : new Dictionary<string, Models.User>();
+
+        return Ok(listings.Select(l =>
         {
-            id = l.Id,
-            listing_title = l.ListingTitle,
-            description = l.Description,
-            condition = l.Condition,
-            images = l.Images,
-            price = l.Price,
-            currency = l.Currency,
-            disabled = l.Disabled,
-            pending = l.Pending
+            reservations.TryGetValue(l.Id!, out var reservation);
+            var isReserved = reservation != null && reservation.IsActive;
+
+            Models.User? holder = null;
+            if (isReserved && !reservation!.IsUnassigned)
+            {
+                holders.TryGetValue(reservation.UserId!, out holder);
+            }
+
+            return new
+            {
+                id = l.Id,
+                listing_title = l.ListingTitle,
+                description = l.Description,
+                condition = l.Condition,
+                images = l.Images,
+                price = l.Price,
+                currency = l.Currency,
+                disabled = l.Disabled,
+                is_reserved = isReserved,
+                reservation_id = isReserved ? reservation!.Id : null,
+                reservation_type = isReserved ? reservation!.Type : null,
+                reservation_type_label = isReserved ? ReservationType.Label(reservation!.Type) : null,
+                reservation_status = isReserved ? reservation!.Status : null,
+                reservation_user_name = holder?.FullName,
+                reservation_unassigned = isReserved && reservation!.IsUnassigned
+            };
         }));
     }
 
@@ -269,29 +300,6 @@ public class AdminController : ControllerBase
         }
 
         return Ok(new { id, disabled = newDisabledStatus });
-    }
-
-    /// <summary>
-    /// Toggle the pending trade-in status of a listing
-    /// </summary>
-    [HttpPatch("listings/{id}/toggle-pending")]
-    public async Task<IActionResult> ToggleListingPending(string id)
-    {
-        var listing = await _mongoDbService.GetMyListingByIdAsync(id);
-        if (listing == null)
-        {
-            return NotFound(new { error = "Listing not found" });
-        }
-
-        var newPendingStatus = !listing.Pending;
-        var success = await _mongoDbService.SetListingPendingAsync(id, newPendingStatus);
-
-        if (!success)
-        {
-            return StatusCode(500, new { error = "Failed to update listing" });
-        }
-
-        return Ok(new { id, pending = newPendingStatus });
     }
 
     /// <summary>
@@ -921,7 +929,9 @@ public class AdminController : ControllerBase
         public string ListingTitle { get; set; } = string.Empty;
         public string ListingImage { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
-        public DateTime ExpiresAt { get; set; }
+
+        /// <summary>Null means the lock never expires (deposit-backed).</summary>
+        public DateTime? ExpiresAt { get; set; }
         public string BuyerName { get; set; } = string.Empty;
         public string BuyerEmail { get; set; } = string.Empty;
     }

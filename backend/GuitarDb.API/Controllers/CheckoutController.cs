@@ -19,17 +19,121 @@ public class CheckoutController : ControllerBase
     private readonly IConfiguration _configuration;
     private readonly ILogger<CheckoutController> _logger;
     private readonly EmailService _emailService;
+    private readonly ReservationService _reservationService;
+    private readonly DepositService _depositService;
 
     public CheckoutController(
         MongoDbService mongoDbService,
         IConfiguration configuration,
         ILogger<CheckoutController> logger,
-        EmailService emailService)
+        EmailService emailService,
+        ReservationService reservationService,
+        DepositService depositService)
     {
         _mongoDbService = mongoDbService;
         _configuration = configuration;
         _logger = logger;
         _emailService = emailService;
+        _reservationService = reservationService;
+        _depositService = depositService;
+    }
+
+    /// <summary>
+    /// Reservation gate. Called at ALL THREE enforcement points — cart/session creation,
+    /// payment-order creation, and again immediately before the order is written at
+    /// capture. Re-checking at capture is what stops a stale session or a copied cart
+    /// from buying a guitar that is promised to someone else.
+    ///
+    /// Returns null when the purchase may proceed, or the IActionResult to return.
+    /// </summary>
+    private async Task<IActionResult?> EnforceReservationsAsync(List<string> listingIds, string? userId)
+    {
+        var eligibility = await _reservationService.CheckPurchaseEligibilityAsync(listingIds, userId);
+        if (eligibility.Allowed) return null;
+
+        _logger.LogWarning(
+            "Blocked checkout for user {UserId}: {Reason}",
+            userId ?? "(anonymous)", eligibility.Reason);
+
+        // 403 for "not yours"; the message never identifies the holder.
+        return new ObjectResult(new
+        {
+            error = eligibility.Message ?? ReservationService.GenericHoldMessage,
+            reason = eligibility.Reason.ToString()
+        })
+        {
+            StatusCode = StatusCodes.Status403Forbidden
+        };
+    }
+
+    /// <summary>
+    /// Resolves what each listing costs this user, using the reservation's locked terms
+    /// when they hold it. Never trusts a price from the browser.
+    /// </summary>
+    private async Task<Dictionary<string, decimal>> ResolveChargeAmountsAsync(
+        List<MyListing> listings, string? userId)
+    {
+        var reservations = await _mongoDbService.GetActiveReservationsByListingIdsAsync(
+            listings.Select(l => l.Id!));
+
+        var result = new Dictionary<string, decimal>();
+        foreach (var listing in listings)
+        {
+            reservations.TryGetValue(listing.Id!, out var reservation);
+            result[listing.Id!] = ReservationService.ResolveChargeAmount(listing, reservation, userId);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Gathers the deposit already paid on these listings by this user, plus the ids
+    /// needed to tie the final order back to the deposit order and the reservation.
+    /// </summary>
+    private async Task<(decimal DepositApplied, List<string>? DepositOrderIds, List<string>? ReservationIds)>
+        CollectReservationOrderLinksAsync(List<string> listingIds, string? userId)
+    {
+        if (userId == null) return (0m, null, null);
+
+        decimal depositApplied = 0m;
+        var depositOrderIds = new List<string>();
+        var reservationIds = new List<string>();
+
+        foreach (var listingId in listingIds)
+        {
+            var reservation = await _mongoDbService.GetActiveReservationByListingAsync(listingId);
+            if (reservation == null || reservation.UserId != userId) continue;
+
+            reservationIds.Add(reservation.Id!);
+            depositApplied += reservation.DepositPaidAmount;
+
+            if (!string.IsNullOrEmpty(reservation.DepositOrderId))
+            {
+                depositOrderIds.Add(reservation.DepositOrderId);
+            }
+        }
+
+        return (
+            depositApplied,
+            depositOrderIds.Count > 0 ? depositOrderIds : null,
+            reservationIds.Count > 0 ? reservationIds : null);
+    }
+
+    /// <summary>
+    /// Marks reservations completed after a successful full purchase and links the order,
+    /// so the deposit order and the balance order are tied together.
+    /// </summary>
+    private async Task CompleteReservationsForOrderAsync(List<string> listingIds, string? userId, string? orderId)
+    {
+        if (userId == null) return;
+
+        foreach (var listingId in listingIds)
+        {
+            var reservation = await _mongoDbService.GetActiveReservationByListingAsync(listingId);
+            if (reservation == null || reservation.UserId != userId) continue;
+
+            await _reservationService.CompleteReservationAsync(reservation, orderId);
+        }
     }
 
     [HttpPost]
@@ -66,14 +170,16 @@ public class CheckoutController : ControllerBase
 
         var listingMap = listings.ToDictionary(l => l.Id!, l => l);
 
-        // Fetch pending cart items to get accepted offer prices for the current user
         var userId = GetUserIdIfAuthenticated();
-        var pendingCartItems = userId != null
-            ? await _mongoDbService.GetPendingCartItemsByUserAndListingIdsAsync(userId, listingIds)
-            : new List<PendingCartItem>();
-        var pendingCartMap = pendingCartItems
-            .GroupBy(p => p.ListingId)
-            .ToDictionary(g => g.Key, g => g.First());
+
+        // Enforcement point 2 of 3: refuse to even create a payment session for a
+        // guitar reserved for somebody else.
+        var blocked = await EnforceReservationsAsync(listingIds, userId);
+        if (blocked != null) return blocked;
+
+        // Server-side pricing. Reserved items are charged their balance due
+        // (agreed price - deposit paid - trade-in credit).
+        var chargeAmounts = await ResolveChargeAmountsAsync(listings, userId);
 
         var lineItems = new List<SessionLineItemOptions>();
         var processedListingIds = new HashSet<string>();
@@ -91,10 +197,7 @@ public class CheckoutController : ControllerBase
                 continue;
             }
 
-            // Use pending cart item price (from accepted offer) if available, otherwise use listing price
-            var itemPrice = pendingCartMap.TryGetValue(item.ListingId, out var pendingItem)
-                ? pendingItem.Price
-                : listing.Price;
+            var itemPrice = chargeAmounts.GetValueOrDefault(item.ListingId, listing.Price);
 
             lineItems.Add(new SessionLineItemOptions
             {
@@ -252,13 +355,14 @@ public class CheckoutController : ControllerBase
             session.Metadata.TryGetValue("user_id", out var userId);
             if (string.IsNullOrEmpty(userId)) userId = null;
 
-            // Fetch pending cart items to get accepted offer prices for the current user
-            var pendingCartItems = userId != null
-                ? await _mongoDbService.GetPendingCartItemsByUserAndListingIdsAsync(userId, listingIds)
-                : new List<PendingCartItem>();
-            var pendingCartMap = pendingCartItems
-                .GroupBy(p => p.ListingId)
-                .ToDictionary(g => g.Key, g => g.First());
+            // Enforcement point 3 of 3: re-validate immediately before the order is written.
+            // A session created minutes ago may now be for a guitar that got reserved,
+            // or the hold may have expired in the meantime.
+            var blockedAtCapture = await EnforceReservationsAsync(listingIds, userId);
+            if (blockedAtCapture != null) return blockedAtCapture;
+
+            // Recompute prices server-side rather than trusting the session.
+            var chargeAmounts = await ResolveChargeAmountsAsync(listings, userId);
 
             var paymentIntent = session.PaymentIntent;
             var shippingAddress = new OrderShippingAddress();
@@ -282,10 +386,7 @@ public class CheckoutController : ControllerBase
             {
                 if (listingMap.TryGetValue(listingId, out var listing))
                 {
-                    // Use pending cart item price (from accepted offer) if available, otherwise use listing price
-                    var itemPrice = pendingCartMap.TryGetValue(listingId, out var pendingItem)
-                        ? pendingItem.Price
-                        : listing.Price;
+                    var itemPrice = chargeAmounts.GetValueOrDefault(listingId, listing.Price);
 
                     orderItems.Add(new OrderItem
                     {
@@ -300,6 +401,10 @@ public class CheckoutController : ControllerBase
                 }
             }
 
+            // Link any deposit already paid on these listings so the paper trail is complete.
+            var (depositApplied, depositOrderIds, reservationIds) =
+                await CollectReservationOrderLinksAsync(listingIds, userId);
+
             var order = new Order
             {
                 StripeSessionId = session.Id,
@@ -309,7 +414,10 @@ public class CheckoutController : ControllerBase
                 TotalAmount = totalAmount,
                 Currency = currency,
                 Status = "completed",
-                UserId = userId
+                UserId = userId,
+                DepositApplied = depositApplied,
+                DepositOrderIds = depositOrderIds,
+                ReservationIds = reservationIds
             };
 
             // Apply store credit debit if metadata indicates credit was used
@@ -342,6 +450,9 @@ public class CheckoutController : ControllerBase
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
             await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
             _logger.LogInformation("Disabled {Count} listings after successful checkout", listingIds.Count);
+
+            // Reservation fulfilled: status -> Completed, linked to this order.
+            await CompleteReservationsForOrderAsync(listingIds, userId, order.Id);
 
             // Remove pending cart items for purchased listings (from accepted offers)
             foreach (var item in order.Items)
@@ -466,14 +577,13 @@ public class CheckoutController : ControllerBase
 
         var listingMap = listings.ToDictionary(l => l.Id!, l => l);
 
-        // Fetch pending cart items to get accepted offer prices for the current user
         var userId = GetUserIdIfAuthenticated();
-        var pendingCartItems = userId != null
-            ? await _mongoDbService.GetPendingCartItemsByUserAndListingIdsAsync(userId, listingIds)
-            : new List<PendingCartItem>();
-        var pendingCartMap = pendingCartItems
-            .GroupBy(p => p.ListingId)
-            .ToDictionary(g => g.Key, g => g.First());
+
+        // Enforcement point 2 of 3, PayPal path.
+        var blocked = await EnforceReservationsAsync(listingIds, userId);
+        if (blocked != null) return blocked;
+
+        var chargeAmounts = await ResolveChargeAmountsAsync(listings, userId);
 
         decimal totalAmount = 0;
         string currency = "USD";
@@ -494,10 +604,7 @@ public class CheckoutController : ControllerBase
                 continue;
             }
 
-            // Use pending cart item price (from accepted offer) if available, otherwise use listing price
-            var itemPrice = pendingCartMap.TryGetValue(item.ListingId, out var pendingItem)
-                ? pendingItem.Price
-                : listing.Price;
+            var itemPrice = chargeAmounts.GetValueOrDefault(item.ListingId, listing.Price);
 
             totalAmount += itemPrice * item.Quantity;
             currency = listing.Currency.ToUpper();
@@ -702,13 +809,11 @@ public class CheckoutController : ControllerBase
             var listings = await _mongoDbService.GetListingsByIdsAsync(listingIds);
             var listingMap = listings.ToDictionary(l => l.Id!, l => l);
 
-            // Fetch pending cart items to get accepted offer prices for the user who created the order
-            var pendingCartItems = userId != null
-                ? await _mongoDbService.GetPendingCartItemsByUserAndListingIdsAsync(userId, listingIds)
-                : new List<PendingCartItem>();
-            var pendingCartMap = pendingCartItems
-                .GroupBy(p => p.ListingId)
-                .ToDictionary(g => g.Key, g => g.First());
+            // Enforcement point 3 of 3, PayPal path: re-validate right before writing the order.
+            var blockedAtCapture = await EnforceReservationsAsync(listingIds, userId);
+            if (blockedAtCapture != null) return blockedAtCapture;
+
+            var chargeAmounts = await ResolveChargeAmountsAsync(listings, userId);
 
             var shippingInfo = purchaseUnit.GetProperty("shipping");
             var shippingAddress = new OrderShippingAddress
@@ -730,10 +835,7 @@ public class CheckoutController : ControllerBase
             {
                 if (listingMap.TryGetValue(listingId, out var listing))
                 {
-                    // Use pending cart item price (from accepted offer) if available, otherwise use listing price
-                    var itemPrice = pendingCartMap.TryGetValue(listingId, out var pendingItem)
-                        ? pendingItem.Price
-                        : listing.Price;
+                    var itemPrice = chargeAmounts.GetValueOrDefault(listingId, listing.Price);
 
                     orderItems.Add(new OrderItem
                     {
@@ -752,6 +854,10 @@ public class CheckoutController : ControllerBase
             var transactionFee = Math.Round(totalAmount * 0.035m, 2);
             var grandTotal = totalAmount + transactionFee;
 
+            // Link any deposit already paid so the paper trail is complete.
+            var (depositApplied, depositOrderIds, reservationIds) =
+                await CollectReservationOrderLinksAsync(listingIds, userId);
+
             var order = new Order
             {
                 PaymentMethod = "paypal",
@@ -763,7 +869,10 @@ public class CheckoutController : ControllerBase
                 Currency = currency,
                 Status = "completed",
                 UserId = userId,
-                StoreCreditApplied = storeCreditApplied
+                StoreCreditApplied = storeCreditApplied,
+                DepositApplied = depositApplied,
+                DepositOrderIds = depositOrderIds,
+                ReservationIds = reservationIds
             };
 
             if (storeCreditApplied > 0 && userId != null)
@@ -786,6 +895,9 @@ public class CheckoutController : ControllerBase
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
             await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
             _logger.LogInformation("Disabled {Count} listings after successful PayPal checkout", listingIds.Count);
+
+            // Reservation fulfilled: status -> Completed, linked to this order.
+            await CompleteReservationsForOrderAsync(listingIds, userId, order.Id);
 
             // Remove pending cart items for purchased listings (from accepted offers)
             foreach (var item in order.Items)
@@ -1022,13 +1134,34 @@ public class CheckoutController : ControllerBase
             expandedSession.Metadata.TryGetValue("user_id", out var userId);
             if (string.IsNullOrEmpty(userId)) userId = null;
 
-            // Fetch pending cart items to get accepted offer prices
-            var pendingCartItems = userId != null
-                ? await _mongoDbService.GetPendingCartItemsByUserAndListingIdsAsync(userId, listingIds)
-                : new List<PendingCartItem>();
-            var pendingCartMap = pendingCartItems
-                .GroupBy(p => p.ListingId)
-                .ToDictionary(g => g.Key, g => g.First());
+            // Deposit sessions are settled by the dedicated deposit handler, which knows
+            // how to record the payment against the reservation.
+            if (expandedSession.Metadata.TryGetValue("order_type", out var webhookOrderType)
+                && webhookOrderType == OrderType.Deposit)
+            {
+                expandedSession.Metadata.TryGetValue("reservation_id", out var webhookReservationId);
+                if (!string.IsNullOrEmpty(webhookReservationId))
+                {
+                    await _depositService.SettleStripeDepositSessionAsync(expandedSession, webhookReservationId);
+                }
+                return Ok();
+            }
+
+            // The money is already captured by the time a webhook arrives, so we never
+            // refuse here — we record the order and flag any reservation conflict for review.
+            if (userId != null)
+            {
+                var eligibility = await _reservationService.CheckPurchaseEligibilityAsync(listingIds, userId);
+                if (!eligibility.Allowed && eligibility.Reservation?.Id != null)
+                {
+                    await _mongoDbService.FlagReservationForReviewAsync(
+                        eligibility.Reservation.Id,
+                        $"Payment captured via webhook for session {expandedSession.Id} by user {userId}, " +
+                        $"but the reservation check said: {eligibility.Reason}. Verify who this guitar belongs to.");
+                }
+            }
+
+            var chargeAmounts = await ResolveChargeAmountsAsync(listings, userId);
 
             var paymentIntent = expandedSession.PaymentIntent;
             var shippingAddress = new OrderShippingAddress();
@@ -1052,9 +1185,7 @@ public class CheckoutController : ControllerBase
             {
                 if (listingMap.TryGetValue(listingId, out var listing))
                 {
-                    var itemPrice = pendingCartMap.TryGetValue(listingId, out var pendingItem)
-                        ? pendingItem.Price
-                        : listing.Price;
+                    var itemPrice = chargeAmounts.GetValueOrDefault(listingId, listing.Price);
 
                     orderItems.Add(new OrderItem
                     {
@@ -1069,6 +1200,9 @@ public class CheckoutController : ControllerBase
                 }
             }
 
+            var (webhookDepositApplied, webhookDepositOrderIds, webhookReservationIds) =
+                await CollectReservationOrderLinksAsync(listingIds, userId);
+
             var order = new Order
             {
                 StripeSessionId = expandedSession.Id,
@@ -1078,7 +1212,10 @@ public class CheckoutController : ControllerBase
                 TotalAmount = totalAmount,
                 Currency = currency,
                 Status = "completed",
-                UserId = userId
+                UserId = userId,
+                DepositApplied = webhookDepositApplied,
+                DepositOrderIds = webhookDepositOrderIds,
+                ReservationIds = webhookReservationIds
             };
 
             await _mongoDbService.CreateOrderAsync(order);
@@ -1087,6 +1224,8 @@ public class CheckoutController : ControllerBase
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
             await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
             _logger.LogInformation("Webhook: Disabled {Count} listings", listingIds.Count);
+
+            await CompleteReservationsForOrderAsync(listingIds, userId, order.Id);
 
             // Remove pending cart items
             foreach (var item in order.Items)

@@ -15,6 +15,7 @@ public class MongoDbService
     private readonly IMongoCollection<Message> _messagesCollection;
     private readonly IMongoCollection<Conversation> _conversationsCollection;
     private readonly IMongoCollection<PendingCartItem> _pendingCartItemsCollection;
+    private readonly IMongoCollection<Reservation> _reservationsCollection;
     private readonly IMongoCollection<PasswordResetToken> _passwordResetTokensCollection;
     private readonly IMongoCollection<EmailVerificationToken> _emailVerificationTokensCollection;
     private readonly IMongoCollection<PotentialBuy> _potentialBuysCollection;
@@ -49,6 +50,7 @@ public class MongoDbService
         _messagesCollection = database.GetCollection<Message>("messages");
         _conversationsCollection = database.GetCollection<Conversation>("conversations");
         _pendingCartItemsCollection = database.GetCollection<PendingCartItem>("pending_cart_items");
+        _reservationsCollection = database.GetCollection<Reservation>("reservations");
         _passwordResetTokensCollection = database.GetCollection<PasswordResetToken>("password_reset_tokens");
         _emailVerificationTokensCollection = database.GetCollection<EmailVerificationToken>("email_verification_tokens");
         _potentialBuysCollection = database.GetCollection<PotentialBuy>("potential_buys");
@@ -201,6 +203,42 @@ public class MongoDbService
                 {
                     Name = "expires_at_idx",
                     ExpireAfter = TimeSpan.Zero // TTL index - documents expire at ExpiresAt time
+                })
+            );
+
+            // Reservation indexes.
+            // NOTE: deliberately no TTL index here. Reservations can carry deposit
+            // payments and must never be auto-deleted -- expiry is handled by
+            // ReservationExpirationService, which changes status instead of deleting.
+            var reservationListingIndex = Builders<Reservation>.IndexKeys.Ascending(r => r.ListingId);
+            await _reservationsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<Reservation>(reservationListingIndex, new CreateIndexOptions { Name = "listing_id_idx" })
+            );
+
+            var reservationUserIndex = Builders<Reservation>.IndexKeys.Ascending(r => r.UserId);
+            await _reservationsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<Reservation>(reservationUserIndex, new CreateIndexOptions { Name = "user_id_idx" })
+            );
+
+            var reservationStatusIndex = Builders<Reservation>.IndexKeys
+                .Ascending(r => r.Status)
+                .Ascending(r => r.ExpiresAt);
+            await _reservationsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<Reservation>(reservationStatusIndex, new CreateIndexOptions { Name = "status_expires_idx" })
+            );
+
+            // Guarantees "one active reservation per listing" at the database level, so two
+            // admins racing to reserve the same guitar cannot both win.
+            var reservationActiveUniqueIndex = Builders<Reservation>.IndexKeys
+                .Ascending(r => r.ListingId)
+                .Ascending(r => r.Status);
+            await _reservationsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<Reservation>(reservationActiveUniqueIndex, new CreateIndexOptions<Reservation>
+                {
+                    Name = "listing_active_unique_idx",
+                    Unique = true,
+                    PartialFilterExpression = Builders<Reservation>.Filter.In(
+                        r => r.Status, ReservationStatus.Active)
                 })
             );
 
@@ -1429,6 +1467,244 @@ public class MongoDbService
         );
         return await _pendingCartItemsCollection.Find(filter).ToListAsync();
     }
+
+    // ---------------- Reservation operations ----------------
+
+    /// <summary>
+    /// Inserts a reservation. The unique partial index on (listing_id, status) makes this
+    /// throw on a duplicate active reservation, which is how the two-admins-at-once race
+    /// is resolved -- the loser gets a clean failure rather than a second active hold.
+    /// </summary>
+    public async Task<Reservation> CreateReservationAsync(Reservation reservation)
+    {
+        reservation.Id = null;
+        reservation.CreatedAt = DateTime.UtcNow;
+        reservation.UpdatedAt = DateTime.UtcNow;
+
+        await _reservationsCollection.InsertOneAsync(reservation);
+        _logger.LogInformation(
+            "Created reservation {Id}: listing {ListingId}, user {UserId}, type {Type}, agreed {Price:C}",
+            reservation.Id, reservation.ListingId, reservation.UserId ?? "(unassigned)",
+            reservation.Type, reservation.AgreedPrice);
+        return reservation;
+    }
+
+    public async Task<Reservation?> GetReservationByIdAsync(string id)
+    {
+        if (!IsValidObjectId(id)) return null;
+        var filter = Builders<Reservation>.Filter.Eq(r => r.Id, id);
+        return await _reservationsCollection.Find(filter).FirstOrDefaultAsync();
+    }
+
+    /// <summary>The one reservation currently holding this listing, if any.</summary>
+    public async Task<Reservation?> GetActiveReservationByListingAsync(string listingId)
+    {
+        if (!IsValidObjectId(listingId)) return null;
+        var filter = Builders<Reservation>.Filter.And(
+            Builders<Reservation>.Filter.Eq(r => r.ListingId, listingId),
+            Builders<Reservation>.Filter.In(r => r.Status, ReservationStatus.Active)
+        );
+        return await _reservationsCollection.Find(filter).FirstOrDefaultAsync();
+    }
+
+    /// <summary>Batch lookup of active reservations, keyed by listing id. Used on checkout paths.</summary>
+    public async Task<Dictionary<string, Reservation>> GetActiveReservationsByListingIdsAsync(IEnumerable<string> listingIds)
+    {
+        var ids = listingIds.Where(IsValidObjectId).Distinct().ToList();
+        if (ids.Count == 0) return new Dictionary<string, Reservation>();
+
+        var filter = Builders<Reservation>.Filter.And(
+            Builders<Reservation>.Filter.In(r => r.ListingId, ids),
+            Builders<Reservation>.Filter.In(r => r.Status, ReservationStatus.Active)
+        );
+        var results = await _reservationsCollection.Find(filter).ToListAsync();
+        return results
+            .GroupBy(r => r.ListingId)
+            .ToDictionary(g => g.Key, g => g.First());
+    }
+
+    public async Task<List<Reservation>> GetReservationsByUserAsync(string userId, bool activeOnly = true)
+    {
+        if (!IsValidObjectId(userId)) return new List<Reservation>();
+        var builder = Builders<Reservation>.Filter;
+        var filter = builder.Eq(r => r.UserId, userId);
+        if (activeOnly)
+        {
+            filter = builder.And(filter, builder.In(r => r.Status, ReservationStatus.Active));
+        }
+        return await _reservationsCollection.Find(filter)
+            .SortByDescending(r => r.CreatedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Admin list. Sorted by expiration ascending so the ones about to lapse are on top;
+    /// reservations with no expiry sort last.
+    /// </summary>
+    public async Task<List<Reservation>> GetReservationsForAdminAsync(
+        string? status = null, string? type = null, bool activeOnly = true)
+    {
+        var builder = Builders<Reservation>.Filter;
+        var filter = builder.Empty;
+
+        if (!string.IsNullOrEmpty(status))
+        {
+            filter = builder.And(filter, builder.Eq(r => r.Status, status));
+        }
+        else if (activeOnly)
+        {
+            filter = builder.And(filter, builder.In(r => r.Status, ReservationStatus.Active));
+        }
+
+        if (!string.IsNullOrEmpty(type))
+        {
+            filter = builder.And(filter, builder.Eq(r => r.Type, type));
+        }
+
+        var results = await _reservationsCollection.Find(filter).ToListAsync();
+
+        return results
+            .OrderBy(r => r.ExpiresAt ?? DateTime.MaxValue)
+            .ThenByDescending(r => r.CreatedAt)
+            .ToList();
+    }
+
+    public async Task<bool> ReplaceReservationAsync(Reservation reservation)
+    {
+        if (string.IsNullOrEmpty(reservation.Id)) return false;
+        reservation.UpdatedAt = DateTime.UtcNow;
+
+        var filter = Builders<Reservation>.Filter.Eq(r => r.Id, reservation.Id);
+        var result = await _reservationsCollection.ReplaceOneAsync(filter, reservation);
+        return result.MatchedCount > 0;
+    }
+
+    /// <summary>
+    /// Reservations that have run past their expiry and are still active. The expiration
+    /// job treats Pending and DepositPaid very differently -- see ReservationExpirationService.
+    /// </summary>
+    public async Task<List<Reservation>> GetExpiredActiveReservationsAsync()
+    {
+        var now = DateTime.UtcNow;
+        var filter = Builders<Reservation>.Filter.And(
+            Builders<Reservation>.Filter.In(r => r.Status, ReservationStatus.Active),
+            Builders<Reservation>.Filter.Ne(r => r.ExpiresAt, null),
+            Builders<Reservation>.Filter.Lte(r => r.ExpiresAt, now)
+        );
+        return await _reservationsCollection.Find(filter).ToListAsync();
+    }
+
+    /// <summary>
+    /// Active reservations expiring inside the given window that have not yet had a
+    /// "expiring soon" warning sent. Used for both the customer warning and the admin digest.
+    /// </summary>
+    public async Task<List<Reservation>> GetReservationsExpiringWithinAsync(
+        TimeSpan window, bool onlyUnnotified = true)
+    {
+        var now = DateTime.UtcNow;
+        var cutoff = now.Add(window);
+
+        var builder = Builders<Reservation>.Filter;
+        var filter = builder.And(
+            builder.In(r => r.Status, ReservationStatus.Active),
+            builder.Ne(r => r.ExpiresAt, null),
+            builder.Gt(r => r.ExpiresAt, now),
+            builder.Lte(r => r.ExpiresAt, cutoff)
+        );
+
+        if (onlyUnnotified)
+        {
+            filter = builder.And(filter, builder.Eq(r => r.ExpiringSoonNotifiedAt, null));
+        }
+
+        return await _reservationsCollection.Find(filter)
+            .SortBy(r => r.ExpiresAt)
+            .ToListAsync();
+    }
+
+    /// <summary>Reservations flagged for admin attention (expired with a deposit, over-credited, orphaned user).</summary>
+    public async Task<List<Reservation>> GetReservationsNeedingReviewAsync()
+    {
+        var filter = Builders<Reservation>.Filter.Eq(r => r.NeedsReview, true);
+        return await _reservationsCollection.Find(filter)
+            .SortByDescending(r => r.UpdatedAt)
+            .ToListAsync();
+    }
+
+    public async Task<bool> FlagReservationForReviewAsync(string id, string reason)
+    {
+        var filter = Builders<Reservation>.Filter.Eq(r => r.Id, id);
+        var update = Builders<Reservation>.Update
+            .Set(r => r.NeedsReview, true)
+            .Set(r => r.NeedsReviewReason, reason)
+            .Set(r => r.UpdatedAt, DateTime.UtcNow);
+        var result = await _reservationsCollection.UpdateOneAsync(filter, update);
+        if (result.MatchedCount > 0)
+        {
+            _logger.LogWarning("Reservation {Id} flagged for review: {Reason}", id, reason);
+        }
+        return result.MatchedCount > 0;
+    }
+
+    public async Task<bool> MarkReservationExpiringSoonNotifiedAsync(string id)
+    {
+        var filter = Builders<Reservation>.Filter.Eq(r => r.Id, id);
+        var update = Builders<Reservation>.Update
+            .Set(r => r.ExpiringSoonNotifiedAt, DateTime.UtcNow)
+            .Set(r => r.UpdatedAt, DateTime.UtcNow);
+        var result = await _reservationsCollection.UpdateOneAsync(filter, update);
+        return result.MatchedCount > 0;
+    }
+
+    public async Task<bool> SetReservationStatusAsync(string id, string status)
+    {
+        var filter = Builders<Reservation>.Filter.Eq(r => r.Id, id);
+        var update = Builders<Reservation>.Update
+            .Set(r => r.Status, status)
+            .Set(r => r.UpdatedAt, DateTime.UtcNow);
+
+        if (status == ReservationStatus.Completed)
+        {
+            update = update.Set(r => r.CompletedAt, DateTime.UtcNow);
+        }
+
+        var result = await _reservationsCollection.UpdateOneAsync(filter, update);
+        if (result.MatchedCount > 0)
+        {
+            _logger.LogInformation("Reservation {Id} -> status {Status}", id, status);
+        }
+        return result.MatchedCount > 0;
+    }
+
+    /// <summary>
+    /// Legacy listings flagged with the old MyListing.Pending boolean. Read only by the
+    /// one-time migration that turns them into unassigned Trade-In reservations.
+    /// </summary>
+    public async Task<List<MyListing>> GetLegacyPendingListingsAsync()
+    {
+        var filter = Builders<MyListing>.Filter.Eq(l => l.Pending, true);
+        return await _myListingsCollection.Find(filter).ToListAsync();
+    }
+
+    /// <summary>Clears the legacy pending flag once a listing has a real reservation.</summary>
+    public async Task<bool> ClearLegacyPendingFlagAsync(string listingId)
+    {
+        var filter = Builders<MyListing>.Filter.Eq(l => l.Id, listingId);
+        var update = Builders<MyListing>.Update.Set(l => l.Pending, false);
+        var result = await _myListingsCollection.UpdateOneAsync(filter, update);
+        return result.MatchedCount > 0;
+    }
+
+    /// <summary>Total money currently held as deposits across all active reservations.</summary>
+    public async Task<decimal> GetTotalDepositsHeldAsync()
+    {
+        var filter = Builders<Reservation>.Filter.Eq(r => r.Status, ReservationStatus.DepositPaid);
+        var held = await _reservationsCollection.Find(filter).ToListAsync();
+        return held.Sum(r => r.DepositPaidAmount);
+    }
+
+    private static bool IsValidObjectId(string? id) =>
+        !string.IsNullOrWhiteSpace(id) && MongoDB.Bson.ObjectId.TryParse(id, out _);
 
     // PasswordResetToken operations
     public async Task<PasswordResetToken> CreatePasswordResetTokenAsync(string userId)
