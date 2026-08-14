@@ -505,9 +505,104 @@ To set up in Stripe Dashboard:
 3. Select event: `checkout.session.completed`
 4. Copy signing secret to `appsettings.json` as `Stripe:WebhookSecret`
 
+---
+
+## Reservations & Deposits
+
+Added Aug 2026. Replaces the old `MyListing.Pending` boolean ("Pending for Trade-In").
+
+### Concept
+
+A **reservation** is the single source of truth for "who is this guitar promised to".
+One active reservation per listing, max. Accepted offers are folded in as a third
+type, so there is one enforcement path and one place the admin looks.
+
+| Type | Meaning |
+|------|---------|
+| `hold` | Standard "holding this for you" |
+| `trade_in` | Customer trading toward this one; adds a trade-in credit |
+| `offer_accepted` | Created automatically when an offer is accepted |
+
+| Status | Meaning |
+|--------|---------|
+| `pending` | Reserved, no deposit paid |
+| `deposit_paid` | Deposit received; guitar locked into their cart |
+| `completed` | Purchase finished |
+| `cancelled` | Admin cancelled |
+| `expired` | Ran past expiry without purchase |
+
+### Key files
+
+| File | Purpose |
+|------|---------|
+| `Models/Reservation.cs` | Document + type/status/cancellation-reason constants. `BalanceDue` is derived, never persisted |
+| `Services/ReservationService.cs` | **The** enforcement + pricing authority. `EvaluateEligibility` is a pure function used everywhere |
+| `Services/DepositService.cs` | Records deposit payments; shared by deposit checkout and the Stripe webhook |
+| `Services/ReservationExpirationService.cs` | Hourly sweep: expire, warn, digest |
+| `Controllers/AdminReservationsController.cs` | Admin CRUD, extend, manual deposit, cancel, convert-to-sale, migration |
+| `Controllers/ReservationsController.cs` | Customer-facing state (privacy-filtered) |
+| `Controllers/DepositCheckoutController.cs` | Deposit-only checkout (Stripe + PayPal) |
+
+### Enforcement (three points, all required)
+
+Before this existed there was **no** server-side check that only the offer buyer
+could check out — the pending cart item was used purely for pricing.
+
+1. Add to cart / checkout session creation
+2. Payment order creation (Stripe + PayPal)
+3. **At capture, immediately before the order is written**
+
+Point 3 is what stops a stale session or copied cart from buying a reserved guitar.
+Non-holders get a 403 whose message never identifies the holder.
+
+The Stripe **webhook** is the exception: the money is already captured by then, so
+it records the order and flags any conflict for admin review rather than refusing.
+
+### Pricing
+
+Balance due = `agreed price − deposit paid − trade-in credit`, floored at $0,
+recomputed server-side on every request. Terms are locked at reservation creation,
+so editing the listing price later does not move the goalposts. A price sent from
+the browser is never trusted.
+
+**There is still no sales tax or shipping calculation anywhere in checkout** —
+Stripe gets a hardcoded $0 "Free Shipping" rate. `Transaction.ShippingCost` is
+admin cost-basis bookkeeping, not customer-charged.
+
+### Privacy
+
+No public or customer-facing endpoint exposes the holder's name, email, initials
+or id. `/api/listings` returns only `is_reserved` + `reservation_badge`.
+`/api/reservations/listing/{id}` returns full terms **only** to the holder.
+The listing page is server-rendered unauthenticated (anonymous shape) and upgraded
+client-side, which also keeps holder identity out of any cache.
+
+### Data safety
+
+- `reservations` has **no TTL index** — expiry is a status change, never a delete,
+  so records with payments survive permanently.
+- `PendingCartItem.ExpiresAt` is nullable. Deposit-backed locks are written with
+  `null`, and Mongo's TTL ignores documents missing the field — so the existing
+  72-hour TTL can never delete a row with money attached.
+- Unique partial index `listing_active_unique_idx` on `(listing_id, status)` where
+  status is active enforces one-reservation-per-listing at the DB level, which is
+  how the two-admins-at-once race resolves (loser gets a clean 409).
+
+### Migration
+
+`POST /api/admin/reservations/migrate-legacy-pending` (button on the Reservations
+tab) converts every listing still flagged with the legacy `pending` boolean into an
+**unassigned** Trade-In reservation. Unassigned reservations block checkout for
+everyone until a customer is assigned — the safe default. `MyListing.Pending` is
+retained on the model only so the migration can read legacy documents.
+
 ### Known Limitations
 
-1. **No checkout prevention while offer pending**: A buyer with an outstanding offer can still add the item to cart and checkout at the original price. However, all offers are auto-declined when purchase completes.
+1. ~~No checkout prevention while offer pending~~ — fixed by the reservation
+   enforcement above.
+2. No sales tax or shipping is charged on any order, deposit or otherwise.
+3. Deposit refunds are always manual (Stripe/PayPal dashboard); cancelling a
+   deposit-paid reservation warns and requires acknowledgement but never refunds.
 
 ### PasswordResetToken Schema
 
