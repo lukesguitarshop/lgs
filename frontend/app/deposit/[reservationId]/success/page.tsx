@@ -88,7 +88,7 @@ function DepositSuccessInner({ reservationId }: { reservationId: string }) {
       </p>
 
       {result && (
-        <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4 text-left text-sm">
+        <div className="mt-6 rounded-lg border border-gray-200 bg-[#FFFFF3] p-4 text-left text-sm">
           <div className="flex justify-between text-gray-700">
             <span>Deposit paid</span>
             <span className="tabular-nums">{formatCurrency(result.deposit_paid)}</span>

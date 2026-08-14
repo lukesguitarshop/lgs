@@ -105,7 +105,7 @@ export function UserPicker({ value, onChange, initialUser, disabled }: UserPicke
 
   if (selected) {
     return (
-      <div className="flex items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2">
+      <div className="flex items-center justify-between rounded-md border border-gray-300 bg-[#FFFFF3] px-3 py-2">
         <div className="min-w-0">
           <div className="truncate text-sm font-medium text-gray-900">{selected.name}</div>
           {selected.email && (
@@ -147,7 +147,7 @@ export function UserPicker({ value, onChange, initialUser, disabled }: UserPicke
       </div>
 
       {open && query.trim().length >= 2 && (
-        <div className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-gray-200 bg-white shadow-lg">
+        <div className="absolute z-50 mt-1 max-h-64 w-full overflow-y-auto rounded-md border border-gray-200 bg-[#FFFFF3] shadow-lg">
           {results.length === 0 && !loading && (
             <div className="px-3 py-3 text-sm text-gray-500">
               No registered accounts match that.
@@ -171,7 +171,7 @@ export function UserPicker({ value, onChange, initialUser, disabled }: UserPicke
       )}
 
       {open && query.trim().length > 0 && query.trim().length < 2 && (
-        <div className="absolute z-50 mt-1 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-500 shadow-lg">
+        <div className="absolute z-50 mt-1 w-full rounded-md border border-gray-200 bg-[#FFFFF3] px-3 py-2 text-xs text-gray-500 shadow-lg">
           Keep typing to search…
         </div>
       )}

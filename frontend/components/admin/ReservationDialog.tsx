@@ -225,7 +225,7 @@ export function ReservationDialog({
                     className={`flex-1 rounded-md border px-3 py-2 text-sm transition-colors ${
                       type === opt.value
                         ? 'border-[#6E0114] bg-[#6E0114] text-white'
-                        : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                        : 'border-gray-300 bg-[#FFFFF3] text-gray-700 hover:bg-gray-50'
                     }`}
                   >
                     {opt.label}
@@ -313,7 +313,7 @@ export function ReservationDialog({
                       key={preset}
                       type="button"
                       onClick={() => applyDepositPreset(preset)}
-                      className="rounded border border-gray-300 bg-white px-2.5 py-1 text-xs hover:bg-gray-50"
+                      className="rounded border border-gray-300 bg-[#FFFFF3] px-2.5 py-1 text-xs hover:bg-gray-50"
                     >
                       {preset.endsWith('%') ? preset : `$${preset}`}
                     </button>

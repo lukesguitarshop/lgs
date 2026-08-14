@@ -230,7 +230,7 @@ export default function ReservationsPage() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm"
+          className="rounded-md border border-gray-300 bg-[#FFFFF3] px-3 py-1.5 text-sm"
         >
           <option value="">All statuses</option>
           {RESERVATION_STATUS_OPTIONS.map((opt) => (
@@ -243,7 +243,7 @@ export default function ReservationsPage() {
         <select
           value={typeFilter}
           onChange={(e) => setTypeFilter(e.target.value)}
-          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm"
+          className="rounded-md border border-gray-300 bg-[#FFFFF3] px-3 py-1.5 text-sm"
         >
           <option value="">All types</option>
           {RESERVATION_TYPE_OPTIONS.map((opt) => (
@@ -278,11 +278,11 @@ export default function ReservationsPage() {
           <Loader2 className="h-8 w-8 animate-spin text-[#6E0114]" />
         </div>
       ) : reservations.length === 0 ? (
-        <div className="rounded-md border border-gray-200 bg-white py-16 text-center text-gray-500">
+        <div className="rounded-md border border-gray-200 bg-[#FFFFF3] py-16 text-center text-gray-500">
           No reservations match these filters.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-md border border-gray-200 bg-white">
+        <div className="overflow-x-auto rounded-md border border-gray-200 bg-[#FFFFF3]">
           <table className="w-full min-w-[1000px] text-sm">
             <thead className="border-b border-gray-200 bg-gray-50 text-left text-xs uppercase tracking-wide text-gray-500">
               <tr>
@@ -521,7 +521,7 @@ function SummaryCard({
 }) {
   return (
     <div
-      className={`rounded-md border bg-white px-3 py-2 ${
+      className={`rounded-md border bg-[#FFFFF3] px-3 py-2 ${
         highlight ? 'border-red-200 bg-red-50' : 'border-gray-200'
       }`}
     >

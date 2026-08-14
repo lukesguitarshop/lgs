@@ -127,7 +127,7 @@ export function CancelReservationDialog({
               id="cancelReason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm"
+              className="w-full rounded-md border border-gray-300 bg-[#FFFFF3] px-3 py-2 text-sm"
             >
               {CANCELLATION_REASON_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>

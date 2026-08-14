@@ -146,7 +146,7 @@ export default function DepositCheckoutPage({
       )}
 
       {/* Line item */}
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
+      <div className="mt-6 rounded-lg border border-gray-200 bg-[#FFFFF3] p-4">
         <div className="flex gap-3">
           {details.listing_image ? (
             <Image
@@ -191,7 +191,7 @@ export default function DepositCheckoutPage({
           <Row label="Tax" value="Not charged on a deposit" muted />
         </div>
 
-        <div className="mt-3 rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+        <div className="mt-3 rounded-md border border-gray-200 px-3 py-2 text-xs text-gray-600">
           This deposit is{' '}
           <strong>{details.deposit_refundable ? 'refundable' : 'non-refundable'}</strong>.
           {details.expires_at && (
@@ -218,7 +218,7 @@ export default function DepositCheckoutPage({
             className={`flex-1 rounded-md border px-3 py-2 text-sm transition-colors ${
               method === 'card'
                 ? 'border-[#6E0114] bg-[#6E0114] text-white'
-                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                : 'border-gray-300 bg-[#FFFFF3] text-gray-700 hover:bg-black/5'
             }`}
           >
             Credit Card
@@ -229,7 +229,7 @@ export default function DepositCheckoutPage({
             className={`flex-1 rounded-md border px-3 py-2 text-sm transition-colors ${
               method === 'paypal'
                 ? 'border-[#6E0114] bg-[#6E0114] text-white'
-                : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
+                : 'border-gray-300 bg-[#FFFFF3] text-gray-700 hover:bg-black/5'
             }`}
           >
             PayPal
