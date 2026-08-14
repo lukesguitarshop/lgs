@@ -996,7 +996,7 @@ export default function AdminPage() {
                           through a dialog and managed on the Reservations tab. */}
                       {listing.is_reserved ? (
                         <Link
-                          href="/admin/reservations"
+                          href="/admin/other-tools?tab=reservations"
                           className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-yellow-500 hover:bg-yellow-600 text-white transition-colors"
                           title="Manage this reservation"
                         >

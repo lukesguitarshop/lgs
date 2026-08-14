@@ -12,7 +12,9 @@ import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
 import {
   ArrowLeft, Clipboard, Copy, Check, Play, Loader2, CheckCircle, XCircle, Star,
   Activity, LogIn, ShoppingCart, Heart, HeartOff, Receipt, ChevronLeft, ChevronRight, X,
+  Bookmark,
 } from 'lucide-react';
+import { ReservationsTab } from '@/components/admin/ReservationsTab';
 
 interface ScraperResponse {
   success: boolean;
@@ -120,7 +122,12 @@ function OtherToolsContent() {
   const { isAdmin } = useAuth();
   const { showToast } = useToast();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState(searchParams.get('tab') === 'activity' ? 'activity' : 'snippets');
+  const requestedTab = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(
+    requestedTab === 'activity' || requestedTab === 'reservations' || requestedTab === 'review-scraper'
+      ? requestedTab
+      : 'snippets'
+  );
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [reviewScraperLoading, setReviewScraperLoading] = useState(false);
   const [reviewScraperResult, setReviewScraperResult] = useState<ScraperResponse | null>(null);
@@ -212,10 +219,14 @@ function OtherToolsContent() {
       <AdminTabsNav />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3 mb-6">
+        <TabsList className="grid w-full grid-cols-4 mb-6">
           <TabsTrigger value="snippets" className="flex items-center gap-2">
             <Clipboard className="h-4 w-4" />
             <span className="hidden sm:inline">Snippets</span>
+          </TabsTrigger>
+          <TabsTrigger value="reservations" className="flex items-center gap-2">
+            <Bookmark className="h-4 w-4" />
+            <span className="hidden sm:inline">Reservations</span>
           </TabsTrigger>
           <TabsTrigger value="review-scraper" className="flex items-center gap-2">
             <Star className="h-4 w-4" />
@@ -226,6 +237,13 @@ function OtherToolsContent() {
             <span className="hidden sm:inline">Activity Logs</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* Reservations Tab */}
+        <TabsContent value="reservations">
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
+            <ReservationsTab />
+          </div>
+        </TabsContent>
 
         {/* Snippets Tab */}
         <TabsContent value="snippets">

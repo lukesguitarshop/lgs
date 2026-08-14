@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Settings, TrendingDown, DollarSign, ArrowLeftRight, Hammer, Bookmark } from 'lucide-react';
+import { Settings, TrendingDown, DollarSign, ArrowLeftRight, Hammer } from 'lucide-react';
 
+// Reservations deliberately isn't here — it lives as a tab inside Other Tools,
+// since holds are occasional rather than day-to-day.
 const TABS = [
   { href: '/admin', label: 'Operations', icon: Settings },
-  { href: '/admin/reservations', label: 'Reservations', icon: Bookmark },
   { href: '/deal-finder', label: 'Deal Finder', icon: TrendingDown },
   { href: '/finances', label: 'Finances', icon: DollarSign },
   { href: '/admin/trade-ins', label: 'Trade-Ins', icon: ArrowLeftRight },
@@ -22,7 +23,7 @@ export function AdminTabsNav() {
   };
 
   return (
-    <div className="grid w-full grid-cols-6 gap-1 rounded-lg bg-muted p-1 mb-4">
+    <div className="grid w-full grid-cols-5 gap-1 rounded-lg bg-muted p-1 mb-4">
       {TABS.map(({ href, label, icon: Icon }) => {
         const active = isActive(href);
         return (
