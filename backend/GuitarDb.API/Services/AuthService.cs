@@ -17,7 +17,13 @@ public class AuthService
         _logger = logger;
     }
 
-    public string GenerateJwtToken(User user)
+    /// <summary>
+    /// Generates a JWT for the given user.
+    /// </summary>
+    /// <param name="user">The user the token authenticates as.</param>
+    /// <param name="lifetime">Overrides the configured expiration. Used for short-lived impersonation tokens.</param>
+    /// <param name="impersonatedBy">Admin user ID when this token was issued by an admin impersonating <paramref name="user"/>.</param>
+    public string GenerateJwtToken(User user, TimeSpan? lifetime = null, string? impersonatedBy = null)
     {
         var secretKey = _configuration["Jwt:SecretKey"]
             ?? throw new InvalidOperationException("JWT secret key is not configured");
@@ -46,11 +52,16 @@ public class AuthService
             claims.Add(new Claim("guest_session_id", user.GuestSessionId));
         }
 
+        if (!string.IsNullOrEmpty(impersonatedBy))
+        {
+            claims.Add(new Claim("impersonated_by", impersonatedBy));
+        }
+
         var token = new JwtSecurityToken(
             issuer: issuer,
             audience: audience,
             claims: claims,
-            expires: DateTime.UtcNow.AddDays(expirationDays),
+            expires: DateTime.UtcNow.Add(lifetime ?? TimeSpan.FromDays(expirationDays)),
             signingCredentials: credentials
         );
 

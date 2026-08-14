@@ -43,6 +43,13 @@ public class EmailService
     }
 
     /// <summary>
+    /// Deep link to a conversation thread. Offers live inside conversations, so
+    /// offer emails point here too. The frontend route is /messages/{id} -- there
+    /// is no /conversations route (it was folded into messages).
+    /// </summary>
+    private string ConversationUrl(string conversationId) => $"{_frontendUrl}/messages/{conversationId}";
+
+    /// <summary>
     /// Send email notification to seller when a new offer is received
     /// </summary>
     public async Task SendNewOfferNotificationAsync(
@@ -340,7 +347,7 @@ public class EmailService
             : $"New Message from {senderName}";
 
         var conversationLink = !string.IsNullOrEmpty(conversationId) && !string.IsNullOrEmpty(_frontendUrl)
-            ? $@"<p><a href=""{_frontendUrl}/messages/{conversationId}"" style=""display: inline-block; background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"">View Conversation</a></p>"
+            ? $@"<p><a href=""{ConversationUrl(conversationId)}"" style=""display: inline-block; background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"">View Conversation</a></p>"
             : "";
 
         var body = $@"
@@ -385,7 +392,7 @@ public class EmailService
             ? $"Counter Offer: ${offerAmount:N2} for {listingTitle}"
             : $"New Offer: ${offerAmount:N2} for {listingTitle}";
 
-        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+        var conversationUrl = ConversationUrl(conversationId);
 
         var body = $@"
 <h2>{(isCounter ? "Counter Offer Received" : "New Offer Received")}</h2>
@@ -425,7 +432,7 @@ public class EmailService
         }
 
         var subject = $"Offer Declined: {listingTitle}";
-        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+        var conversationUrl = ConversationUrl(conversationId);
 
         var body = $@"
 <h2>Offer Declined</h2>
@@ -460,7 +467,7 @@ public class EmailService
         }
 
         var subject = $"Offer Expired: {listingTitle}";
-        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+        var conversationUrl = ConversationUrl(conversationId);
 
         var body = $@"
 <h2>Offer Expired</h2>
@@ -492,7 +499,7 @@ public class EmailService
         }
 
         var subject = $"Offer Accepted: {listingTitle}";
-        var conversationUrl = $"{_frontendUrl}/conversations/{conversationId}";
+        var conversationUrl = ConversationUrl(conversationId);
         var cartUrl = $"{_frontendUrl}/cart";
 
         var body = isBuyer
@@ -868,6 +875,227 @@ public class EmailService
 <hr>
 <p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
         await SendEmailAsync(toEmail, subject, body);
+    }
+
+    // ---------------- Reservations / holds / deposits ----------------
+
+    private static string ExpiryLine(DateTime? expiresAt)
+    {
+        if (!expiresAt.HasValue) return "This hold has no expiration date.";
+
+        var days = (int)Math.Ceiling((expiresAt.Value - DateTime.UtcNow).TotalDays);
+        var when = expiresAt.Value.ToString("MMMM d, yyyy");
+        return days <= 0
+            ? $"This hold expires today ({when})."
+            : $"This hold expires {when} (in {days} day{(days == 1 ? "" : "s")}).";
+    }
+
+    /// <summary>Hold created — what's held, price, deposit (with pay link), expiry.</summary>
+    public async Task SendReservationCreatedAsync(
+        string toEmail,
+        string listingTitle,
+        string listingId,
+        string reservationId,
+        decimal agreedPrice,
+        decimal tradeInCredit,
+        bool depositRequired,
+        decimal depositAmount,
+        bool depositRefundable,
+        DateTime? expiresAt)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+
+        var subject = $"On hold for you: {listingTitle}";
+        var payButton = depositRequired
+            ? $@"<p><a href=""{_frontendUrl}/deposit/{reservationId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Pay deposit — ${depositAmount:N2}</a></p>
+<p style=""color: #666; font-size: 13px;"">This deposit is <strong>{(depositRefundable ? "refundable" : "non-refundable")}</strong>.</p>"
+            : $@"<p><a href=""{_frontendUrl}/listing/{listingId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View your hold</a></p>";
+
+        var body = $@"
+<h2>We're holding this for you</h2>
+<p><strong>{listingTitle}</strong> is now reserved for you.</p>
+
+<h3>Details</h3>
+<ul>
+    <li><strong>Agreed price:</strong> ${agreedPrice:N2}</li>
+    {(tradeInCredit > 0 ? $"<li><strong>Trade-in credit:</strong> -${tradeInCredit:N2}</li>" : "")}
+    {(depositRequired ? $"<li><strong>Deposit to secure it:</strong> ${depositAmount:N2}</li>" : "")}
+    <li><strong>Balance due:</strong> ${Math.Max(0m, agreedPrice - tradeInCredit):N2}</li>
+</ul>
+
+<p>{ExpiryLine(expiresAt)}</p>
+
+{payButton}
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    /// <summary>Deposit received — receipt with amount paid, balance due, time remaining.</summary>
+    public async Task SendDepositReceivedAsync(
+        string toEmail,
+        string listingTitle,
+        decimal depositPaid,
+        decimal balanceDue,
+        bool depositRefundable,
+        DateTime? expiresAt)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+
+        var subject = $"Deposit received — {listingTitle}";
+        var body = $@"
+<h2>Deposit received</h2>
+<p>Thanks — your deposit is in and <strong>{listingTitle}</strong> is locked in for you.</p>
+
+<h3>Receipt</h3>
+<ul>
+    <li><strong>Deposit paid:</strong> ${depositPaid:N2}</li>
+    <li><strong>Balance due:</strong> ${balanceDue:N2}</li>
+</ul>
+
+<p>{ExpiryLine(expiresAt)}</p>
+<p style=""color: #666; font-size: 13px;"">This deposit is <strong>{(depositRefundable ? "refundable" : "non-refundable")}</strong>.</p>
+
+<p><a href=""{_frontendUrl}/cart"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Complete your purchase</a></p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    /// <summary>Sent 48 hours before expiry, only when not yet purchased.</summary>
+    public async Task SendReservationExpiringSoonAsync(
+        string toEmail,
+        string listingTitle,
+        string reservationId,
+        decimal balanceDue,
+        bool depositUnpaid,
+        decimal depositAmount,
+        DateTime expiresAt)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+
+        var subject = $"Your hold expires soon — {listingTitle}";
+        var cta = depositUnpaid
+            ? $@"<p><a href=""{_frontendUrl}/deposit/{reservationId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Pay deposit — ${depositAmount:N2}</a></p>"
+            : $@"<p><a href=""{_frontendUrl}/cart"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Complete purchase — ${balanceDue:N2}</a></p>";
+
+        var body = $@"
+<h2>Your hold expires soon</h2>
+<p><strong>{listingTitle}</strong> is still reserved for you, but not for much longer.</p>
+<p>{ExpiryLine(expiresAt)}</p>
+{cta}
+<p>If you need more time, just reply to this email and we'll sort it out.</p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    /// <summary>Hold expired — the guitar has been released.</summary>
+    public async Task SendReservationExpiredAsync(string toEmail, string listingTitle)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+
+        var subject = $"Your hold has expired — {listingTitle}";
+        var body = $@"
+<h2>Your hold has expired</h2>
+<p>The hold on <strong>{listingTitle}</strong> has run out, and it's back available to everyone.</p>
+<p>If you're still interested, get in touch and we'll see what we can do.</p>
+<p><a href=""{_frontendUrl}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Browse the shop</a></p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    /// <summary>Hold cancelled by the shop. Plain by design — no reason details.</summary>
+    public async Task SendReservationCancelledAsync(string toEmail, string listingTitle)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+
+        var subject = $"Your hold has been cancelled — {listingTitle}";
+        var body = $@"
+<h2>Your hold has been cancelled</h2>
+<p>The hold on <strong>{listingTitle}</strong> has been cancelled.</p>
+<p>If you have questions, just reply to this email and we'll help.</p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    /// <summary>Immediate admin notification when a deposit lands.</summary>
+    public async Task SendDepositPaidAdminNotificationAsync(
+        string listingTitle,
+        string customerName,
+        string customerEmail,
+        decimal depositPaid,
+        decimal balanceDue,
+        string paymentMethod)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(_sellerEmail)) return;
+
+        var subject = $"Deposit received: ${depositPaid:N2} — {listingTitle}";
+        var body = $@"
+<h2>Deposit received</h2>
+<ul>
+    <li><strong>Listing:</strong> {listingTitle}</li>
+    <li><strong>Customer:</strong> {customerName} ({customerEmail})</li>
+    <li><strong>Deposit:</strong> ${depositPaid:N2} via {paymentMethod}</li>
+    <li><strong>Balance due:</strong> ${balanceDue:N2}</li>
+</ul>
+<p><a href=""{_frontendUrl}/admin/reservations"">Open reservations</a></p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+
+        await SendEmailAsync(_sellerEmail, subject, body);
+    }
+
+    /// <summary>Daily digest of holds expiring within 48 hours.</summary>
+    public async Task SendExpiringHoldsDigestAsync(List<(string Title, string Customer, DateTime? ExpiresAt, decimal BalanceDue)> rows)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(_sellerEmail) || rows.Count == 0) return;
+
+        var subject = $"{rows.Count} hold{(rows.Count == 1 ? "" : "s")} expiring within 48 hours";
+        var listItems = string.Join("", rows.Select(r =>
+            $"<li><strong>{r.Title}</strong> — {r.Customer} — expires {(r.ExpiresAt.HasValue ? r.ExpiresAt.Value.ToString("MMM d, yyyy HH:mm") + " UTC" : "n/a")} — balance ${r.BalanceDue:N2}</li>"));
+
+        var body = $@"
+<h2>Holds expiring within 48 hours</h2>
+<ul>{listItems}</ul>
+<p><a href=""{_frontendUrl}/admin/reservations"">Open reservations</a></p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+
+        await SendEmailAsync(_sellerEmail, subject, body);
+    }
+
+    /// <summary>A deposit-paid hold ran past expiry. Needs a human decision — never auto-released.</summary>
+    public async Task SendReservationNeedsReviewAdminAsync(
+        string listingTitle, string customerName, decimal depositPaid, string reason)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(_sellerEmail)) return;
+
+        var subject = $"Needs review: {listingTitle}";
+        var body = $@"
+<h2>Reservation needs review</h2>
+<p>A reservation with money attached needs your decision. It has <strong>not</strong> been released automatically.</p>
+<ul>
+    <li><strong>Listing:</strong> {listingTitle}</li>
+    <li><strong>Customer:</strong> {customerName}</li>
+    <li><strong>Deposit paid:</strong> ${depositPaid:N2}</li>
+    <li><strong>Reason:</strong> {reason}</li>
+</ul>
+<p>Extend it, refund the deposit, or keep it — your call.</p>
+<p><a href=""{_frontendUrl}/admin/reservations"">Open reservations</a></p>
+<hr>
+<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+
+        await SendEmailAsync(_sellerEmail, subject, body);
     }
 
     private static string? GetTrackingUrl(string carrier, string trackingNumber)

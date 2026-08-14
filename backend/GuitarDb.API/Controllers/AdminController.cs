@@ -20,6 +20,7 @@ public class AdminController : ControllerBase
     private readonly EmailService _emailService;
     private readonly DealFinderService _dealFinderService;
     private readonly SweetwaterDealFinderService _sweetwaterDealFinderService;
+    private readonly AuthService _authService;
 
     public AdminController(
         ILogger<AdminController> logger,
@@ -29,8 +30,10 @@ public class AdminController : ControllerBase
         ReviewScraperService reviewScraperService,
         EmailService emailService,
         DealFinderService dealFinderService,
-        SweetwaterDealFinderService sweetwaterDealFinderService)
+        SweetwaterDealFinderService sweetwaterDealFinderService,
+        AuthService authService)
     {
+        _authService = authService;
         _logger = logger;
         _configuration = configuration;
         _mongoDbService = mongoDbService;
@@ -74,6 +77,52 @@ public class AdminController : ControllerBase
             {
                 success = false,
                 message = "Failed to run scraper",
+                error = ex.Message
+            });
+        }
+    }
+
+    /// <summary>
+    /// ONE-OFF MAINTENANCE: import Reverb listings that sold before this site existed so they
+    /// appear in the /sold gallery. Writes only to my_listings — never to transactions.
+    /// Call without confirm to preview; call with confirm=true to write. Remove once run.
+    /// </summary>
+    [HttpPost("backfill-sold-listings")]
+    public async Task<IActionResult> BackfillSoldListings([FromQuery] bool confirm = false)
+    {
+        _logger.LogInformation("Sold-listing backfill requested (confirm={Confirm})", confirm);
+
+        try
+        {
+            var result = await _scraperService.BackfillSoldListingsAsync(confirm);
+
+            return Ok(new
+            {
+                success = true,
+                confirmed = result.Confirmed,
+                message = result.Confirmed
+                    ? $"Imported {result.Imported} sold listings"
+                    : $"Preview only — {result.Items.Count} sold listings would be imported",
+                totalReverbListings = result.TotalReverbListings,
+                soldOnReverb = result.SoldOnReverb,
+                alreadyOnSite = result.AlreadyOnSite,
+                duplicatesInFeed = result.DuplicatesInFeed,
+                skippedNoLink = result.SkippedNoLink,
+                imported = result.Imported,
+                totalPhotos = result.TotalPhotos,
+                stateTally = result.StateTally,
+                duration = result.Duration.ToString(),
+                items = result.Items,
+                output = result.OutputLines
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Sold-listing backfill failed");
+            return StatusCode(500, new
+            {
+                success = false,
+                message = "Sold-listing backfill failed",
                 error = ex.Message
             });
         }
@@ -185,17 +234,48 @@ public class AdminController : ControllerBase
     {
         var listings = await _mongoDbService.GetAllListingsForAdminAsync();
 
-        return Ok(listings.Select(l => new
+        // Reservation state so listing rows can show a badge with type + holder at a glance.
+        var reservations = await _mongoDbService.GetActiveReservationsByListingIdsAsync(
+            listings.Select(l => l.Id!));
+
+        var holderIds = reservations.Values
+            .Where(r => !r.IsUnassigned)
+            .Select(r => r.UserId!)
+            .Distinct()
+            .ToList();
+        var holders = holderIds.Count > 0
+            ? (await _mongoDbService.GetUsersByIdsAsync(holderIds)).ToDictionary(u => u.Id!, u => u)
+            : new Dictionary<string, Models.User>();
+
+        return Ok(listings.Select(l =>
         {
-            id = l.Id,
-            listing_title = l.ListingTitle,
-            description = l.Description,
-            condition = l.Condition,
-            images = l.Images,
-            price = l.Price,
-            currency = l.Currency,
-            disabled = l.Disabled,
-            pending = l.Pending
+            reservations.TryGetValue(l.Id!, out var reservation);
+            var isReserved = reservation != null && reservation.IsActive;
+
+            Models.User? holder = null;
+            if (isReserved && !reservation!.IsUnassigned)
+            {
+                holders.TryGetValue(reservation.UserId!, out holder);
+            }
+
+            return new
+            {
+                id = l.Id,
+                listing_title = l.ListingTitle,
+                description = l.Description,
+                condition = l.Condition,
+                images = l.Images,
+                price = l.Price,
+                currency = l.Currency,
+                disabled = l.Disabled,
+                is_reserved = isReserved,
+                reservation_id = isReserved ? reservation!.Id : null,
+                reservation_type = isReserved ? reservation!.Type : null,
+                reservation_type_label = isReserved ? ReservationType.Label(reservation!.Type) : null,
+                reservation_status = isReserved ? reservation!.Status : null,
+                reservation_user_name = holder?.FullName,
+                reservation_unassigned = isReserved && reservation!.IsUnassigned
+            };
         }));
     }
 
@@ -220,29 +300,6 @@ public class AdminController : ControllerBase
         }
 
         return Ok(new { id, disabled = newDisabledStatus });
-    }
-
-    /// <summary>
-    /// Toggle the pending trade-in status of a listing
-    /// </summary>
-    [HttpPatch("listings/{id}/toggle-pending")]
-    public async Task<IActionResult> ToggleListingPending(string id)
-    {
-        var listing = await _mongoDbService.GetMyListingByIdAsync(id);
-        if (listing == null)
-        {
-            return NotFound(new { error = "Listing not found" });
-        }
-
-        var newPendingStatus = !listing.Pending;
-        var success = await _mongoDbService.SetListingPendingAsync(id, newPendingStatus);
-
-        if (!success)
-        {
-            return StatusCode(500, new { error = "Failed to update listing" });
-        }
-
-        return Ok(new { id, pending = newPendingStatus });
     }
 
     /// <summary>
@@ -872,7 +929,9 @@ public class AdminController : ControllerBase
         public string ListingTitle { get; set; } = string.Empty;
         public string ListingImage { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }
-        public DateTime ExpiresAt { get; set; }
+
+        /// <summary>Null means the lock never expires (deposit-backed).</summary>
+        public DateTime? ExpiresAt { get; set; }
         public string BuyerName { get; set; } = string.Empty;
         public string BuyerEmail { get; set; } = string.Empty;
     }
@@ -888,11 +947,14 @@ public class AdminController : ControllerBase
         [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null,
         CancellationToken ct = default)
     {
         try
         {
-            var (potentialBuys, totalCount) = await _mongoDbService.GetPotentialBuysAsync(status, sort, page, perPage, ct);
+            var (potentialBuys, totalCount) = await _mongoDbService.GetPotentialBuysAsync(status, sort, page, perPage, search, minPrice, maxPrice, ct);
             return Ok(new
             {
                 items = potentialBuys,
@@ -1019,6 +1081,8 @@ public class AdminController : ControllerBase
                     message = result.Message,
                     listingsChecked = result.ListingsChecked,
                     dealsFound = result.DealsFound,
+                    withPriceData = result.WithPriceData,
+                    lookupErrors = result.LookupErrors,
                     duration = result.Duration.ToString()
                 });
             }
@@ -1113,11 +1177,14 @@ public class AdminController : ControllerBase
         [FromQuery] string? sort,
         [FromQuery] int page = 1,
         [FromQuery] int perPage = 20,
+        [FromQuery] string? search = null,
+        [FromQuery] decimal? minPrice = null,
+        [FromQuery] decimal? maxPrice = null,
         CancellationToken ct = default)
     {
         try
         {
-            var (potentialBuys, totalCount) = await _mongoDbService.GetSweetwaterPotentialBuysAsync(status, sort, page, perPage, ct);
+            var (potentialBuys, totalCount) = await _mongoDbService.GetSweetwaterPotentialBuysAsync(status, sort, page, perPage, search, minPrice, maxPrice, ct);
             return Ok(new
             {
                 items = potentialBuys,
@@ -1208,6 +1275,8 @@ public class AdminController : ControllerBase
                     message = result.Message,
                     listingsChecked = result.ListingsChecked,
                     dealsFound = result.DealsFound,
+                    withPriceData = result.WithPriceData,
+                    lookupErrors = result.LookupErrors,
                     duration = result.Duration.ToString()
                 });
             }
@@ -1349,6 +1418,60 @@ public class AdminController : ControllerBase
                 postalCode = user.ShippingAddress.PostalCode,
                 country = user.ShippingAddress.Country
             } : null
+        });
+    }
+
+    /// <summary>
+    /// Issue a short-lived token that authenticates as the given user, so an admin can
+    /// see the site exactly as that customer sees it. Admin only.
+    /// </summary>
+    [HttpPost("users/{id}/impersonate")]
+    public async Task<IActionResult> ImpersonateUser(string id)
+    {
+        var adminId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(adminId))
+        {
+            return Unauthorized(new { error = "Invalid token" });
+        }
+
+        var user = await _mongoDbService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { error = "User not found" });
+        }
+
+        if (user.Id == adminId)
+        {
+            return BadRequest(new { error = "You are already signed in as this user" });
+        }
+
+        var admin = await _mongoDbService.GetUserByIdAsync(adminId);
+        var lifetime = TimeSpan.FromHours(1);
+        var token = _authService.GenerateJwtToken(user, lifetime, adminId);
+
+        _logger.LogWarning("IMPERSONATION: admin {AdminId} ({AdminEmail}) is now acting as user {UserId} ({UserEmail})",
+            adminId, admin?.Email, user.Id, user.Email);
+
+        // Audit trail on the customer's own activity feed, visible on their admin detail page
+        await _mongoDbService.LogActivityAsync(
+            user.Id!,
+            "admin_impersonation",
+            $"Admin ({admin?.Email ?? adminId}) signed in as this user");
+
+        return Ok(new
+        {
+            token,
+            expiresAt = DateTime.UtcNow.Add(lifetime),
+            user = new
+            {
+                id = user.Id,
+                email = user.Email,
+                fullName = user.FullName,
+                isGuest = user.IsGuest,
+                isAdmin = user.IsAdmin,
+                emailVerified = user.EmailVerified,
+                createdAt = user.CreatedAt
+            }
         });
     }
 

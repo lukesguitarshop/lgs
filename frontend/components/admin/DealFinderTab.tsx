@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
-import { Loader2, ExternalLink, X, Check, TrendingDown, RefreshCw, Play, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react';
+import { Loader2, ExternalLink, X, Check, TrendingDown, RefreshCw, Play, ChevronLeft, ChevronRight, Trash2, Search } from 'lucide-react';
 import { getPotentialBuys, getPotentialBuyStats, dismissPotentialBuy, dismissPotentialBuysBulk, dismissAllPotentialBuys, deleteAllPotentialBuys, markPotentialBuyPurchased, runDealFinder, getDealFinderStatus } from '@/lib/api';
 import type { PotentialBuy, PotentialBuyStats } from '@/lib/types/potential-buy';
 
@@ -13,6 +13,10 @@ export function DealFinderTab() {
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('deals');
   const [sortBy, setSortBy] = useState<string>('best-deal');
+  const [searchInput, setSearchInput] = useState('');
+  const [minPriceInput, setMinPriceInput] = useState('');
+  const [maxPriceInput, setMaxPriceInput] = useState('');
+  const [appliedFilters, setAppliedFilters] = useState<{ search: string; minPrice?: number; maxPrice?: number }>({ search: '' });
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [scraperRunning, setScraperRunning] = useState(false);
   const [scraperResult, setScraperResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -29,7 +33,7 @@ export function DealFinderTab() {
     setFetchError(null);
     try {
       const [dealsData, statsData] = await Promise.all([
-        getPotentialBuys(statusFilter, sortBy, page, perPage),
+        getPotentialBuys(statusFilter, sortBy, page, perPage, appliedFilters.search || undefined, appliedFilters.minPrice, appliedFilters.maxPrice),
         getPotentialBuyStats()
       ]);
       setDeals(dealsData.items);
@@ -51,7 +55,26 @@ export function DealFinderTab() {
   useEffect(() => {
     setCurrentPage(1);
     fetchDeals(1);
-  }, [statusFilter, sortBy]);
+  }, [statusFilter, sortBy, appliedFilters]);
+
+  // Debounce search/price inputs before applying them as fetch filters
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const min = parseFloat(minPriceInput);
+      const max = parseFloat(maxPriceInput);
+      setAppliedFilters(prev => {
+        const next = {
+          search: searchInput.trim(),
+          minPrice: Number.isFinite(min) ? min : undefined,
+          maxPrice: Number.isFinite(max) ? max : undefined,
+        };
+        return prev.search === next.search && prev.minPrice === next.minPrice && prev.maxPrice === next.maxPrice
+          ? prev
+          : next;
+      });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [searchInput, minPriceInput, maxPriceInput]);
 
   // Check scraper status on mount
   useEffect(() => {
@@ -74,7 +97,7 @@ export function DealFinderTab() {
       setScraperResult({
         success: result.success,
         message: result.success
-          ? `Found ${result.dealsFound} deals from ${result.listingsChecked} listings (${result.duration})`
+          ? `Found ${result.dealsFound} deals from ${result.listingsChecked} listings, ${result.withPriceData ?? 0} with price data${result.lookupErrors ? `, ${result.lookupErrors} lookup errors` : ''} (${result.duration})`
           : result.message
       });
       // Refresh the deals list after scraper completes
@@ -205,7 +228,7 @@ export function DealFinderTab() {
             Reverb Deal Finder
           </h2>
           <p className="text-gray-600 text-sm mt-1">
-            Reverb guitars priced below their Price Guide value
+            Reverb guitars priced at or below the lowest used price for their model
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -272,6 +295,62 @@ export function DealFinderTab() {
           </div>
         </div>
       )}
+
+      {/* Search & price filter */}
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <input
+            type="text"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="Search by title..."
+            className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
+          />
+          {searchInput && (
+            <button
+              onClick={() => setSearchInput('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              aria-label="Clear search"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min="0"
+            value={minPriceInput}
+            onChange={(e) => setMinPriceInput(e.target.value)}
+            placeholder="Min $"
+            className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
+          />
+          <span className="text-gray-400 text-sm">–</span>
+          <input
+            type="number"
+            min="0"
+            value={maxPriceInput}
+            onChange={(e) => setMaxPriceInput(e.target.value)}
+            placeholder="Max $"
+            className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
+          />
+          {(searchInput || minPriceInput || maxPriceInput) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs text-gray-600 hover:text-[#020E1C]"
+              onClick={() => {
+                setSearchInput('');
+                setMinPriceInput('');
+                setMaxPriceInput('');
+              }}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-100">
@@ -367,7 +446,11 @@ export function DealFinderTab() {
         <div className="text-center py-8">
           <TrendingDown className="h-12 w-12 mx-auto text-gray-300 mb-3" />
           <p className="text-gray-500">No deals found</p>
-          <p className="text-gray-400 text-sm">Run the deal finder scraper to find new deals</p>
+          <p className="text-gray-400 text-sm">
+            {appliedFilters.search || appliedFilters.minPrice != null || appliedFilters.maxPrice != null
+              ? 'Try adjusting your search or price filters'
+              : 'Run the deal finder scraper to find new deals'}
+          </p>
         </div>
       ) : (
         <>
@@ -411,9 +494,10 @@ export function DealFinderTab() {
                       <span className="font-bold text-lg text-[#6E0114]">
                         {formatPrice(deal.price, deal.currency)}
                       </span>
-                      {deal.hasPriceGuide && deal.priceGuideLow && deal.priceGuideHigh && (
+                      {deal.hasPriceGuide && deal.priceGuideLow && (
                         <span className="text-gray-500">
-                          Guide: {formatPrice(deal.priceGuideLow)} - {formatPrice(deal.priceGuideHigh)}
+                          Used low: {formatPrice(deal.priceGuideLow)}
+                          {deal.priceGuideHigh ? ` · New: ${formatPrice(deal.priceGuideHigh)}` : ''}
                         </span>
                       )}
                       {deal.condition && (

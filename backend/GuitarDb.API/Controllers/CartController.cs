@@ -39,7 +39,13 @@ public class CartController : ControllerBase
             OfferId = item.OfferId,
             Title = item.ListingTitle,
             Image = item.ListingImage,
+            ReservationId = item.ReservationId,
+            // Price is the balance due — always computed server-side from the
+            // reservation's locked terms, never from anything the browser sent.
             Price = item.Price,
+            DepositPaid = item.DepositPaid,
+            TradeInCredit = item.TradeInCredit,
+            AgreedPrice = item.Price + item.DepositPaid + item.TradeInCredit,
             Currency = item.Currency,
             IsLocked = true,
             CreatedAt = item.CreatedAt,
@@ -60,11 +66,22 @@ public class PendingCartItemDto
     public string Id { get; set; } = string.Empty;
     public string ListingId { get; set; } = string.Empty;
     public string OfferId { get; set; } = string.Empty;
+    public string? ReservationId { get; set; }
     public string Title { get; set; } = string.Empty;
     public string? Image { get; set; }
+
+    /// <summary>Balance due — what the customer actually pays for this line.</summary>
     public decimal Price { get; set; }
+
+    /// <summary>Full agreed price, shown as the top line before credits.</summary>
+    public decimal AgreedPrice { get; set; }
+
+    public decimal DepositPaid { get; set; }
+    public decimal TradeInCredit { get; set; }
     public string Currency { get; set; } = string.Empty;
     public bool IsLocked { get; set; }
     public DateTime CreatedAt { get; set; }
-    public DateTime ExpiresAt { get; set; }
+
+    /// <summary>Null means the lock never expires (deposit-backed).</summary>
+    public DateTime? ExpiresAt { get; set; }
 }

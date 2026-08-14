@@ -100,8 +100,9 @@ export default function ReviewsCarousel() {
   useEffect(() => {
     async function fetchReviews() {
       try {
-        const response = await api.get<ReviewsResponse>('/reviews?pageSize=10&sort=newest');
-        setReviews(response.reviews);
+        const response = await api.get<ReviewsResponse>('/reviews?pageSize=25&sort=newest');
+        // The carousel showcases written reviews; ratings-only feedback is shown on the shop info page
+        setReviews(response.reviews.filter((r) => r.review_text?.trim()).slice(0, 10));
       } catch (err) {
         console.error('Error fetching reviews:', err);
       } finally {

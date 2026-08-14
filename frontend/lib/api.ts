@@ -169,13 +169,19 @@ export async function getPotentialBuys(
   status?: string,
   sort?: string,
   page = 1,
-  perPage = 20
+  perPage = 20,
+  search?: string,
+  minPrice?: number,
+  maxPrice?: number
 ): Promise<PaginatedPotentialBuys> {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (sort) params.set('sort', sort);
   params.set('page', String(page));
   params.set('perPage', String(perPage));
+  if (search) params.set('search', search);
+  if (minPrice != null) params.set('minPrice', String(minPrice));
+  if (maxPrice != null) params.set('maxPrice', String(maxPrice));
 
   return api.authGet<PaginatedPotentialBuys>(`/admin/potential-buys?${params}`);
 }
@@ -214,6 +220,8 @@ export interface DealFinderResult {
   message: string;
   listingsChecked?: number;
   dealsFound?: number;
+  withPriceData?: number;
+  lookupErrors?: number;
   duration?: string;
   error?: string;
 }
@@ -237,13 +245,19 @@ export async function getSweetwaterPotentialBuys(
   status?: string,
   sort?: string,
   page = 1,
-  perPage = 20
+  perPage = 20,
+  search?: string,
+  minPrice?: number,
+  maxPrice?: number
 ): Promise<PaginatedSweetwaterPotentialBuys> {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
   if (sort) params.set('sort', sort);
   params.set('page', String(page));
   params.set('perPage', String(perPage));
+  if (search) params.set('search', search);
+  if (minPrice != null) params.set('minPrice', String(minPrice));
+  if (maxPrice != null) params.set('maxPrice', String(maxPrice));
 
   return api.authGet<PaginatedSweetwaterPotentialBuys>(`/admin/sweetwater-potential-buys?${params}`);
 }
@@ -313,6 +327,19 @@ export async function deleteAdminUser(
   id: string
 ): Promise<{ success: boolean; message: string }> {
   return api.authDelete<{ success: boolean; message: string }>(`/admin/users/${id}`);
+}
+
+export interface ImpersonateResponse {
+  token: string;
+  expiresAt: string;
+  user: import('./auth').User;
+}
+
+/**
+ * Get a short-lived token that authenticates as the given customer
+ */
+export async function impersonateUser(id: string): Promise<ImpersonateResponse> {
+  return api.authPost<ImpersonateResponse>(`/admin/users/${id}/impersonate`);
 }
 
 // Trade-in API
@@ -419,6 +446,124 @@ export async function adminRejectTradeIn(id: string, reason?: string): Promise<v
 // Store credit API
 export async function getMyStoreCredit(): Promise<StoreCreditDto> {
   return api.authGet<StoreCreditDto>('/store-credit/me');
+}
+
+// Reservations API
+import type {
+  AdminReservation,
+  ReservationSummary,
+  ListingReservationState,
+  DepositDetails,
+  CreateReservationPayload,
+  UpdateReservationPayload,
+} from './types/reservation';
+
+export async function getAdminReservations(opts: {
+  status?: string;
+  type?: string;
+  activeOnly?: boolean;
+} = {}): Promise<AdminReservation[]> {
+  const params = new URLSearchParams();
+  if (opts.status) params.set('status', opts.status);
+  if (opts.type) params.set('type', opts.type);
+  params.set('activeOnly', String(opts.activeOnly ?? true));
+  return api.authGet<AdminReservation[]>(`/admin/reservations?${params}`);
+}
+
+export async function getReservationSummary(): Promise<ReservationSummary> {
+  return api.authGet<ReservationSummary>('/admin/reservations/summary');
+}
+
+export async function createReservation(payload: CreateReservationPayload): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>('/admin/reservations', payload);
+}
+
+export async function updateReservation(
+  id: string,
+  payload: UpdateReservationPayload
+): Promise<AdminReservation> {
+  return api.authPut<AdminReservation>(`/admin/reservations/${id}`, payload);
+}
+
+export async function extendReservation(id: string, days: number): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>(`/admin/reservations/${id}/extend`, { days });
+}
+
+export async function markReservationDepositPaid(
+  id: string,
+  amount: number,
+  paidAt: string | null,
+  method: string
+): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>(`/admin/reservations/${id}/mark-deposit-paid`, {
+    amount,
+    paidAt,
+    method,
+  });
+}
+
+export async function cancelReservation(
+  id: string,
+  reason: string,
+  note: string | null,
+  acknowledgeManualRefund: boolean
+): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>(`/admin/reservations/${id}/cancel`, {
+    reason,
+    note,
+    acknowledgeManualRefund,
+  });
+}
+
+export async function convertReservationToSale(id: string): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>(`/admin/reservations/${id}/convert-to-sale`);
+}
+
+export async function migrateLegacyPending(): Promise<{
+  success: boolean;
+  found: number;
+  created: number;
+  skipped: number;
+  errors: string[];
+}> {
+  return api.authPost('/admin/reservations/migrate-legacy-pending');
+}
+
+/**
+ * Reservation state for a listing, from the caller's perspective.
+ * Non-holders only ever receive the anonymous shape.
+ */
+export async function getListingReservation(listingId: string): Promise<ListingReservationState> {
+  return api.authGet<ListingReservationState>(`/reservations/listing/${listingId}`);
+}
+
+// Deposit checkout
+export async function getDepositDetails(reservationId: string): Promise<DepositDetails> {
+  return api.authGet<DepositDetails>(`/checkout/deposit/${reservationId}`);
+}
+
+export async function createDepositStripeSession(
+  reservationId: string
+): Promise<{ sessionUrl: string; sessionId: string }> {
+  return api.authPost(`/checkout/deposit/${reservationId}/stripe`);
+}
+
+export async function completeDepositStripe(
+  reservationId: string,
+  sessionId: string
+): Promise<{ success: boolean; orderId: string; deposit_paid: number; balance_due: number }> {
+  return api.authPost(`/checkout/deposit/${reservationId}/stripe/complete`, { sessionId });
+}
+
+export async function createDepositPayPalOrder(reservationId: string): Promise<{ orderId: string }> {
+  return api.authPost(`/checkout/deposit/${reservationId}/paypal/create`);
+}
+
+export async function captureDepositPayPalOrder(
+  reservationId: string,
+  orderId: string
+): Promise<{ success: boolean; orderId: string; deposit_paid: number; balance_due: number }> {
+  return api.authPost(`/checkout/deposit/${reservationId}/paypal/capture`, { orderId });
 }
 
 // Admin activity feed API

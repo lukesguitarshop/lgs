@@ -15,20 +15,51 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, Users, Trash2, Download, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
+import { SweetwaterExportModal } from '@/components/admin/SweetwaterExportModal';
+import { EbayExportModal } from '@/components/admin/EbayExportModal';
+import { htmlToPlainText, getFullQualityUrl } from '@/lib/html-text';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
+import { ReservationDialog } from '@/components/admin/ReservationDialog';
 
 interface ScraperResponse {
   success: boolean;
   message: string;
   output?: string[];
   errors?: string[];
+  error?: string;
+}
+
+// ONE-OFF MAINTENANCE: remove with the sold-listing backfill button below.
+interface SoldBackfillItem {
+  title: string;
+  reverbLink: string | null;
+  price: number;
+  listedAt: string | null;
+  photos: number;
+  state: string;
+}
+
+interface SoldBackfillResponse {
+  success: boolean;
+  confirmed: boolean;
+  message: string;
+  totalReverbListings?: number;
+  soldOnReverb?: number;
+  alreadyOnSite?: number;
+  duplicatesInFeed?: number;
+  skippedNoLink?: number;
+  imported?: number;
+  totalPhotos?: number;
+  stateTally?: Record<string, number>;
+  items?: SoldBackfillItem[];
+  output?: string[];
   error?: string;
 }
 
@@ -41,7 +72,13 @@ interface AdminListing {
   price: number;
   currency: string;
   disabled: boolean;
-  pending: boolean;
+  is_reserved: boolean;
+  reservation_id: string | null;
+  reservation_type: string | null;
+  reservation_type_label: string | null;
+  reservation_status: string | null;
+  reservation_user_name: string | null;
+  reservation_unassigned: boolean;
 }
 
 interface Conversation {
@@ -141,7 +178,9 @@ export default function AdminPage() {
   const [listings, setListings] = useState<AdminListing[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [togglingPendingId, setTogglingPendingId] = useState<string | null>(null);
+  const [reservingListing, setReservingListing] = useState<
+    { id: string; title: string; price: number } | null
+  >(null);
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editPriceValue, setEditPriceValue] = useState<string>('');
   const [savingPriceId, setSavingPriceId] = useState<string | null>(null);
@@ -170,7 +209,12 @@ export default function AdminPage() {
   const [selectedListingIds, setSelectedListingIds] = useState<Set<string>>(new Set());
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [swExportOpen, setSwExportOpen] = useState(false);
+  const [ebayExportOpen, setEbayExportOpen] = useState(false);
   const [initPricesLoading, setInitPricesLoading] = useState(false);
+  // ONE-OFF MAINTENANCE: sold-listing backfill state. Remove with the button below.
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<SoldBackfillResponse | null>(null);
   const lastKnownOrderCountRef = useRef<number | null>(null);
   const initialLoadDoneRef = useRef(false);
 
@@ -398,18 +442,34 @@ export default function AdminPage() {
     }
   };
 
-  const togglePending = async (id: string) => {
-    setTogglingPendingId(id);
-    try {
-      const response = await api.authPatch<{ id: string; pending: boolean }>(`/admin/listings/${id}/toggle-pending`);
-      setListings(prev =>
-        prev.map(l => (l.id === id ? { ...l, pending: response.pending } : l))
-      );
-    } catch (err) {
-      console.error('Failed to toggle pending:', err);
-    } finally {
-      setTogglingPendingId(null);
-    }
+  /**
+   * Reflects a newly created reservation onto the listings table without a refetch.
+   */
+  const handleReservationCreated = (reservation: {
+    id: string;
+    listing_id: string;
+    type: string;
+    type_label: string;
+    status: string;
+    user_name: string | null;
+    is_unassigned: boolean;
+  }) => {
+    setListings(prev =>
+      prev.map(l =>
+        l.id === reservation.listing_id
+          ? {
+              ...l,
+              is_reserved: true,
+              reservation_id: reservation.id,
+              reservation_type: reservation.type,
+              reservation_type_label: reservation.type_label,
+              reservation_status: reservation.status,
+              reservation_user_name: reservation.user_name,
+              reservation_unassigned: reservation.is_unassigned,
+            }
+          : l
+      )
+    );
   };
 
   const deleteListing = async (listing: AdminListing) => {
@@ -453,28 +513,6 @@ export default function AdminPage() {
         return next;
       });
     }
-  };
-
-  const htmlToPlainText = (html: string): string => {
-    // Strip return policy section and everything after it
-    const cleaned = html.replace(/(<b>|<strong>)*\s*Return Policy\s*:?\s*(<\/b>|<\/strong>)*[\s\S]*/i, '');
-    let text = cleaned;
-    text = text.replace(/<br\s*\/?>/gi, '\n');
-    text = text.replace(/<\/p>/gi, '\n\n');
-    text = text.replace(/<li>/gi, '- ');
-    text = text.replace(/<\/li>/gi, '\n');
-    text = text.replace(/<\/?(ul|ol)>/gi, '\n');
-    text = text.replace(/<[^>]+>/g, '');
-    text = text.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, ' ');
-    text = text.replace(/\n{3,}/g, '\n\n');
-    return text.trim();
-  };
-
-  const getFullQualityUrl = (url: string): string => {
-    if (url.includes('rvb-img.reverb.com')) {
-      return url.replace(/\/[^/]*=[^/]*/g, '');
-    }
-    return url;
   };
 
   const handleBulkFbExport = () => {
@@ -668,6 +706,37 @@ export default function AdminPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // ONE-OFF MAINTENANCE: import pre-site sold Reverb listings into the /sold gallery.
+  // Preview first (confirm=false), then commit. Never touches transactions.
+  const backfillSoldListings = async (confirm: boolean) => {
+    if (confirm && !window.confirm(
+      `Import ${backfillResult?.items?.length ?? 0} sold listings into the Sold gallery? ` +
+      'This only adds listings — no transactions or finance data are changed.'
+    )) {
+      return;
+    }
+
+    setBackfillLoading(true);
+    if (!confirm) setBackfillResult(null);
+
+    try {
+      const response = await api.authPost<SoldBackfillResponse>(
+        `/admin/backfill-sold-listings${confirm ? '?confirm=true' : ''}`,
+        {}
+      );
+      setBackfillResult(response);
+    } catch (err) {
+      setBackfillResult({
+        success: false,
+        confirmed: confirm,
+        message: 'Failed to run sold-listing backfill',
+        error: err instanceof Error ? err.message : 'Unknown error',
+      });
+    } finally {
+      setBackfillLoading(false);
     }
   };
 
@@ -893,10 +962,18 @@ export default function AdminPage() {
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
                         Disabled
                       </span>
-                    ) : listing.pending ? (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        Pending
-                      </span>
+                    ) : listing.is_reserved ? (
+                      // Type + who it's held for, at a glance.
+                      <div className="flex flex-col gap-0.5">
+                        <span className="inline-flex w-fit items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          {listing.reservation_type_label || 'On Hold'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {listing.reservation_unassigned
+                            ? 'Unassigned'
+                            : listing.reservation_user_name || '—'}
+                        </span>
+                      </div>
                     ) : (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                         Active
@@ -914,30 +991,35 @@ export default function AdminPage() {
                         <ExternalLink className="h-3 w-3" />
                         View
                       </a>
-                      <button
-                        onClick={() => togglePending(listing.id)}
-                        disabled={togglingPendingId === listing.id || listing.disabled}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                          listing.pending
-                            ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                            : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800'
-                        } disabled:opacity-50`}
-                        title={listing.pending ? 'Remove pending status' : 'Mark as pending trade-in'}
-                      >
-                        {togglingPendingId === listing.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : listing.pending ? (
-                          <>
-                            <ToggleRight className="h-3 w-3" />
-                            Pending
-                          </>
-                        ) : (
-                          <>
-                            <ToggleLeft className="h-3 w-3" />
-                            Pending
-                          </>
-                        )}
-                      </button>
+                      {/* The old "Pending for Trade-In" toggle is gone. Reservations
+                          carry a customer, terms and an expiry, so they're created
+                          through a dialog and managed on the Reservations tab. */}
+                      {listing.is_reserved ? (
+                        <Link
+                          href="/admin/reservations"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-yellow-500 hover:bg-yellow-600 text-white transition-colors"
+                          title="Manage this reservation"
+                        >
+                          <Bookmark className="h-3 w-3" />
+                          Reserved
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            setReservingListing({
+                              id: listing.id,
+                              title: listing.listing_title,
+                              price: listing.price,
+                            })
+                          }
+                          disabled={listing.disabled}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-yellow-100 hover:bg-yellow-200 text-yellow-800 transition-colors disabled:opacity-50"
+                          title="Mark as pending"
+                        >
+                          <Bookmark className="h-3 w-3" />
+                          Mark pending
+                        </button>
+                      )}
                       <button
                         onClick={() => toggleListing(listing.id)}
                         disabled={togglingId === listing.id}
@@ -1024,6 +1106,22 @@ export default function AdminPage() {
                       >
                         {bulkExporting ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />}
                         FB Export
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="text-sm h-8"
+                        onClick={() => setSwExportOpen(true)}
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
+                        SW Export
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="text-sm h-8"
+                        onClick={() => setEbayExportOpen(true)}
+                      >
+                        <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5" />
+                        eBay Export
                       </Button>
                       <button
                         onClick={() => setSelectedListingIds(new Set())}
@@ -1163,6 +1261,120 @@ export default function AdminPage() {
                     <h3 className="text-sm font-semibold text-red-700 mb-2">Error Details:</h3>
                     <pre className="bg-red-50 text-red-800 p-4 rounded-lg text-sm">{result.error}</pre>
                   </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ONE-OFF MAINTENANCE: backfill sold Reverb listings that predate this site.
+              Remove this whole card once the backfill has been run. */}
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6 mt-6">
+            <h2 className="text-xl font-semibold text-[#020E1C] mb-4">
+              One-Time: Import Old Sold Listings
+            </h2>
+            <p className="text-gray-600 mb-2">
+              Pulls every listing marked <strong>sold</strong> on Reverb that isn&apos;t already on
+              the site and adds it to the Sold gallery. Listings already here are skipped, so
+              running it twice imports nothing.
+            </p>
+            <p className="text-gray-600 mb-6 text-sm">
+              This only writes listings — <strong>no transactions are created and no finance
+              numbers change.</strong> Preview first, then import.
+            </p>
+
+            <div className="flex flex-wrap gap-3">
+              <Button
+                onClick={() => backfillSoldListings(false)}
+                disabled={backfillLoading}
+                variant="outline"
+                className="font-semibold px-6 py-3"
+              >
+                {backfillLoading && !backfillResult?.confirmed ? (
+                  <>
+                    <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                    Checking Reverb...
+                  </>
+                ) : (
+                  'Preview Sold Listings'
+                )}
+              </Button>
+              {backfillResult?.success && !backfillResult.confirmed && (backfillResult.items?.length ?? 0) > 0 && (
+                <Button
+                  onClick={() => backfillSoldListings(true)}
+                  disabled={backfillLoading}
+                  className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-6 py-3"
+                >
+                  {backfillLoading ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Importing...
+                    </>
+                  ) : (
+                    `Import ${backfillResult.items?.length ?? 0} Listings`
+                  )}
+                </Button>
+              )}
+            </div>
+
+            {backfillResult && (
+              <div className="mt-6">
+                <div
+                  className={`flex items-center gap-2 p-4 rounded-lg ${
+                    backfillResult.success
+                      ? 'bg-green-50 border border-green-200 text-green-800'
+                      : 'bg-red-50 border border-red-200 text-red-800'
+                  }`}
+                >
+                  {backfillResult.success ? (
+                    <CheckCircle className="h-5 w-5 flex-shrink-0" />
+                  ) : (
+                    <XCircle className="h-5 w-5 flex-shrink-0" />
+                  )}
+                  <span className="font-medium">{backfillResult.message}</span>
+                </div>
+
+                {backfillResult.output && backfillResult.output.length > 0 && (
+                  <pre className="mt-4 bg-gray-900 text-gray-100 p-4 rounded-lg text-sm overflow-x-auto max-h-60 overflow-y-auto">
+                    {backfillResult.output.join('\n')}
+                  </pre>
+                )}
+
+                {backfillResult.items && backfillResult.items.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold text-gray-700 mb-2">
+                      {backfillResult.confirmed ? 'Imported:' : 'Would import:'}
+                    </h3>
+                    <div className="border border-gray-200 rounded-lg max-h-96 overflow-y-auto">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-50 sticky top-0">
+                          <tr>
+                            <th className="text-left p-2 font-semibold">Title</th>
+                            <th className="text-right p-2 font-semibold">Price</th>
+                            <th className="text-left p-2 font-semibold">Listed</th>
+                            <th className="text-right p-2 font-semibold">Photos</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {backfillResult.items.map((item, i) => (
+                            <tr key={item.reverbLink ?? i} className="border-t border-gray-100">
+                              <td className="p-2">{item.title}</td>
+                              <td className="p-2 text-right">${item.price.toLocaleString()}</td>
+                              <td className="p-2">
+                                {item.listedAt ? new Date(item.listedAt).toLocaleDateString() : '—'}
+                              </td>
+                              <td className="p-2 text-right">{item.photos}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {backfillResult.error && (
+                  <pre className="mt-4 bg-red-50 text-red-800 p-4 rounded-lg text-sm">
+                    {backfillResult.error}
+                  </pre>
                 )}
               </div>
             )}
@@ -1825,6 +2037,25 @@ export default function AdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <SweetwaterExportModal
+        open={swExportOpen}
+        onOpenChange={setSwExportOpen}
+        listings={listings.filter(l => selectedListingIds.has(l.id))}
+      />
+
+      <EbayExportModal
+        open={ebayExportOpen}
+        onOpenChange={setEbayExportOpen}
+        listings={listings.filter(l => selectedListingIds.has(l.id))}
+      />
+
+      <ReservationDialog
+        isOpen={!!reservingListing}
+        onClose={() => setReservingListing(null)}
+        onSaved={handleReservationCreated}
+        listing={reservingListing}
+      />
     </div>
   );
 }

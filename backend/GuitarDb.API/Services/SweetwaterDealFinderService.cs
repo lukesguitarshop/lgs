@@ -1,4 +1,5 @@
 using GuitarDb.API.Models;
+using GuitarDb.API.Models.Reverb;
 
 namespace GuitarDb.API.Services;
 
@@ -70,7 +71,8 @@ public class SweetwaterDealFinderService
                 };
             }
 
-            int totalWithPriceGuide = 0, totalWithoutPriceGuide = 0, totalDealsFound = 0, totalErrors = 0;
+            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 100);
+            int totalWithPriceGuide = 0, totalWithoutPriceGuide = 0, totalDealsFound = 0, totalErrors = 0, totalLookupErrors = 0;
 
             // Collect all makes from all filter sets and fetch once
             var allMakes = filterSets.SelectMany(f => f.Makes).Distinct().ToList();
@@ -92,8 +94,10 @@ public class SweetwaterDealFinderService
             {
                 try
                 {
-                    var potentialBuy = await ProcessListingAsync(listing, cancellationToken);
+                    var (potentialBuy, priceResult) = await ProcessListingAsync(listing, dealThresholdPercent, cancellationToken);
                     await _mongoDbService.UpsertSweetwaterPotentialBuyAsync(potentialBuy, cancellationToken);
+
+                    if (priceResult.LookupError) totalLookupErrors++;
 
                     if (potentialBuy.HasPriceGuide)
                     {
@@ -130,10 +134,24 @@ public class SweetwaterDealFinderService
 
             var totalInDb = await _mongoDbService.GetSweetwaterPotentialBuysTotalCountAsync(cancellationToken);
 
+            result.DealsFound = totalDealsFound;
+            result.WithPriceData = totalWithPriceGuide;
+            result.LookupErrors = totalLookupErrors;
+            result.Duration = DateTime.UtcNow - startTime;
+
+            // Fail loudly if the price data source is systematically broken instead of
+            // silently reporting a successful run with zero deals.
+            if (result.ListingsChecked >= 20 && totalWithPriceGuide == 0 && totalLookupErrors > result.ListingsChecked / 2)
+            {
+                result.Success = false;
+                result.Message = $"Price data lookups are failing ({totalLookupErrors}/{result.ListingsChecked} errors) — the Reverb CSP API may have changed";
+                result.Error = result.Message;
+                _logger.LogError("{Message}", result.Message);
+                return result;
+            }
+
             result.Success = true;
             result.Message = "Sweetwater deal finder completed successfully";
-            result.DealsFound = totalDealsFound;
-            result.Duration = DateTime.UtcNow - startTime;
 
             _logger.LogInformation("===== SWEETWATER DEAL FINDER SUMMARY =====");
             _logger.LogInformation("Listings Checked: {Count}", result.ListingsChecked);
@@ -141,6 +159,7 @@ public class SweetwaterDealFinderService
             _logger.LogInformation("Without Price Guide: {Count}", totalWithoutPriceGuide);
             _logger.LogInformation("Deals Found: {Count}", totalDealsFound);
             _logger.LogInformation("Errors: {Count}", totalErrors);
+            _logger.LogInformation("Lookup Errors: {Count}", totalLookupErrors);
             _logger.LogInformation("Total in Database: {Count}", totalInDb);
             _logger.LogInformation("Duration: {Duration}", result.Duration);
             _logger.LogInformation("==========================================");
@@ -165,7 +184,8 @@ public class SweetwaterDealFinderService
         }
     }
 
-    private async Task<SweetwaterPotentialBuy> ProcessListingAsync(SweetwaterListing listing, CancellationToken ct)
+    private async Task<(SweetwaterPotentialBuy Buy, CspPriceResult PriceResult)> ProcessListingAsync(
+        SweetwaterListing listing, decimal dealThresholdPercent, CancellationToken ct)
     {
         var potentialBuy = new SweetwaterPotentialBuy
         {
@@ -181,49 +201,35 @@ public class SweetwaterDealFinderService
             LastCheckedAt = DateTime.UtcNow
         };
 
-        // Search price guide using Reverb's price guides
-        var priceGuideResult = await _priceGuideCache.SearchAsync(
-            listing.Make,
-            listing.Model,
-            listing.Finish,
-            null, // No CSP ID from Sweetwater
-            listing.Year,
-            ct);
+        // Benchmark against Reverb market prices via the CSP API
+        var priceResult = await _priceGuideCache.SearchAsync(listing.Make, listing.Model, ct);
 
-        var priceGuide = priceGuideResult.PriceGuide;
-        if (priceGuide?.EstimatedValue != null)
+        if (priceResult.HasPrice)
         {
+            var usedLow = priceResult.UsedLowPrice!.Value;
+
             potentialBuy.HasPriceGuide = true;
-            potentialBuy.PriceGuideLow = priceGuide.EstimatedValue.PriceLow?.Amount;
-            potentialBuy.PriceGuideHigh = priceGuide.EstimatedValue.PriceHigh?.Amount;
+            potentialBuy.PriceGuideLow = usedLow;                    // lowest current used ask on Reverb
+            potentialBuy.PriceGuideHigh = priceResult.NewLowPrice;   // lowest current new ask (may be null)
+            potentialBuy.DiscountPercent = (usedLow - potentialBuy.Price) / usedLow * 100;
 
-            if (potentialBuy.PriceGuideLow.HasValue && potentialBuy.PriceGuideLow > 0)
-            {
-                potentialBuy.DiscountPercent =
-                    (potentialBuy.PriceGuideLow.Value - potentialBuy.Price)
-                    / potentialBuy.PriceGuideLow.Value * 100;
+            var isBelowMarket = potentialBuy.Price <= usedLow * dealThresholdPercent / 100m;
+            var isWithinBudget = usedLow <= 3500;
+            potentialBuy.IsDeal = isBelowMarket && isWithinBudget && priceResult.IsReliable;
 
-                var priceHigh = potentialBuy.PriceGuideHigh ?? potentialBuy.PriceGuideLow.Value;
-                var midpoint = (potentialBuy.PriceGuideLow.Value + priceHigh) / 2;
-
-                var isInBottomHalf = potentialBuy.Price <= midpoint;
-                var isWithinBudget = potentialBuy.PriceGuideLow.Value <= 3500;
-                potentialBuy.IsDeal = isInBottomHalf && isWithinBudget && priceGuideResult.IsReliable;
-
-                string matchLabel = potentialBuy.IsDeal ? "DEAL!" : (priceGuideResult.IsReliable ? "     " : "SKIP ");
-                _logger.LogInformation(
-                    "[SW] {Deal} {Title}: ${Price} vs ${Low}-${High} (mid: ${Mid}) [{MatchType}]",
-                    matchLabel,
-                    listing.Title.Length > 50 ? listing.Title[..50] + "..." : listing.Title,
-                    potentialBuy.Price,
-                    potentialBuy.PriceGuideLow,
-                    potentialBuy.PriceGuideHigh,
-                    midpoint,
-                    priceGuideResult.MatchType);
-            }
+            string matchLabel = potentialBuy.IsDeal ? "DEAL!" : (priceResult.IsReliable ? "     " : "SKIP ");
+            _logger.LogInformation(
+                "[SW] {Deal} {Title}: ${Price} vs used low ${UsedLow} (new: ${NewLow}) [{MatchType}: {CspTitle}]",
+                matchLabel,
+                listing.Title.Length > 50 ? listing.Title[..50] + "..." : listing.Title,
+                potentialBuy.Price,
+                usedLow,
+                priceResult.NewLowPrice,
+                priceResult.MatchType,
+                priceResult.CspTitle);
         }
 
-        return potentialBuy;
+        return (potentialBuy, priceResult);
     }
 }
 
@@ -234,5 +240,7 @@ public class SweetwaterDealFinderResult
     public string? Error { get; set; }
     public int ListingsChecked { get; set; }
     public int DealsFound { get; set; }
+    public int WithPriceData { get; set; }
+    public int LookupErrors { get; set; }
     public TimeSpan Duration { get; set; }
 }

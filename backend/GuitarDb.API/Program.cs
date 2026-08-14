@@ -50,6 +50,14 @@ builder.Services.AddSingleton<AuthService>();
 // Register EmailService
 builder.Services.AddSingleton<EmailService>();
 
+// Register ReservationService — shared enforcement + balance calculation for holds,
+// trade-ins and accepted offers. Single source of truth for "who is this promised to".
+builder.Services.AddSingleton<ReservationService>();
+
+// Records deposit payments against reservations. Shared by the deposit checkout
+// controller and the Stripe webhook fallback so both settle a deposit identically.
+builder.Services.AddSingleton<DepositService>();
+
 // Register Deal Finder services
 builder.Services.AddHttpClient<ReverbDealFinderClient>(client =>
 {
@@ -78,7 +86,9 @@ builder.Services.AddSingleton<UpsTrackingService>();
 
 // Register background services
 builder.Services.AddHostedService<OfferExpirationService>();
+builder.Services.AddHostedService<ReservationExpirationService>();
 builder.Services.AddHostedService<DeliveryTrackingService>();
+builder.Services.AddHostedService<ScheduledDealFinderService>();
 
 // Configure JWT Authentication
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]

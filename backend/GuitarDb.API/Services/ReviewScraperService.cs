@@ -51,50 +51,47 @@ public class ReviewScraperService
 
         try
         {
-            // Get existing review order IDs to avoid duplicates
-            var existingOrderIds = await _mongoDbService.GetAllReviewOrderIdsAsync();
-            _logger.LogInformation("Found {Count} existing reviews in database", existingOrderIds.Count);
-            result.OutputLines.Add($"Found {existingOrderIds.Count} existing reviews in database");
-
             // Fetch feedback from Reverb
             _logger.LogInformation("Fetching feedback from Reverb...");
             result.OutputLines.Add("Fetching feedback from Reverb...");
             var feedbackItems = await FetchAllFeedbackAsync(cancellationToken);
-            result.OutputLines.Add($"Fetched {feedbackItems.Count} total feedback items from Reverb");
 
-            // Filter to only new reviews (not already in database)
-            var newFeedback = feedbackItems
-                .Where(f => !string.IsNullOrEmpty(f.GetUniqueId()) && !existingOrderIds.Contains(f.GetUniqueId()!))
-                .ToList();
+            // The feedback endpoint returns feedback the shop received in both roles;
+            // keep only reviews of the shop as a seller (type == "seller").
+            var sellerFeedback = feedbackItems.Where(f => f.IsSellerFeedback()).ToList();
+            _logger.LogInformation("Fetched {Total} feedback items ({Seller} seller reviews)",
+                feedbackItems.Count, sellerFeedback.Count);
+            result.OutputLines.Add($"Fetched {feedbackItems.Count} feedback items ({sellerFeedback.Count} seller reviews)");
 
-            _logger.LogInformation("Found {Count} new reviews to import", newFeedback.Count);
-            result.OutputLines.Add($"Found {newFeedback.Count} new reviews to import");
+            // All reviews count, including ones without a written message — they still
+            // carry a star rating that belongs in the average.
+            var reviews = sellerFeedback.Select(ConvertToReview).ToList();
 
-            if (newFeedback.Count == 0)
+            if (reviews.Count == 0)
             {
-                result.OutputLines.Add("No new reviews to import");
+                // Don't wipe the database on an empty/suspicious fetch
+                result.OutputLines.Add("No seller reviews returned by Reverb — keeping existing reviews");
                 result.Duration = DateTime.UtcNow - startTime;
                 return result;
             }
 
-            // Convert and insert new reviews
-            var reviews = newFeedback
-                .Select(ConvertToReview)
-                .Where(r => r != null)
-                .Cast<Review>()
-                .ToList();
+            // Full rebuild from the source of truth: replace everything only after a
+            // successful fetch, so a mid-fetch failure never leaves an empty collection.
+            var deletedCount = await _mongoDbService.DeleteAllReviewsAsync();
+            await _mongoDbService.InsertManyReviewsAsync(reviews);
 
-            if (reviews.Count > 0)
-            {
-                await _mongoDbService.InsertManyReviewsAsync(reviews);
-                result.ReviewsImported = reviews.Count;
-                result.OutputLines.Add($"Imported {reviews.Count} new reviews");
-            }
+            var averageRating = Math.Round(reviews.Average(r => r.Rating), 2);
+            var withText = reviews.Count(r => !string.IsNullOrWhiteSpace(r.ReviewText));
+
+            result.ReviewsImported = reviews.Count;
+            result.OutputLines.Add($"Replaced {deletedCount} existing reviews with {reviews.Count} seller reviews ({withText} with text)");
+            result.OutputLines.Add($"Average rating: {averageRating}");
 
             result.Duration = DateTime.UtcNow - startTime;
 
             _logger.LogInformation("===== REVIEW SCRAPER SUMMARY =====");
             _logger.LogInformation("Reviews Imported: {Count}", result.ReviewsImported);
+            _logger.LogInformation("Average Rating: {Avg}", averageRating);
             _logger.LogInformation("Duration: {Duration}", result.Duration);
 
             return result;
@@ -176,37 +173,18 @@ public class ReviewScraperService
         return allFeedback;
     }
 
-    private Review? ConvertToReview(ReverbFeedback feedback)
+    private static Review ConvertToReview(ReverbFeedback feedback)
     {
-        // Skip if no message (empty review)
-        if (string.IsNullOrWhiteSpace(feedback.Message))
-        {
-            _logger.LogDebug("Skipping feedback with no message from {Author}", feedback.GetReviewerName());
-            return null;
-        }
-
-        // Get the guitar name from the listing title
-        var guitarName = feedback.GetListingTitle() ?? "Guitar";
-
-        // Get the reviewer name
-        var reviewerName = feedback.GetReviewerName() ?? "Anonymous";
-
-        // Get rating (default to 5 if not provided)
-        var rating = feedback.Rating > 0 ? feedback.Rating : 5;
-
-        var uniqueId = feedback.GetUniqueId();
-
-        _logger.LogInformation("Converting review: {Title} by {Reviewer} (ID: {Id}, Rating: {Rating})",
-            guitarName, reviewerName, uniqueId, rating);
-
         return new Review
         {
-            ReverbOrderId = uniqueId,
-            GuitarName = guitarName,
-            ReviewerName = reviewerName,
+            ReverbOrderId = feedback.GetUniqueId(),
+            GuitarName = feedback.GetListingTitle() ?? "Guitar",
+            ReviewerName = feedback.GetReviewerName() ?? "Anonymous",
             ReviewDate = feedback.CreatedAt,
-            Rating = rating,
-            ReviewText = feedback.Message
+            // Ratings can legitimately be 1-5; only default when missing entirely
+            Rating = feedback.Rating > 0 ? feedback.Rating : 5,
+            // Empty messages are kept — the rating still counts toward the average
+            ReviewText = feedback.Message ?? string.Empty
         };
     }
 }

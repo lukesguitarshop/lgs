@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { openImpersonationTab, impersonationErrorMessage } from '@/lib/impersonation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,6 +32,7 @@ import {
   ShoppingCart,
   Heart,
   HeartOff,
+  Eye,
 } from 'lucide-react';
 
 interface UserDetail {
@@ -94,7 +96,7 @@ export default function AdminUserDetailPage() {
   const params = useParams();
   const router = useRouter();
   const userId = params.id as string;
-  const { isAdmin, isLoading: authLoading, isAuthenticated, setShowLoginModal } = useAuth();
+  const { isAdmin, isLoading: authLoading, isAuthenticated, setShowLoginModal, user: currentUser } = useAuth();
 
   const [user, setUser] = useState<UserDetail | null>(null);
   const [orders, setOrders] = useState<UserOrder[]>([]);
@@ -108,6 +110,8 @@ export default function AdminUserDetailPage() {
   const [loading, setLoading] = useState(true);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [impersonating, setImpersonating] = useState(false);
+  const [impersonateError, setImpersonateError] = useState<string | null>(null);
 
   // Edit state
   const [editing, setEditing] = useState(false);
@@ -171,6 +175,19 @@ export default function AdminUserDetailPage() {
       setLoadingOrders(false);
     }
   }, [userId]);
+
+  const handleImpersonate = async () => {
+    setImpersonating(true);
+    setImpersonateError(null);
+    try {
+      await openImpersonationTab(userId, user?.isGuest ? '/' : undefined);
+    } catch (err) {
+      console.error('Failed to impersonate user:', err);
+      setImpersonateError(impersonationErrorMessage(err));
+    } finally {
+      setImpersonating(false);
+    }
+  };
 
   const handleSaveCredit = async () => {
     const newBalance = parseFloat(editCreditValue);
@@ -327,6 +344,8 @@ export default function AdminUserDetailPage() {
         return <HeartOff className="h-4 w-4 text-gray-400" />;
       case 'order_placed':
         return <Receipt className="h-4 w-4 text-green-600" />;
+      case 'admin_impersonation':
+        return <Eye className="h-4 w-4 text-[#6E0114]" />;
       default:
         return <Activity className="h-4 w-4 text-gray-400" />;
     }
@@ -452,12 +471,36 @@ export default function AdminUserDetailPage() {
             {user.email || (user.isGuest ? `Guest (${user.guestSessionId?.slice(0, 8)}...)` : 'No email')}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-start">
           {!editing ? (
-            <Button onClick={() => setEditing(true)} className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
-              <Pencil className="h-4 w-4 mr-2" />
-              Edit User
-            </Button>
+            <>
+              <div className="flex flex-col items-end">
+                <Button
+                  onClick={handleImpersonate}
+                  variant="outline"
+                  disabled={impersonating || currentUser?.id === user.id}
+                  title={
+                    currentUser?.id === user.id
+                      ? 'This is your own account'
+                      : 'Open a new tab signed in as this customer'
+                  }
+                >
+                  {impersonating ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <LogIn className="h-4 w-4 mr-2" />
+                  )}
+                  Login as Customer
+                </Button>
+                {impersonateError && (
+                  <p className="text-xs text-red-600 mt-1 max-w-[16rem] text-right">{impersonateError}</p>
+                )}
+              </div>
+              <Button onClick={() => setEditing(true)} className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
+                <Pencil className="h-4 w-4 mr-2" />
+                Edit User
+              </Button>
+            </>
           ) : (
             <>
               <Button onClick={handleCancelEdit} variant="outline" disabled={saving}>

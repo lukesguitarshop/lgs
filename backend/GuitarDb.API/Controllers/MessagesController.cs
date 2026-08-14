@@ -15,18 +15,21 @@ public class MessagesController : ControllerBase
     private readonly EmailService _emailService;
     private readonly ILogger<MessagesController> _logger;
     private readonly IFileStorageService _fileStorage;
+    private readonly ReservationService _reservationService;
     private static readonly TimeSpan OfferExpiration = TimeSpan.FromHours(48);
 
     public MessagesController(
         MongoDbService mongoDbService,
         EmailService emailService,
         ILogger<MessagesController> logger,
-        IFileStorageService fileStorage)
+        IFileStorageService fileStorage,
+        ReservationService reservationService)
     {
         _mongoDbService = mongoDbService;
         _emailService = emailService;
         _logger = logger;
         _fileStorage = fileStorage;
+        _reservationService = reservationService;
     }
 
     /// <summary>
@@ -502,6 +505,14 @@ public class MessagesController : ControllerBase
         var otherUserId = conversation.ParticipantIds.First(p => p != userId);
         var pendingActionBy = isBuyer ? "seller" : "buyer";
 
+        // A reserved guitar stops taking offers. The admin can still counter inside an
+        // existing thread (e.g. the accepted-offer thread that created the reservation),
+        // so this only blocks buyers.
+        if (isBuyer && !await _reservationService.CanAcceptOffersAsync(conversation.ListingId))
+        {
+            return BadRequest(new { error = ReservationService.GenericOfferMessage });
+        }
+
         // Create offer message
         var message = await _mongoDbService.CreateMessageAsync(new Message
         {
@@ -618,26 +629,54 @@ public class MessagesController : ControllerBase
             );
         }
 
-        // Add to pending cart items (72 hour hold)
-        // The buyer always gets the item in their cart, regardless of who made the final offer
+        // An accepted offer IS a reservation. Creating one here means the offer flow and
+        // the hold/trade-in flow share a single enforcement path and a single place the
+        // admin looks to see what is spoken for.
+        //
+        // Note this no longer disables the listing: reserved guitars stay visible and
+        // browsable with an "On Hold" badge, and the reservation is what blocks everyone
+        // except the buyer from checking out.
         if (conversation.ListingId != null && listing != null)
         {
             // Determine who the buyer is (the non-admin participant)
             var buyerId = isBuyer ? userId : otherUserId;
 
-            await _mongoDbService.CreatePendingCartItemAsync(new PendingCartItem
+            var existingReservation = await _mongoDbService.GetActiveReservationByListingAsync(conversation.ListingId);
+            if (existingReservation != null)
             {
-                UserId = buyerId,
-                ListingId = conversation.ListingId,
-                OfferId = conversationId,
-                Price = acceptedAmount,
-                ListingTitle = listing.ListingTitle ?? "",
-                ListingImage = listing.Images?.FirstOrDefault() ?? "",
-                ExpiresAt = DateTime.UtcNow.AddHours(72)
-            });
+                // Someone already holds this guitar. Don't silently overwrite that.
+                _logger.LogWarning(
+                    "Offer accepted on listing {ListingId} which already has active reservation {ReservationId}",
+                    conversation.ListingId, existingReservation.Id);
 
-            // Disable the listing (mark as sold/pending)
-            await _mongoDbService.SetListingDisabledAsync(conversation.ListingId, true);
+                await _mongoDbService.FlagReservationForReviewAsync(
+                    existingReservation.Id!,
+                    $"An offer of ${acceptedAmount:N2} was accepted in conversation {conversationId} " +
+                    "while this reservation was active. Decide which buyer gets the guitar.");
+            }
+            else
+            {
+                var reservation = new Reservation
+                {
+                    ListingId = conversation.ListingId,
+                    UserId = buyerId,
+                    Type = ReservationType.OfferAccepted,
+                    Status = ReservationStatus.Pending,
+                    AgreedPrice = acceptedAmount,
+                    TradeInCredit = 0m,
+                    DepositRequired = false,
+                    DepositAmount = 0m,
+                    // Preserves the original 72-hour window on accepted offers.
+                    ExpiresAt = DateTime.UtcNow.AddHours(72),
+                    SourceConversationId = conversationId,
+                    InternalNote = "Created automatically when this offer was accepted."
+                };
+
+                await _mongoDbService.CreateReservationAsync(reservation);
+
+                // Same locked-cart behaviour as before, now driven by the reservation.
+                await _reservationService.LockIntoCartAsync(reservation, listing);
+            }
 
             // Auto-decline all other active offers on this listing
             var rejectedConversations = await _mongoDbService.RejectAllConversationOffersOnListingsAsync(

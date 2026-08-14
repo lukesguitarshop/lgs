@@ -15,13 +15,17 @@ import {
   ShieldCheck,
   Mail,
   UserX,
+  LogIn,
 } from 'lucide-react';
 import { getAdminUsers, deleteAdminUser } from '@/lib/api';
 import type { AdminUser } from '@/lib/types/admin-user';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
+import { useAuth } from '@/contexts/AuthContext';
+import { openImpersonationTab, impersonationErrorMessage } from '@/lib/impersonation';
 
 export function UsersTab() {
   const router = useRouter();
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -38,6 +42,8 @@ export function UsersTab() {
   const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
+  const [impersonateError, setImpersonateError] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async (page = currentPage) => {
     setLoading(true);
@@ -94,6 +100,20 @@ export function UsersTab() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     setSearchQuery(searchInput);
+  };
+
+  const handleImpersonate = async (user: AdminUser) => {
+    setImpersonatingId(user.id);
+    setImpersonateError(null);
+    try {
+      // Guests have no profile page to land on, so drop them on the storefront
+      await openImpersonationTab(user.id, user.isGuest ? '/' : undefined);
+    } catch (err) {
+      console.error('Failed to impersonate user:', err);
+      setImpersonateError(`${user.fullName}: ${impersonationErrorMessage(err)}`);
+    } finally {
+      setImpersonatingId(null);
+    }
   };
 
   const handleDeleteUser = async () => {
@@ -155,6 +175,12 @@ export function UsersTab() {
       {fetchError && (
         <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200">
           <strong>Error loading users:</strong> {fetchError}
+        </div>
+      )}
+
+      {impersonateError && (
+        <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200">
+          <strong>Could not sign in as user:</strong> {impersonateError}
         </div>
       )}
 
@@ -322,22 +348,45 @@ export function UsersTab() {
 
                     {/* Actions */}
                     <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={() => setDeletingUser(user)}
-                        disabled={actionLoading === user.id}
-                      >
-                        {actionLoading === user.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <>
-                            <Trash2 className="h-3 w-3 mr-1" />
-                            Delete
-                          </>
-                        )}
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-8"
+                          onClick={() => handleImpersonate(user)}
+                          disabled={impersonatingId === user.id || currentUser?.id === user.id}
+                          title={
+                            currentUser?.id === user.id
+                              ? 'This is your own account'
+                              : 'Open a new tab signed in as this user'
+                          }
+                        >
+                          {impersonatingId === user.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <>
+                              <LogIn className="h-3 w-3 mr-1" />
+                              Log in as
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => setDeletingUser(user)}
+                          disabled={actionLoading === user.id}
+                        >
+                          {actionLoading === user.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <>
+                              <Trash2 className="h-3 w-3 mr-1" />
+                              Delete
+                            </>
+                          )}
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}

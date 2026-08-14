@@ -16,6 +16,16 @@ interface Listing {
   scraped_at: string;
   listed_at: string | null;
   disabled?: boolean;
+  /**
+   * Reservation state. This fetch is unauthenticated, so the server always returns
+   * the anonymous shape here — `reserved_for_me` is resolved client-side by
+   * ListingDetail, which is also what keeps the holder's identity out of SSR/cache.
+   */
+  is_reserved?: boolean;
+  reservation_badge?: string | null;
+  reservation_message?: string | null;
+  reserved_for_me?: boolean;
+  accepts_offers?: boolean;
 }
 
 async function getListing(id: string): Promise<Listing | null> {

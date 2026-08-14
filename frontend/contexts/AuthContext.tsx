@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import {
   User,
+  ImpersonationInfo,
   getStoredUser,
   getToken,
   login as authLogin,
@@ -10,6 +11,11 @@ import {
   logout as authLogout,
   getCurrentUser,
   isAuthenticated as checkIsAuthenticated,
+  getImpersonation,
+  isImpersonationExpired,
+  endImpersonation as authEndImpersonation,
+  removeToken,
+  removeStoredUser,
 } from '@/lib/auth';
 import { clearCart } from '@/lib/cart';
 import { trackLogin, trackSignUp } from '@/lib/analytics';
@@ -20,6 +26,8 @@ interface AuthContextType {
   isGuest: boolean;
   isAdmin: boolean;
   isLoading: boolean;
+  impersonation: ImpersonationInfo | null;
+  endImpersonation: () => void;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, fullName: string) => Promise<void>;
   logout: () => void;
@@ -40,6 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [onRegisterSuccess, setOnRegisterSuccess] = useState<(() => void) | null>(null);
+  const [impersonation, setImpersonation] = useState<ImpersonationInfo | null>(null);
 
   const isAuthenticated = !!user && !user.isGuest;
   const isGuest = !!user && user.isGuest;
@@ -48,6 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Initialize auth state from localStorage
   useEffect(() => {
     const initAuth = async () => {
+      setImpersonation(getImpersonation());
       const token = getToken();
       if (token) {
         // Try to get user from localStorage first
@@ -61,9 +71,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const currentUser = await getCurrentUser();
           setUser(currentUser);
         } catch {
-          // Token invalid, clear auth
-          authLogout();
-          setUser(null);
+          if (getImpersonation()) {
+            // Don't tear down an impersonated session just because this call failed.
+            // The handoff page navigates away immediately after storing the token,
+            // which aborts this very request - that is not an expired token. Only the
+            // token's own expiry is trusted; until then keep the stored session.
+            if (isImpersonationExpired()) {
+              removeToken();
+              removeStoredUser();
+              setUser(null);
+            }
+          } else {
+            // Token invalid, clear auth
+            authLogout();
+            setUser(null);
+          }
         }
       }
       setIsLoading(false);
@@ -96,11 +118,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // If only message returned, the RegisterModal will show the verification message
   }, [onRegisterSuccess]);
 
+  const endImpersonation = useCallback(() => {
+    authEndImpersonation();
+    setImpersonation(null);
+    setUser(null);
+    // The tab was opened by the admin page, so it can close itself. If the browser
+    // refuses (tab was reloaded or opened manually), fall back to the admin portal.
+    window.close();
+    window.location.href = '/admin';
+  }, []);
+
   const logout = useCallback(() => {
+    // Logging out of an impersonated tab ends the impersonation, not the admin's session,
+    // and leaves the admin's cart (which lives in shared localStorage) alone.
+    if (getImpersonation()) {
+      endImpersonation();
+      return;
+    }
     authLogout();
     clearCart();
     setUser(null);
-  }, []);
+  }, [endImpersonation]);
 
   const refreshUser = useCallback(async () => {
     if (checkIsAuthenticated()) {
@@ -108,6 +146,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const currentUser = await getCurrentUser();
         setUser(currentUser);
       } catch {
+        // Same reasoning as initAuth: a failed refresh is not proof the
+        // impersonation token is dead, so don't drop the session over it.
+        if (getImpersonation() && !isImpersonationExpired()) return;
         authLogout();
         setUser(null);
       }
@@ -120,6 +161,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isGuest,
     isAdmin,
     isLoading,
+    impersonation,
+    endImpersonation,
     login,
     register,
     logout,

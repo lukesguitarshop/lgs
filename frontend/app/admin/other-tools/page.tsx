@@ -282,7 +282,7 @@ function OtherToolsContent() {
           <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
             <h2 className="text-xl font-semibold text-[#020E1C] mb-4">Review Scraper</h2>
             <p className="text-gray-600 mb-6">
-              Fetch reviews from your Reverb shop feedback. Only imports new reviews that haven&apos;t been imported yet.
+              Rebuilds all seller reviews from your Reverb shop feedback — includes every rating (not just 5-star) so the average is accurate.
             </p>
 
             <Button

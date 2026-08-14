@@ -5,6 +5,7 @@ import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import DevBanner from "./components/DevBanner";
+import ImpersonationBanner from "./components/ImpersonationBanner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LoginModal } from "@/components/auth/LoginModal";
 import { RegisterModal } from "@/components/auth/RegisterModal";
@@ -188,6 +189,7 @@ export default function RootLayout({
         <DevBanner />
         <ToastProvider>
           <AuthProvider>
+            <ImpersonationBanner />
             <Header />
             <main className="flex-grow container mx-auto px-4 py-8">
               {children}

@@ -15,6 +15,9 @@ import { getAuthHeaders } from '@/lib/auth';
 import ReviewsCarousel from './ReviewsCarousel';
 import { MakeOfferModal } from '@/components/offers/MakeOfferModal';
 import { trackAddToCart, trackViewItem } from '@/lib/analytics';
+import { ReservationBanner } from '@/components/listing/ReservationBanner';
+import { getListingReservation } from '@/lib/api';
+import type { MyReservation } from '@/lib/types/reservation';
 
 interface Listing {
   id: string;
@@ -29,7 +32,13 @@ interface Listing {
   scraped_at: string;
   listed_at: string | null;
   disabled?: boolean;
-  pending?: boolean;
+  /** True when an active reservation holds this guitar. Says nothing about who. */
+  is_reserved?: boolean;
+  /** "On Hold" or "Pending Trade-In". */
+  reservation_badge?: string | null;
+  reservation_message?: string | null;
+  reserved_for_me?: boolean;
+  accepts_offers?: boolean;
 }
 
 function formatPrice(price: number, currency: string = 'USD'): string {
@@ -60,13 +69,44 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   const [showOfferModal, setShowOfferModal] = useState(false);
   const [isMessageLoading, setIsMessageLoading] = useState(false);
   const [existingOfferConversationId, setExistingOfferConversationId] = useState<string | null>(null);
+  const [myReservation, setMyReservation] = useState<MyReservation | null>(null);
   const images = listing.images && listing.images.length > 0 ? listing.images : [];
   const thumbnailContainerRef = useRef<HTMLDivElement>(null);
+
+  // A reserved guitar blocks everyone except its holder.
+  const isReserved = !!listing.is_reserved;
+  const reservedForMe = !!myReservation;
+  const blockedByHold = isReserved && !reservedForMe;
 
   // Check if item is already in cart on mount
   useEffect(() => {
     setInCart(isInCart(listing.id));
   }, [listing.id]);
+
+  // Fetch the reservation terms. The server only returns them to the holder — everyone
+  // else gets the anonymous shape, so this can't leak who the guitar is held for.
+  useEffect(() => {
+    if (!listing.is_reserved) {
+      setMyReservation(null);
+      return;
+    }
+
+    let cancelled = false;
+    getListingReservation(listing.id)
+      .then((state) => {
+        if (!cancelled && state.is_mine && state.reservation) {
+          setMyReservation(state.reservation);
+        }
+      })
+      .catch(() => {
+        // Not the holder, or not logged in — the anonymous "on hold" UI is correct.
+        if (!cancelled) setMyReservation(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [listing.id, listing.is_reserved, isAuthenticated]);
 
   // Track view item event for analytics
   useEffect(() => {
@@ -538,25 +578,35 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             <p className="text-green-600 font-medium mt-1">+ Free Shipping</p>
           </div>
 
+          {/* Reserved for this user — show their terms and the right next step. */}
+          {myReservation && (
+            <ReservationBanner
+              reservation={myReservation}
+              onAddToCart={handleAddToCart}
+              inCart={inCart}
+            />
+          )}
+
           {/* Add to cart and favorite buttons */}
           <div className="flex gap-3">
             <Button
               className={`flex-1 font-semibold py-6 text-lg transition-all ${
                 listing.disabled
                   ? 'bg-gray-400 text-[#FFFFF3] cursor-not-allowed'
-                  : listing.pending
+                  : blockedByHold
                   ? 'bg-gray-400 text-[#FFFFF3] cursor-not-allowed'
                   : inCart
                   ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
                   : 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]'
               }`}
               onClick={handleAddToCart}
-              disabled={inCart || listing.disabled || listing.pending}
+              disabled={inCart || listing.disabled || blockedByHold}
+              title={blockedByHold ? listing.reservation_message || 'This guitar is currently on hold.' : undefined}
             >
               {listing.disabled ? (
                 'SOLD'
-              ) : listing.pending ? (
-                'Pending Trade In'
+              ) : blockedByHold ? (
+                listing.reservation_badge || 'On Hold'
               ) : inCart ? (
                 <>
                   <Check className="h-5 w-5 mr-2" />
@@ -584,6 +634,13 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             </Button>
           </div>
 
+          {/* Hover/tap explanation for anyone who isn't the holder. */}
+          {blockedByHold && (
+            <p className="text-sm text-muted-foreground">
+              {listing.reservation_message || 'This guitar is currently on hold.'}
+            </p>
+          )}
+
           {/* Make Offer and Message Seller buttons */}
           {!listing.disabled && (
             <div className="flex flex-col sm:flex-row gap-3">
@@ -591,9 +648,19 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 variant="outline"
                 className="flex-1 py-6 text-lg"
                 onClick={handleMakeOffer}
+                disabled={blockedByHold}
+                title={
+                  blockedByHold
+                    ? 'This guitar is currently on hold and not accepting offers.'
+                    : undefined
+                }
               >
                 <Tag className="h-5 w-5 mr-2" />
-                {existingOfferConversationId ? 'View Offer(s)' : 'Make an Offer'}
+                {blockedByHold
+                  ? 'Not accepting offers'
+                  : existingOfferConversationId
+                  ? 'View Offer(s)'
+                  : 'Make an Offer'}
               </Button>
               <Button
                 variant="outline"

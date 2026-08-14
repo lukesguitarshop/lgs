@@ -4,6 +4,80 @@ import api from './api';
 
 const TOKEN_KEY = 'auth_token';
 const USER_KEY = 'auth_user';
+const IMPERSONATION_KEY = 'impersonation';
+
+export interface ImpersonationInfo {
+  userName: string;
+  userEmail: string | null;
+  expiresAt: string;
+}
+
+/**
+ * Impersonation sessions live in sessionStorage so they are scoped to a single tab:
+ * the admin's own session in localStorage keeps working in every other tab.
+ * All token/user reads and writes go through the active store so the rest of the
+ * app never has to know which kind of session it is in.
+ */
+function activeStore(): Storage | null {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(IMPERSONATION_KEY) ? sessionStorage : localStorage;
+}
+
+/**
+ * Details of the customer being impersonated in this tab, or null for a normal session
+ */
+export function getImpersonation(): ImpersonationInfo | null {
+  if (typeof window === 'undefined') return null;
+  const raw = sessionStorage.getItem(IMPERSONATION_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Check whether this tab is impersonating a customer
+ */
+export function isImpersonating(): boolean {
+  return getImpersonation() !== null;
+}
+
+/**
+ * Whether the impersonation token's own expiry has passed. This is the only
+ * reliable expiry signal: a failed API call is not, because the request can be
+ * aborted by navigation or fail on a cold backend while the token is still good.
+ */
+export function isImpersonationExpired(): boolean {
+  const info = getImpersonation();
+  if (!info?.expiresAt) return false;
+  const expiresAt = Date.parse(info.expiresAt);
+  return Number.isFinite(expiresAt) && Date.now() > expiresAt;
+}
+
+/**
+ * Start impersonating a customer in this tab only
+ */
+export function startImpersonation(token: string, user: User, expiresAt: string): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(
+    IMPERSONATION_KEY,
+    JSON.stringify({ userName: user.fullName, userEmail: user.email, expiresAt })
+  );
+  sessionStorage.setItem(TOKEN_KEY, token);
+  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+}
+
+/**
+ * End impersonation in this tab, leaving the admin's own session untouched
+ */
+export function endImpersonation(): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(IMPERSONATION_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
+}
 
 export interface ShippingAddress {
   fullName: string;
@@ -42,32 +116,28 @@ export interface RegisterResponse {
  * Get the stored JWT token
  */
 export function getToken(): string | null {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem(TOKEN_KEY);
+  return activeStore()?.getItem(TOKEN_KEY) ?? null;
 }
 
 /**
  * Store the JWT token
  */
 export function setToken(token: string): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(TOKEN_KEY, token);
+  activeStore()?.setItem(TOKEN_KEY, token);
 }
 
 /**
  * Remove the JWT token
  */
 export function removeToken(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(TOKEN_KEY);
+  activeStore()?.removeItem(TOKEN_KEY);
 }
 
 /**
  * Get the stored user
  */
 export function getStoredUser(): User | null {
-  if (typeof window === 'undefined') return null;
-  const userJson = localStorage.getItem(USER_KEY);
+  const userJson = activeStore()?.getItem(USER_KEY);
   if (!userJson) return null;
   try {
     return JSON.parse(userJson);
@@ -80,16 +150,14 @@ export function getStoredUser(): User | null {
  * Store the user
  */
 export function setStoredUser(user: User): void {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  activeStore()?.setItem(USER_KEY, JSON.stringify(user));
 }
 
 /**
  * Remove the stored user
  */
 export function removeStoredUser(): void {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(USER_KEY);
+  activeStore()?.removeItem(USER_KEY);
 }
 
 /**
@@ -155,6 +223,12 @@ export async function login(
  * Logout - clear all auth data
  */
 export function logout(): void {
+  // Inside an impersonated tab this only ends the impersonation; the admin's
+  // own session in localStorage is left alone.
+  if (isImpersonating()) {
+    endImpersonation();
+    return;
+  }
   removeToken();
   removeStoredUser();
 }

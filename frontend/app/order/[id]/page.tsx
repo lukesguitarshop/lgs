@@ -21,7 +21,9 @@ import {
   ExternalLink,
   Mail,
   CheckCircle,
+  FileDown,
 } from 'lucide-react';
+import { jsPDF } from 'jspdf';
 
 interface OrderItem {
   listingId: string;
@@ -99,6 +101,183 @@ function getStatusDisplay(status: string): string {
     default:
       return status;
   }
+}
+
+function generateOrderPdf(order: Order): void {
+  // Letter size, points. High-res by default (jsPDF text is vector = crisp).
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 56;
+  const contentWidth = pageWidth - margin * 2;
+  const brand: [number, number, number] = [110, 1, 20]; // #6E0114
+  const ink: [number, number, number] = [2, 14, 28]; // #020E1C
+  const muted: [number, number, number] = [120, 120, 120];
+  let y = margin;
+
+  const ensureSpace = (needed: number) => {
+    if (y + needed > pageHeight - margin) {
+      doc.addPage();
+      y = margin;
+    }
+  };
+
+  // Header
+  doc.setTextColor(...brand);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(20);
+  doc.text("Luke's Guitar Shop", margin, y);
+
+  doc.setTextColor(...ink);
+  doc.setFontSize(16);
+  doc.text(`Order #${order.id.slice(-8).toUpperCase()}`, pageWidth - margin, y, {
+    align: 'right',
+  });
+  y += 22;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(...muted);
+  doc.text(order.id, pageWidth - margin, y, { align: 'right' });
+  y += 16;
+
+  // Divider
+  doc.setDrawColor(...brand);
+  doc.setLineWidth(1.5);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 24;
+
+  // Section helper
+  const sectionTitle = (title: string) => {
+    ensureSpace(40);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(...brand);
+    doc.text(title, margin, y);
+    y += 16;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.setTextColor(...ink);
+  };
+
+  const field = (label: string, value: string) => {
+    ensureSpace(28);
+    doc.setTextColor(...muted);
+    doc.setFontSize(8);
+    doc.text(label.toUpperCase(), margin, y);
+    y += 12;
+    doc.setTextColor(...ink);
+    doc.setFontSize(10);
+    const lines = doc.splitTextToSize(value || '—', contentWidth);
+    doc.text(lines, margin, y);
+    y += lines.length * 13 + 6;
+  };
+
+  // Order summary
+  sectionTitle('Order Summary');
+  field('Status', getStatusDisplay(order.status));
+  field('Payment Method', order.paymentMethod === 'stripe' ? 'Stripe' : 'PayPal');
+  field('Order Date', formatDate(order.createdAt));
+  y += 6;
+
+  // Buyer information
+  sectionTitle('Buyer Information');
+  field('Name', order.buyerName || 'Guest');
+  field('Email', order.buyerEmail);
+  y += 6;
+
+  // Shipping address
+  const addr = order.shippingAddress;
+  const addressLines = [
+    addr.fullName,
+    addr.line1,
+    addr.line2,
+    `${addr.city}, ${addr.state} ${addr.postalCode}`,
+    addr.country,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  sectionTitle('Shipping Address');
+  field('Ship To', addressLines);
+  y += 6;
+
+  // Tracking
+  sectionTitle('Tracking Information');
+  if (order.trackingCarrier && order.trackingNumber) {
+    field('Carrier', order.trackingCarrier);
+    field('Tracking Number', order.trackingNumber);
+  } else {
+    field('Status', 'No tracking information added yet');
+  }
+  y += 6;
+
+  // Order items
+  sectionTitle('Order Items');
+  // Table header
+  ensureSpace(28);
+  const priceX = pageWidth - margin;
+  const qtyX = pageWidth - margin - 110;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(...muted);
+  doc.text('ITEM', margin, y);
+  doc.text('QTY', qtyX, y, { align: 'right' });
+  doc.text('TOTAL', priceX, y, { align: 'right' });
+  y += 8;
+  doc.setDrawColor(220, 220, 220);
+  doc.setLineWidth(0.75);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 14;
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.setTextColor(...ink);
+  order.items.forEach((item) => {
+    const titleLines = doc.splitTextToSize(item.listingTitle, contentWidth - 160);
+    const rowHeight = titleLines.length * 13 + 8;
+    ensureSpace(rowHeight);
+    const rowTop = y;
+    doc.text(titleLines, margin, rowTop);
+    doc.text(String(item.quantity), qtyX, rowTop, { align: 'right' });
+    doc.text(
+      formatCurrency(item.price * item.quantity, item.currency),
+      priceX,
+      rowTop,
+      { align: 'right' }
+    );
+    y = rowTop + rowHeight;
+  });
+
+  // Total
+  ensureSpace(40);
+  doc.setDrawColor(...ink);
+  doc.setLineWidth(0.75);
+  doc.line(margin, y, pageWidth - margin, y);
+  y += 22;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(13);
+  doc.setTextColor(...ink);
+  doc.text('Total', margin, y);
+  doc.setTextColor(...brand);
+  doc.setFontSize(15);
+  doc.text(
+    formatCurrency(order.totalAmount, order.currency),
+    priceX,
+    y,
+    { align: 'right' }
+  );
+
+  // Footer
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...muted);
+  doc.text(
+    `Generated ${new Date().toLocaleString('en-US')} · lukesguitarshop.com`,
+    margin,
+    pageHeight - margin / 2
+  );
+
+  doc.save(`order-${order.id.slice(-8).toUpperCase()}.pdf`);
 }
 
 export default function OrderDetailPage() {
@@ -281,6 +460,13 @@ export default function OrderDetailPage() {
               {backLabel}
             </Button>
           </Link>
+          <Button
+            variant="outline"
+            onClick={() => generateOrderPdf(order)}
+          >
+            <FileDown className="h-4 w-4 mr-2" />
+            Export as PDF
+          </Button>
         </div>
 
         {/* Order Header Card */}

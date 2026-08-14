@@ -1,5 +1,7 @@
+using GuitarDb.API.Models;
 using GuitarDb.API.Services;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace GuitarDb.API.Controllers;
 
@@ -19,20 +21,35 @@ public class MyListingsController : ControllerBase
     {
         var listings = await _mongoDbService.GetAllMyListingsAsync();
 
-        return Ok(listings.Select(l => new
+        // One batched lookup rather than a query per card.
+        var reservations = await _mongoDbService.GetActiveReservationsByListingIdsAsync(
+            listings.Select(l => l.Id!));
+
+        var userId = GetUserIdIfAuthenticated();
+
+        return Ok(listings.Select(l =>
         {
-            id = l.Id,
-            listing_title = l.ListingTitle,
-            description = l.Description,
-            condition = l.Condition,
-            images = l.Images,
-            reverb_link = l.ReverbLink,
-            price = l.Price,
-            original_price = l.OriginalPrice,
-            currency = l.Currency,
-            scraped_at = l.ScrapedAt,
-            listed_at = l.ListedAt,
-            pending = l.Pending
+            reservations.TryGetValue(l.Id!, out var reservation);
+            var isReserved = reservation != null && reservation.IsActive;
+
+            return new
+            {
+                id = l.Id,
+                listing_title = l.ListingTitle,
+                description = l.Description,
+                condition = l.Condition,
+                images = l.Images,
+                reverb_link = l.ReverbLink,
+                price = l.Price,
+                original_price = l.OriginalPrice,
+                currency = l.Currency,
+                scraped_at = l.ScrapedAt,
+                listed_at = l.ListedAt,
+                // Reservation state only. Never the holder's identity.
+                is_reserved = isReserved,
+                reservation_badge = isReserved ? ReservationType.PublicBadge(reservation!.Type) : null,
+                reserved_for_me = isReserved && userId != null && reservation!.UserId == userId
+            };
         }));
     }
 
@@ -70,6 +87,15 @@ public class MyListingsController : ControllerBase
             return NotFound(new { error = "Listing not found" });
         }
 
+        var reservation = await _mongoDbService.GetActiveReservationByListingAsync(id);
+        var isReserved = reservation != null && reservation.IsActive;
+
+        var userId = GetUserIdIfAuthenticated();
+        var reservedForMe = isReserved
+            && !reservation!.IsUnassigned
+            && userId != null
+            && reservation.UserId == userId;
+
         return Ok(new
         {
             id = listing.Id,
@@ -84,7 +110,21 @@ public class MyListingsController : ControllerBase
             scraped_at = listing.ScrapedAt,
             listed_at = listing.ListedAt,
             disabled = listing.Disabled,
-            pending = listing.Pending
+
+            // Public reservation state. Deliberately says nothing about who holds it —
+            // the detail page fetches its own terms from /api/reservations/listing/{id},
+            // which only returns them to the holder.
+            is_reserved = isReserved,
+            reservation_badge = isReserved ? ReservationType.PublicBadge(reservation!.Type) : null,
+            reservation_message = isReserved ? ReservationService.GenericHoldMessage : null,
+            reserved_for_me = reservedForMe,
+            accepts_offers = !isReserved
         });
+    }
+
+    private string? GetUserIdIfAuthenticated()
+    {
+        if (User.Identity?.IsAuthenticated != true) return null;
+        return User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     }
 }

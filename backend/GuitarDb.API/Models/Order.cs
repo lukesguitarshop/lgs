@@ -77,6 +77,35 @@ public class Order
     [BsonRepresentation(BsonType.ObjectId)]
     [BsonIgnoreIfNull]
     public string? StoreCreditId { get; set; }
+
+    /// <summary>
+    /// "sale" for a normal purchase, "deposit" for a reservation deposit payment.
+    /// Deposit orders are partial payments, not sales — they must be distinguishable
+    /// in the Orders tab and in reporting.
+    /// </summary>
+    [BsonElement("order_type")]
+    public string OrderType { get; set; } = Models.OrderType.Sale;
+
+    /// <summary>Deposit already paid and credited against this order's total.</summary>
+    [BsonElement("deposit_applied")]
+    [BsonIgnoreIfDefault]
+    public decimal DepositApplied { get; set; } = 0m;
+
+    /// <summary>The deposit order(s) whose payments were credited here.</summary>
+    [BsonElement("deposit_order_ids")]
+    [BsonIgnoreIfNull]
+    public List<string>? DepositOrderIds { get; set; }
+
+    /// <summary>Reservations this order settles (or, for a deposit order, pays into).</summary>
+    [BsonElement("reservation_ids")]
+    [BsonIgnoreIfNull]
+    public List<string>? ReservationIds { get; set; }
+}
+
+public static class OrderType
+{
+    public const string Sale = "sale";
+    public const string Deposit = "deposit";
 }
 
 public class OrderItem

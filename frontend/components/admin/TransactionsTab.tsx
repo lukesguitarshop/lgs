@@ -115,6 +115,16 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
+// Drop ?editTxn=<id> from the URL so a refresh doesn't reopen the edit modal.
+function stripEditTxnParam() {
+  if (typeof window === 'undefined') return;
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has('editTxn')) return;
+  params.delete('editTxn');
+  const qs = params.toString();
+  window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
+}
+
 export default function TransactionsTab() {
   const { showToast } = useToast();
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -243,17 +253,13 @@ export default function TransactionsTab() {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // Read ?editTxn=<id> on mount, then strip it from the URL so refreshes don't reopen.
+  // Read ?editTxn=<id> on mount. The param is only stripped once it has actually
+  // been consumed (below), so a remount -- e.g. tabbing away before the
+  // transactions finish loading -- doesn't swallow the deep link.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    const editId = params.get('editTxn');
-    if (editId) {
-      setPendingEditTxnId(editId);
-      params.delete('editTxn');
-      const qs = params.toString();
-      window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
-    }
+    const editId = new URLSearchParams(window.location.search).get('editTxn');
+    if (editId) setPendingEditTxnId(editId);
   }, []);
 
   // Once transactions are loaded, open the edit modal for the deep-linked id.
@@ -268,6 +274,7 @@ export default function TransactionsTab() {
       setForm((prev) => ({ ...prev, transactionType: 'sold', date: today }));
     }
     setPendingEditTxnId(null);
+    stripEditTxnParam();
   }, [pendingEditTxnId, transactions]);
 
   // Auto-calculate profit when revenue, purchasePrice, or shippingCost change
