@@ -3,11 +3,23 @@
 export interface CartItem {
   id: string;
   title: string;
+  /**
+   * What this line actually costs. For a reservation-backed item this is the
+   * balance due, always computed server-side — never derived in the browser.
+   */
   price: number;
   currency: string;
   image: string;
   isLocked?: boolean;
   offerId?: string;
+
+  // Reservation-backed lines only, used to show the credit breakdown.
+  reservationId?: string;
+  /** Full agreed price before credits. */
+  agreedPrice?: number;
+  depositPaid?: number;
+  depositPaidAt?: string | null;
+  tradeInCredit?: number;
 }
 
 const CART_KEY = 'cart';
@@ -46,8 +58,9 @@ export function addToCart(item: CartItem): void {
 }
 
 /**
- * Remove an item from the cart by ID
- * Returns false if item is locked and cannot be removed
+ * Remove an item from the cart by ID.
+ * Returns false when the item is locked (accepted offer or paid deposit) and
+ * therefore cannot be removed by the customer.
  */
 export function removeFromCart(itemId: string): boolean {
   const cart = getCart();

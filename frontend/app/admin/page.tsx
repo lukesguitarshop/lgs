@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, Users, Trash2, Download, FileSpreadsheet } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
@@ -26,6 +26,7 @@ import { htmlToPlainText, getFullQualityUrl } from '@/lib/html-text';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
+import { ReservationDialog } from '@/components/admin/ReservationDialog';
 
 interface ScraperResponse {
   success: boolean;
@@ -71,7 +72,13 @@ interface AdminListing {
   price: number;
   currency: string;
   disabled: boolean;
-  pending: boolean;
+  is_reserved: boolean;
+  reservation_id: string | null;
+  reservation_type: string | null;
+  reservation_type_label: string | null;
+  reservation_status: string | null;
+  reservation_user_name: string | null;
+  reservation_unassigned: boolean;
 }
 
 interface Conversation {
@@ -171,7 +178,9 @@ export default function AdminPage() {
   const [listings, setListings] = useState<AdminListing[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [togglingPendingId, setTogglingPendingId] = useState<string | null>(null);
+  const [reservingListing, setReservingListing] = useState<
+    { id: string; title: string; price: number } | null
+  >(null);
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editPriceValue, setEditPriceValue] = useState<string>('');
   const [savingPriceId, setSavingPriceId] = useState<string | null>(null);
@@ -433,18 +442,34 @@ export default function AdminPage() {
     }
   };
 
-  const togglePending = async (id: string) => {
-    setTogglingPendingId(id);
-    try {
-      const response = await api.authPatch<{ id: string; pending: boolean }>(`/admin/listings/${id}/toggle-pending`);
-      setListings(prev =>
-        prev.map(l => (l.id === id ? { ...l, pending: response.pending } : l))
-      );
-    } catch (err) {
-      console.error('Failed to toggle pending:', err);
-    } finally {
-      setTogglingPendingId(null);
-    }
+  /**
+   * Reflects a newly created reservation onto the listings table without a refetch.
+   */
+  const handleReservationCreated = (reservation: {
+    id: string;
+    listing_id: string;
+    type: string;
+    type_label: string;
+    status: string;
+    user_name: string | null;
+    is_unassigned: boolean;
+  }) => {
+    setListings(prev =>
+      prev.map(l =>
+        l.id === reservation.listing_id
+          ? {
+              ...l,
+              is_reserved: true,
+              reservation_id: reservation.id,
+              reservation_type: reservation.type,
+              reservation_type_label: reservation.type_label,
+              reservation_status: reservation.status,
+              reservation_user_name: reservation.user_name,
+              reservation_unassigned: reservation.is_unassigned,
+            }
+          : l
+      )
+    );
   };
 
   const deleteListing = async (listing: AdminListing) => {
@@ -937,10 +962,18 @@ export default function AdminPage() {
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
                         Disabled
                       </span>
-                    ) : listing.pending ? (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                        Pending
-                      </span>
+                    ) : listing.is_reserved ? (
+                      // Type + who it's held for, at a glance.
+                      <div className="flex flex-col gap-0.5">
+                        <span className="inline-flex w-fit items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                          {listing.reservation_type_label || 'On Hold'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {listing.reservation_unassigned
+                            ? 'Unassigned'
+                            : listing.reservation_user_name || '—'}
+                        </span>
+                      </div>
                     ) : (
                       <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
                         Active
@@ -958,30 +991,35 @@ export default function AdminPage() {
                         <ExternalLink className="h-3 w-3" />
                         View
                       </a>
-                      <button
-                        onClick={() => togglePending(listing.id)}
-                        disabled={togglingPendingId === listing.id || listing.disabled}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                          listing.pending
-                            ? 'bg-yellow-500 hover:bg-yellow-600 text-white'
-                            : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800'
-                        } disabled:opacity-50`}
-                        title={listing.pending ? 'Remove pending status' : 'Mark as pending trade-in'}
-                      >
-                        {togglingPendingId === listing.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : listing.pending ? (
-                          <>
-                            <ToggleRight className="h-3 w-3" />
-                            Pending
-                          </>
-                        ) : (
-                          <>
-                            <ToggleLeft className="h-3 w-3" />
-                            Pending
-                          </>
-                        )}
-                      </button>
+                      {/* The old "Pending for Trade-In" toggle is gone. Reservations
+                          carry a customer, terms and an expiry, so they're created
+                          through a dialog and managed on the Reservations tab. */}
+                      {listing.is_reserved ? (
+                        <Link
+                          href="/admin/reservations"
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-yellow-500 hover:bg-yellow-600 text-white transition-colors"
+                          title="Manage this reservation"
+                        >
+                          <Bookmark className="h-3 w-3" />
+                          Reserved
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() =>
+                            setReservingListing({
+                              id: listing.id,
+                              title: listing.listing_title,
+                              price: listing.price,
+                            })
+                          }
+                          disabled={listing.disabled}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-yellow-100 hover:bg-yellow-200 text-yellow-800 transition-colors disabled:opacity-50"
+                          title="Mark as pending"
+                        >
+                          <Bookmark className="h-3 w-3" />
+                          Mark pending
+                        </button>
+                      )}
                       <button
                         onClick={() => toggleListing(listing.id)}
                         disabled={togglingId === listing.id}
@@ -2010,6 +2048,13 @@ export default function AdminPage() {
         open={ebayExportOpen}
         onOpenChange={setEbayExportOpen}
         listings={listings.filter(l => selectedListingIds.has(l.id))}
+      />
+
+      <ReservationDialog
+        isOpen={!!reservingListing}
+        onClose={() => setReservingListing(null)}
+        onSaved={handleReservationCreated}
+        listing={reservingListing}
       />
     </div>
   );

@@ -448,6 +448,124 @@ export async function getMyStoreCredit(): Promise<StoreCreditDto> {
   return api.authGet<StoreCreditDto>('/store-credit/me');
 }
 
+// Reservations API
+import type {
+  AdminReservation,
+  ReservationSummary,
+  ListingReservationState,
+  DepositDetails,
+  CreateReservationPayload,
+  UpdateReservationPayload,
+} from './types/reservation';
+
+export async function getAdminReservations(opts: {
+  status?: string;
+  type?: string;
+  activeOnly?: boolean;
+} = {}): Promise<AdminReservation[]> {
+  const params = new URLSearchParams();
+  if (opts.status) params.set('status', opts.status);
+  if (opts.type) params.set('type', opts.type);
+  params.set('activeOnly', String(opts.activeOnly ?? true));
+  return api.authGet<AdminReservation[]>(`/admin/reservations?${params}`);
+}
+
+export async function getReservationSummary(): Promise<ReservationSummary> {
+  return api.authGet<ReservationSummary>('/admin/reservations/summary');
+}
+
+export async function createReservation(payload: CreateReservationPayload): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>('/admin/reservations', payload);
+}
+
+export async function updateReservation(
+  id: string,
+  payload: UpdateReservationPayload
+): Promise<AdminReservation> {
+  return api.authPut<AdminReservation>(`/admin/reservations/${id}`, payload);
+}
+
+export async function extendReservation(id: string, days: number): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>(`/admin/reservations/${id}/extend`, { days });
+}
+
+export async function markReservationDepositPaid(
+  id: string,
+  amount: number,
+  paidAt: string | null,
+  method: string
+): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>(`/admin/reservations/${id}/mark-deposit-paid`, {
+    amount,
+    paidAt,
+    method,
+  });
+}
+
+export async function cancelReservation(
+  id: string,
+  reason: string,
+  note: string | null,
+  acknowledgeManualRefund: boolean
+): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>(`/admin/reservations/${id}/cancel`, {
+    reason,
+    note,
+    acknowledgeManualRefund,
+  });
+}
+
+export async function convertReservationToSale(id: string): Promise<AdminReservation> {
+  return api.authPost<AdminReservation>(`/admin/reservations/${id}/convert-to-sale`);
+}
+
+export async function migrateLegacyPending(): Promise<{
+  success: boolean;
+  found: number;
+  created: number;
+  skipped: number;
+  errors: string[];
+}> {
+  return api.authPost('/admin/reservations/migrate-legacy-pending');
+}
+
+/**
+ * Reservation state for a listing, from the caller's perspective.
+ * Non-holders only ever receive the anonymous shape.
+ */
+export async function getListingReservation(listingId: string): Promise<ListingReservationState> {
+  return api.authGet<ListingReservationState>(`/reservations/listing/${listingId}`);
+}
+
+// Deposit checkout
+export async function getDepositDetails(reservationId: string): Promise<DepositDetails> {
+  return api.authGet<DepositDetails>(`/checkout/deposit/${reservationId}`);
+}
+
+export async function createDepositStripeSession(
+  reservationId: string
+): Promise<{ sessionUrl: string; sessionId: string }> {
+  return api.authPost(`/checkout/deposit/${reservationId}/stripe`);
+}
+
+export async function completeDepositStripe(
+  reservationId: string,
+  sessionId: string
+): Promise<{ success: boolean; orderId: string; deposit_paid: number; balance_due: number }> {
+  return api.authPost(`/checkout/deposit/${reservationId}/stripe/complete`, { sessionId });
+}
+
+export async function createDepositPayPalOrder(reservationId: string): Promise<{ orderId: string }> {
+  return api.authPost(`/checkout/deposit/${reservationId}/paypal/create`);
+}
+
+export async function captureDepositPayPalOrder(
+  reservationId: string,
+  orderId: string
+): Promise<{ success: boolean; orderId: string; deposit_paid: number; balance_due: number }> {
+  return api.authPost(`/checkout/deposit/${reservationId}/paypal/capture`, { orderId });
+}
+
 // Admin activity feed API
 export interface AdminActivityEntry {
   id: string;

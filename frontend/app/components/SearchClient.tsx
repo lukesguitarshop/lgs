@@ -26,7 +26,11 @@ interface Listing {
   currency: string;
   scraped_at: string;
   listed_at: string | null;
-  pending?: boolean;
+  /** True when an active reservation holds this guitar. Never says who. */
+  is_reserved?: boolean;
+  /** "On Hold" or "Pending Trade-In". */
+  reservation_badge?: string | null;
+  reserved_for_me?: boolean;
 }
 
 interface SearchClientProps {
@@ -429,15 +433,24 @@ function ListingCard({ listing, isFavorite, onToggleFavorite, priority = false }
             </div>
           )}
           {/* ON SALE badge */}
-          {isOnSale && !listing.pending && (
+          {isOnSale && !listing.is_reserved && (
             <div className="absolute top-2 left-2 bg-[#6E0114] text-[#FFFFF3] text-xs font-bold px-2 py-1 rounded">
               ON SALE
             </div>
           )}
-          {/* Pending Trade In badge */}
-          {listing.pending && (
-            <div className="absolute top-2 left-2 bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded">
-              PENDING TRADE IN
+          {/* Reservation badge. Reserved guitars stay browsable — the badge creates
+              urgency — but never reveal who they're held for. */}
+          {listing.is_reserved && (
+            <div
+              className={`absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded uppercase ${
+                listing.reserved_for_me
+                  ? 'bg-green-500 text-white'
+                  : 'bg-yellow-400 text-yellow-900'
+              }`}
+            >
+              {listing.reserved_for_me
+                ? 'On hold for you'
+                : listing.reservation_badge || 'On Hold'}
             </div>
           )}
           {/* Favorite button */}

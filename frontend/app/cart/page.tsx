@@ -14,13 +14,19 @@ interface PendingCartItemResponse {
   id: string;
   listingId: string;
   offerId: string;
+  reservationId: string | null;
   title: string;
   image: string;
+  /** Balance due — already net of deposit and trade-in credit, computed server-side. */
   price: number;
+  agreedPrice: number;
+  depositPaid: number;
+  tradeInCredit: number;
   currency: string;
   isLocked: boolean;
   createdAt: string;
-  expiresAt: string;
+  /** Null means this lock never expires (deposit-backed). */
+  expiresAt: string | null;
 }
 
 function formatPrice(price: number, currency: string = 'USD'): string {
@@ -29,6 +35,16 @@ function formatPrice(price: number, currency: string = 'USD'): string {
     currency: currency,
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
+  }).format(price);
+}
+
+/** Credits and balances need cents; the headline prices don't. */
+function formatExact(price: number, currency: string = 'USD'): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   }).format(price);
 }
 
@@ -73,6 +89,10 @@ export default function CartPage() {
           image: item.image,
           isLocked: true,
           offerId: item.offerId,
+          reservationId: item.reservationId ?? undefined,
+          agreedPrice: item.agreedPrice,
+          depositPaid: item.depositPaid,
+          tradeInCredit: item.tradeInCredit,
         }));
         setPendingItems(transformedItems);
       } catch (error: unknown) {
@@ -111,8 +131,13 @@ export default function CartPage() {
   };
 
   const hasLockedItems = pendingItems.length > 0;
+  const hasDepositItems = pendingItems.some((item) => (item.depositPaid ?? 0) > 0);
 
+  // item.price is already the balance due for reservation-backed lines.
   const total = cartItems.reduce((sum, item) => sum + item.price, 0);
+  const totalDeposits = cartItems.reduce((sum, item) => sum + (item.depositPaid ?? 0), 0);
+  const totalTradeIn = cartItems.reduce((sum, item) => sum + (item.tradeInCredit ?? 0), 0);
+  const grossTotal = total + totalDeposits + totalTradeIn;
   const currency = cartItems[0]?.currency || 'USD';
 
   if (loading || loadingPending) {
@@ -159,7 +184,9 @@ export default function CartPage() {
           <div>
             <p className="text-red-900 font-medium">Reserved Items</p>
             <p className="text-red-800 text-sm">
-              You have items reserved from accepted offers. These items are automatically added and cannot be removed.
+              {hasDepositItems
+                ? "These items are secured with a deposit and can't be removed. Contact us if you need to cancel."
+                : 'You have items reserved for you. These are added automatically and cannot be removed.'}
             </p>
           </div>
         </div>
@@ -205,18 +232,56 @@ export default function CartPage() {
                   {item.isLocked && (
                     <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-800 text-xs font-medium rounded-full">
                       <Lock className="h-3 w-3" />
-                      Reserved
+                      {(item.depositPaid ?? 0) > 0 ? 'Secured with deposit' : 'Reserved'}
                     </span>
                   )}
                 </div>
-                <p className="text-lg font-semibold text-[#020E1C] mt-2">
-                  {formatPrice(item.price, item.currency)}
-                </p>
+
+                {/* Credit breakdown for reservation-backed lines. Every figure here comes
+                    from the server; the browser never computes a price. */}
+                {item.isLocked && ((item.depositPaid ?? 0) > 0 || (item.tradeInCredit ?? 0) > 0) ? (
+                  <div className="mt-2 space-y-1 text-sm">
+                    <div className="flex justify-between text-gray-700">
+                      <span>{item.title}</span>
+                      <span className="tabular-nums">
+                        {formatExact(item.agreedPrice ?? item.price, item.currency)}
+                      </span>
+                    </div>
+                    {(item.depositPaid ?? 0) > 0 && (
+                      <div className="flex justify-between pl-3 text-gray-600">
+                        <span>Deposit paid</span>
+                        <span className="tabular-nums">
+                          -{formatExact(item.depositPaid!, item.currency)}
+                        </span>
+                      </div>
+                    )}
+                    {(item.tradeInCredit ?? 0) > 0 && (
+                      <div className="flex justify-between pl-3 text-gray-600">
+                        <span>Trade-in credit</span>
+                        <span className="tabular-nums">
+                          -{formatExact(item.tradeInCredit!, item.currency)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex justify-between border-t border-gray-200 pt-1 font-semibold text-[#020E1C]">
+                      <span>Balance due</span>
+                      <span className="tabular-nums">{formatExact(item.price, item.currency)}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-lg font-semibold text-[#020E1C] mt-2">
+                    {formatPrice(item.price, item.currency)}
+                  </p>
+                )}
               </div>
               {item.isLocked ? (
                 <div
                   className="flex-shrink-0 p-2 text-red-700 cursor-not-allowed"
-                  title="This item is reserved from an accepted offer and cannot be removed"
+                  title={
+                    (item.depositPaid ?? 0) > 0
+                      ? "This item is secured with a deposit and can't be removed. Contact us if you need to cancel."
+                      : 'This item is reserved and cannot be removed.'
+                  }
                 >
                   <Lock className="h-5 w-5" />
                 </div>
@@ -241,15 +306,27 @@ export default function CartPage() {
             <div className="space-y-3 mb-6">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal ({cartItems.length} item{cartItems.length !== 1 ? 's' : ''})</span>
-                <span>{formatPrice(total, currency)}</span>
+                <span className="tabular-nums">{formatExact(grossTotal, currency)}</span>
               </div>
+              {totalDeposits > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Deposits already paid</span>
+                  <span className="tabular-nums">-{formatExact(totalDeposits, currency)}</span>
+                </div>
+              )}
+              {totalTradeIn > 0 && (
+                <div className="flex justify-between text-gray-600">
+                  <span>Trade-in credit</span>
+                  <span className="tabular-nums">-{formatExact(totalTradeIn, currency)}</span>
+                </div>
+              )}
               <div className="flex justify-between text-gray-600">
                 <span>Shipping</span>
                 <span className="text-green-600">Free</span>
               </div>
               <div className="border-t pt-3 flex justify-between font-semibold text-lg text-[#020E1C]">
-                <span>Total</span>
-                <span>{formatPrice(total, currency)}</span>
+                <span>{totalDeposits > 0 || totalTradeIn > 0 ? 'Balance due' : 'Total'}</span>
+                <span className="tabular-nums">{formatExact(total, currency)}</span>
               </div>
             </div>
 
