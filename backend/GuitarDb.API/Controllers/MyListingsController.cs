@@ -56,15 +56,18 @@ public class MyListingsController : ControllerBase
     [HttpGet("sold")]
     public async Task<IActionResult> GetSoldListings([FromQuery] int? limit = null)
     {
+        // No limit means the full sold archive: /sold fetches once and pages client-side.
         var listings = limit.HasValue && limit.Value > 0
             ? await _mongoDbService.GetRecentSoldListingsAsync(limit.Value)
-            : await _mongoDbService.GetRecentSoldListingsAsync(100); // Default max for all sold page
+            : await _mongoDbService.GetAllSoldListingsAsync();
 
+        // Description is deliberately omitted. Neither the sold grid nor the carousel renders
+        // it, and at ~2KB per listing it was roughly half the payload of the whole archive.
+        // The detail endpoint still serves it.
         return Ok(listings.Select(l => new
         {
             id = l.Id,
             listing_title = l.ListingTitle,
-            description = l.Description,
             condition = l.Condition,
             images = l.Images,
             reverb_link = l.ReverbLink,
