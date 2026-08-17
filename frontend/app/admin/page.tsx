@@ -52,6 +52,8 @@ interface SoldBackfillResponse {
   message: string;
   totalReverbListings?: number;
   soldOnReverb?: number;
+  endedOnReverb?: number;
+  endedSkippedDuplicateTitle?: number;
   alreadyOnSite?: number;
   duplicatesInFeed?: number;
   skippedNoLink?: number;
@@ -217,6 +219,7 @@ export default function AdminPage() {
   // ONE-OFF MAINTENANCE: sold-listing backfill state. Remove with the button below.
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [backfillResult, setBackfillResult] = useState<SoldBackfillResponse | null>(null);
+  const [backfillIncludeEnded, setBackfillIncludeEnded] = useState(true);
   const lastKnownOrderCountRef = useRef<number | null>(null);
   const initialLoadDoneRef = useRef(false);
 
@@ -756,8 +759,12 @@ export default function AdminPage() {
     if (!confirm) setBackfillResult(null);
 
     try {
+      const params = new URLSearchParams();
+      if (confirm) params.set('confirm', 'true');
+      if (backfillIncludeEnded) params.set('includeEnded', 'true');
+
       const response = await api.authPost<SoldBackfillResponse>(
-        `/admin/backfill-sold-listings${confirm ? '?confirm=true' : ''}`,
+        `/admin/backfill-sold-listings?${params.toString()}`,
         {}
       );
       setBackfillResult(response);
@@ -1315,6 +1322,22 @@ export default function AdminPage() {
               numbers change.</strong> Preview first, then import.
             </p>
 
+            <label className="flex items-start gap-2 mb-4 text-sm text-gray-700 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={backfillIncludeEnded}
+                onChange={(e) => setBackfillIncludeEnded(e.target.checked)}
+                disabled={backfillLoading}
+                className="mt-1"
+              />
+              <span>
+                Also include <strong>ended</strong> listings (sold off Reverb — cash, other
+                platforms). Ended listings are skipped when the title matches something already on
+                the site, a live listing, or a sold one, so relists and current stock don&apos;t
+                come in twice.
+              </span>
+            </label>
+
             <div className="flex flex-wrap gap-3">
               <Button
                 onClick={() => backfillSoldListings(false)}
@@ -1394,6 +1417,7 @@ export default function AdminPage() {
                         <thead className="bg-gray-50 sticky top-0">
                           <tr>
                             <th className="text-left p-2 font-semibold">Title</th>
+                            <th className="text-left p-2 font-semibold">State</th>
                             <th className="text-right p-2 font-semibold">Price</th>
                             <th className="text-left p-2 font-semibold">Listed</th>
                             <th className="text-right p-2 font-semibold">Photos</th>
@@ -1403,6 +1427,17 @@ export default function AdminPage() {
                           {backfillResult.items.map((item, i) => (
                             <tr key={item.reverbLink ?? i} className="border-t border-gray-100">
                               <td className="p-2">{item.title}</td>
+                              <td className="p-2">
+                                <span
+                                  className={`text-xs px-2 py-0.5 rounded ${
+                                    item.state === 'sold'
+                                      ? 'bg-green-100 text-green-800'
+                                      : 'bg-gray-200 text-gray-700'
+                                  }`}
+                                >
+                                  {item.state}
+                                </span>
+                              </td>
                               <td className="p-2 text-right">${item.price.toLocaleString()}</td>
                               <td className="p-2">
                                 {item.listedAt ? new Date(item.listedAt).toLocaleDateString() : '—'}

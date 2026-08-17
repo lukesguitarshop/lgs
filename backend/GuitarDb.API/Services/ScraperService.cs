@@ -371,9 +371,24 @@ public class ScraperService
     // they show up in the public /sold gallery. Insert-only, and deliberately never writes
     // to the transactions collection so the finance dashboard is untouched.
     // Remove this method, its result types, the admin endpoint, and the admin button once run.
+    // Collapses a Reverb title to a comparison key: case, punctuation and spacing vary between
+    // a listing and its relist, so only letters and digits are kept.
+    private static string NormalizeTitle(string? title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return string.Empty;
+
+        var chars = title
+            .ToLowerInvariant()
+            .Where(c => char.IsLetterOrDigit(c) || char.IsWhiteSpace(c))
+            .ToArray();
+
+        return string.Join(' ', new string(chars).Split(' ', StringSplitOptions.RemoveEmptyEntries));
+    }
+
     public async Task<SoldBackfillResult> BackfillSoldListingsAsync(
         bool confirm,
         int maxPerRun = 40,
+        bool includeEnded = false,
         CancellationToken cancellationToken = default)
     {
         var startTime = DateTime.UtcNow;
@@ -389,24 +404,70 @@ public class ScraperService
         result.OutputLines.Add($"{existingLinks.Count} listings already on the site");
 
         var stateTally = new Dictionary<string, int>();
-        var soldListings = await FetchMyListingsAsync(
-            l => l.State.Slug.Equals("sold", StringComparison.OrdinalIgnoreCase),
+        var allListings = await FetchMyListingsAsync(
+            _ => true,
             cancellationToken,
             stateTally,
             stateQuery: "all");
 
         result.StateTally = stateTally;
         result.TotalReverbListings = stateTally.Values.Sum();
-        result.SoldOnReverb = soldListings.Count;
         result.OutputLines.Add(
             $"Reverb returned {result.TotalReverbListings} listings: " +
             string.Join(", ", stateTally.OrderByDescending(kv => kv.Value).Select(kv => $"{kv.Key}={kv.Value}")));
+
+        bool InState(ReverbListing l, string slug) =>
+            l.State.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase);
+
+        var soldListings = allListings.Where(l => InState(l, "sold")).ToList();
+        var endedListings = allListings.Where(l => InState(l, "ended")).ToList();
+
+        result.SoldOnReverb = soldListings.Count;
+        result.EndedOnReverb = endedListings.Count;
+
+        // Every sold listing is a real sale, so same-title sold entries are kept: two units of
+        // the same model genuinely sold twice. Ended listings are the opposite problem — an
+        // ended listing is usually a relist of something that later sold, or stock still on
+        // hand, so those are guarded on title to avoid the same guitar landing twice.
+        var candidates = new List<ReverbListing>(soldListings);
+
+        if (includeEnded)
+        {
+            var blockedTitles = (await _mongoDbService.GetAllListingsForAdminAsync())
+                .Select(l => NormalizeTitle(l.ListingTitle))
+                .Concat(allListings.Where(l => InState(l, "live")).Select(l => NormalizeTitle(l.Title)))
+                .Concat(soldListings.Select(l => NormalizeTitle(l.Title)))
+                .Where(t => !string.IsNullOrEmpty(t))
+                .ToHashSet();
+
+            // Newest first, so a relist chain collapses onto its most recent entry.
+            foreach (var listing in endedListings.OrderByDescending(l => l.PublishedAt ?? DateTime.MinValue))
+            {
+                var title = NormalizeTitle(listing.Title);
+
+                if (!string.IsNullOrEmpty(title) && !blockedTitles.Add(title))
+                {
+                    result.EndedSkippedDuplicateTitle++;
+                    continue;
+                }
+
+                candidates.Add(listing);
+            }
+
+            result.OutputLines.Add(
+                $"Ended listings: {endedListings.Count} on Reverb, " +
+                $"{result.EndedSkippedDuplicateTitle} skipped as relists or still-in-stock duplicates");
+        }
+        else
+        {
+            result.OutputLines.Add($"Ended listings excluded ({endedListings.Count} on Reverb)");
+        }
 
         // Dedupe: skip anything already on the site, and collapse repeats within the feed itself.
         var seenLinks = new HashSet<string>();
         var toImport = new List<ReverbListing>();
 
-        foreach (var listing in soldListings)
+        foreach (var listing in candidates)
         {
             var link = UrlHelper.NormalizeReverbLink(listing.ListingUrl);
 
@@ -432,8 +493,8 @@ public class ScraperService
         }
 
         result.OutputLines.Add(
-            $"{result.SoldOnReverb} sold on Reverb, {result.AlreadyOnSite} already on the site, " +
-            $"{result.DuplicatesInFeed} duplicates in feed, {result.SkippedNoLink} without a link");
+            $"{candidates.Count} candidates, {result.AlreadyOnSite} already on the site, " +
+            $"{result.DuplicatesInFeed} duplicate links in feed, {result.SkippedNoLink} without a link");
 
         result.PendingTotal = toImport.Count;
 
@@ -618,6 +679,8 @@ public class SoldBackfillResult
     public bool Confirmed { get; set; }
     public int TotalReverbListings { get; set; }
     public int SoldOnReverb { get; set; }
+    public int EndedOnReverb { get; set; }
+    public int EndedSkippedDuplicateTitle { get; set; }
     public int AlreadyOnSite { get; set; }
     public int DuplicatesInFeed { get; set; }
     public int SkippedNoLink { get; set; }

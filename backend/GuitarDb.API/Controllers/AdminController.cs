@@ -111,14 +111,16 @@ public class AdminController : ControllerBase
     [HttpPost("backfill-sold-listings")]
     public async Task<IActionResult> BackfillSoldListings(
         [FromQuery] bool confirm = false,
-        [FromQuery] int maxPerRun = 40)
+        [FromQuery] int maxPerRun = 40,
+        [FromQuery] bool includeEnded = false)
     {
-        _logger.LogInformation("Sold-listing backfill requested (confirm={Confirm}, maxPerRun={Max})",
-            confirm, maxPerRun);
+        _logger.LogInformation(
+            "Sold-listing backfill requested (confirm={Confirm}, maxPerRun={Max}, includeEnded={Ended})",
+            confirm, maxPerRun, includeEnded);
 
         try
         {
-            var result = await _scraperService.BackfillSoldListingsAsync(confirm, maxPerRun);
+            var result = await _scraperService.BackfillSoldListingsAsync(confirm, maxPerRun, includeEnded);
 
             return Ok(new
             {
@@ -129,6 +131,8 @@ public class AdminController : ControllerBase
                     : $"Preview only — {result.Items.Count} sold listings would be imported",
                 totalReverbListings = result.TotalReverbListings,
                 soldOnReverb = result.SoldOnReverb,
+                endedOnReverb = result.EndedOnReverb,
+                endedSkippedDuplicateTitle = result.EndedSkippedDuplicateTitle,
                 alreadyOnSite = result.AlreadyOnSite,
                 duplicatesInFeed = result.DuplicatesInFeed,
                 skippedNoLink = result.SkippedNoLink,
