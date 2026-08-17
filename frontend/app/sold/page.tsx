@@ -1,4 +1,3 @@
-import { Suspense } from 'react';
 import SoldSearchClient, { type SoldListing } from '../components/SoldSearchClient';
 
 // One request for the whole archive; search, filtering and paging all run client-side from it,
@@ -27,11 +26,11 @@ async function getSoldListings(): Promise<SoldListing[]> {
 export default async function SoldPage() {
   const listings = await getSoldListings();
 
+  // No Suspense boundary: the client component reads no async values, and wrapping it made
+  // React stream a second copy of the whole grid into a hidden div.
   return (
     <div className="container mx-auto px-4 py-8">
-      <Suspense fallback={<div className="text-center py-8">Loading...</div>}>
-        <SoldSearchClient initialListings={listings} />
-      </Suspense>
+      <SoldSearchClient initialListings={listings} />
     </div>
   );
 }
