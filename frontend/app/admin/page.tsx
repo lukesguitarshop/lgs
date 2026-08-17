@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
@@ -210,6 +210,10 @@ export default function AdminPage() {
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDisabledListings, setShowDisabledListings] = useState(false);
+  // The sold/disabled group runs to hundreds of rows after the Reverb backfill, so it gets
+  // its own search and paging rather than rendering the whole archive into the accordion.
+  const [disabledSearch, setDisabledSearch] = useState('');
+  const [disabledPage, setDisabledPage] = useState(1);
   const [selectedListingIds, setSelectedListingIds] = useState<Set<string>>(new Set());
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
@@ -920,6 +924,20 @@ export default function AdminPage() {
               const activeListings = listings.filter(l => !l.disabled);
               const disabledListings = listings.filter(l => l.disabled);
 
+              const DISABLED_PER_PAGE = 25;
+              const disabledQuery = disabledSearch.trim().toLowerCase();
+              const filteredDisabled = disabledQuery
+                ? disabledListings.filter(l =>
+                    l.listing_title?.toLowerCase().includes(disabledQuery))
+                : disabledListings;
+              const disabledTotalPages = Math.max(
+                1, Math.ceil(filteredDisabled.length / DISABLED_PER_PAGE));
+              // A search can strand the reader past the end of a shorter result set.
+              const disabledCurrentPage = Math.min(disabledPage, disabledTotalPages);
+              const disabledStart = (disabledCurrentPage - 1) * DISABLED_PER_PAGE;
+              const pagedDisabled = filteredDisabled.slice(
+                disabledStart, disabledStart + DISABLED_PER_PAGE);
+
               const renderListingRow = (listing: AdminListing) => (
                 <tr key={listing.id} className={`border-b border-gray-100 ${listing.disabled ? 'bg-gray-50 opacity-60' : ''}`}>
                   <td className="py-3 px-2 w-8">
@@ -1202,13 +1220,65 @@ export default function AdminPage() {
                         )}
                       </button>
                       {showDisabledListings && (
-                        <div className="overflow-x-auto border-t border-gray-200">
-                          <table className="w-full text-sm">
-                            {renderTableHeader(disabledListings.map(l => l.id))}
-                            <tbody>
-                              {disabledListings.map(renderListingRow)}
-                            </tbody>
-                          </table>
+                        <div className="border-t border-gray-200">
+                          <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                            <div className="relative flex-1 min-w-[200px] max-w-sm">
+                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                              <input
+                                type="text"
+                                placeholder="Search sold listings..."
+                                value={disabledSearch}
+                                onChange={(e) => { setDisabledSearch(e.target.value); setDisabledPage(1); }}
+                                className="w-full pl-9 pr-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#6E0114]"
+                              />
+                            </div>
+                            <span className="text-sm text-gray-500">
+                              {filteredDisabled.length === 0
+                                ? 'No matches'
+                                : `Showing ${disabledStart + 1}-${disabledStart + pagedDisabled.length} of ${filteredDisabled.length}`}
+                            </span>
+                          </div>
+
+                          {pagedDisabled.length > 0 && (
+                            <div className="overflow-x-auto border-t border-gray-200">
+                              <table className="w-full text-sm">
+                                {/* Select-all covers the rows actually on screen, not the
+                                    hundreds hidden on other pages. */}
+                                {renderTableHeader(pagedDisabled.map(l => l.id))}
+                                <tbody>
+                                  {pagedDisabled.map(renderListingRow)}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {disabledTotalPages > 1 && (
+                            <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200">
+                              <span className="text-sm text-gray-500">
+                                Page {disabledCurrentPage} of {disabledTotalPages}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setDisabledPage(disabledCurrentPage - 1)}
+                                  disabled={disabledCurrentPage === 1}
+                                >
+                                  <ChevronLeft className="h-4 w-4" />
+                                  Previous
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => setDisabledPage(disabledCurrentPage + 1)}
+                                  disabled={disabledCurrentPage === disabledTotalPages}
+                                >
+                                  Next
+                                  <ChevronRight className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
