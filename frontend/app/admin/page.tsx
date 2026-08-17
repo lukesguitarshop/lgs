@@ -709,6 +709,33 @@ export default function AdminPage() {
     }
   };
 
+  // ONE-OFF DIAGNOSTIC: find which Reverb endpoint actually exposes sold history.
+  const probeReverbSoldSources = async () => {
+    setBackfillLoading(true);
+    setBackfillResult(null);
+    try {
+      const response = await api.authPost<{ success: boolean; message: string; probes?: unknown }>(
+        '/admin/probe-reverb-sold-sources',
+        {}
+      );
+      setBackfillResult({
+        success: response.success,
+        confirmed: false,
+        message: response.message,
+        output: JSON.stringify(response.probes, null, 2).split('\n'),
+      });
+    } catch (err) {
+      setBackfillResult({
+        success: false,
+        confirmed: false,
+        message: 'Probe failed',
+        error: err instanceof Error ? err.message : 'Unknown error',
+      });
+    } finally {
+      setBackfillLoading(false);
+    }
+  };
+
   // ONE-OFF MAINTENANCE: import pre-site sold Reverb listings into the /sold gallery.
   // Preview first (confirm=false), then commit. Never touches transactions.
   const backfillSoldListings = async (confirm: boolean) => {
@@ -1297,6 +1324,14 @@ export default function AdminPage() {
                 ) : (
                   'Preview Sold Listings'
                 )}
+              </Button>
+              <Button
+                onClick={probeReverbSoldSources}
+                disabled={backfillLoading}
+                variant="outline"
+                className="font-semibold px-6 py-3"
+              >
+                Diagnose Reverb Sources
               </Button>
               {backfillResult?.success && !backfillResult.confirmed && (backfillResult.items?.length ?? 0) > 0 && (
                 <Button

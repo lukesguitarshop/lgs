@@ -236,6 +236,132 @@ public class ScraperService
         return allListings;
     }
 
+    // ONE-OFF DIAGNOSTIC: /my/listings returns only live listings (state=all just adds drafts),
+    // so sold history has to come from somewhere else. This probes every candidate source in a
+    // single call and reports what this account actually returns, without writing anything.
+    // Reports field NAMES plus a whitelist of values so buyer PII in orders is never surfaced.
+    // Remove alongside BackfillSoldListingsAsync.
+    public async Task<List<ReverbProbeResult>> ProbeSoldSourcesAsync(CancellationToken cancellationToken = default)
+    {
+        var candidates = new[]
+        {
+            $"{_baseUrl}/my/listings?per_page=50&state=all",
+            $"{_baseUrl}/my/listings?per_page=50&state=sold",
+            $"{_baseUrl}/my/listings?per_page=50&state=ended",
+            $"{_baseUrl}/my/orders/selling/all?per_page=50",
+            $"{_baseUrl}/my/orders/selling/unpaid?per_page=5",
+        };
+
+        var results = new List<ReverbProbeResult>();
+
+        foreach (var url in candidates)
+        {
+            var probe = new ReverbProbeResult { Url = url.Replace(_baseUrl, "") };
+
+            try
+            {
+                var response = await _httpClient.GetAsync(url, cancellationToken);
+                probe.Status = (int)response.StatusCode;
+                var content = await response.Content.ReadAsStringAsync(cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    probe.Note = content.Length > 200 ? content[..200] : content;
+                    results.Add(probe);
+                    await Task.Delay(_rateLimitDelayMs, cancellationToken);
+                    continue;
+                }
+
+                using var doc = JsonDocument.Parse(content);
+                var root = doc.RootElement;
+
+                if (root.TryGetProperty("total", out var totalEl) && totalEl.ValueKind == JsonValueKind.Number)
+                {
+                    probe.TotalReported = totalEl.GetInt32();
+                }
+
+                // The collection lives under "listings" or "orders" depending on the endpoint.
+                JsonElement items = default;
+                foreach (var name in new[] { "listings", "orders" })
+                {
+                    if (root.TryGetProperty(name, out items) && items.ValueKind == JsonValueKind.Array)
+                    {
+                        probe.CollectionName = name;
+                        break;
+                    }
+                }
+
+                if (probe.CollectionName == null)
+                {
+                    probe.Note = "no listings/orders array; top-level keys: " +
+                        string.Join(",", root.EnumerateObject().Select(p => p.Name).Take(15));
+                    results.Add(probe);
+                    await Task.Delay(_rateLimitDelayMs, cancellationToken);
+                    continue;
+                }
+
+                probe.ReturnedCount = items.GetArrayLength();
+
+                foreach (var item in items.EnumerateArray())
+                {
+                    if (item.TryGetProperty("state", out var st) && st.ValueKind == JsonValueKind.Object
+                        && st.TryGetProperty("slug", out var slug))
+                    {
+                        var s = slug.GetString() ?? "unknown";
+                        probe.StateTally[s] = probe.StateTally.GetValueOrDefault(s) + 1;
+                    }
+                    else if (item.TryGetProperty("status", out var status) && status.ValueKind == JsonValueKind.String)
+                    {
+                        var s = status.GetString() ?? "unknown";
+                        probe.StateTally[s] = probe.StateTally.GetValueOrDefault(s) + 1;
+                    }
+                }
+
+                if (probe.ReturnedCount > 0)
+                {
+                    var first = items[0];
+                    probe.SampleFields = first.EnumerateObject().Select(p => p.Name).ToList();
+
+                    if (first.TryGetProperty("_links", out var links) && links.ValueKind == JsonValueKind.Object)
+                    {
+                        probe.SampleLinks = links.EnumerateObject().Select(p => p.Name).ToList();
+                    }
+
+                    // Whitelisted values only — never echo buyer_name, addresses, or contact info.
+                    foreach (var field in new[] { "title", "created_at", "paid_at", "status", "sku", "product_id", "order_number" })
+                    {
+                        if (first.TryGetProperty(field, out var val) && val.ValueKind != JsonValueKind.Null)
+                        {
+                            probe.SampleValues[field] = val.ValueKind == JsonValueKind.String
+                                ? val.GetString() ?? ""
+                                : val.ToString();
+                        }
+                    }
+
+                    if (first.TryGetProperty("photos", out var photos) && photos.ValueKind == JsonValueKind.Array)
+                    {
+                        probe.SampleValues["photos.count"] = photos.GetArrayLength().ToString();
+                    }
+
+                    if (first.TryGetProperty("amount_product", out var amt) && amt.ValueKind == JsonValueKind.Object
+                        && amt.TryGetProperty("amount", out var amtVal))
+                    {
+                        probe.SampleValues["amount_product.amount"] = amtVal.ToString();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                probe.Note = $"{ex.GetType().Name}: {ex.Message}";
+            }
+
+            results.Add(probe);
+            await Task.Delay(_rateLimitDelayMs, cancellationToken);
+        }
+
+        return results;
+    }
+
     // ONE-OFF MAINTENANCE: backfills Reverb listings that sold before this site existed so
     // they show up in the public /sold gallery. Insert-only, and deliberately never writes
     // to the transactions collection so the finance dashboard is untouched.
@@ -447,6 +573,21 @@ public class ScraperService
     {
         await _mongoDbService.DisableByReverbLinksAsync(reverbLinks);
     }
+}
+
+// ONE-OFF DIAGNOSTIC: remove alongside ProbeSoldSourcesAsync.
+public class ReverbProbeResult
+{
+    public string Url { get; set; } = string.Empty;
+    public int Status { get; set; }
+    public int? TotalReported { get; set; }
+    public string? CollectionName { get; set; }
+    public int ReturnedCount { get; set; }
+    public Dictionary<string, int> StateTally { get; set; } = new();
+    public List<string> SampleFields { get; set; } = new();
+    public List<string> SampleLinks { get; set; } = new();
+    public Dictionary<string, string> SampleValues { get; set; } = new();
+    public string? Note { get; set; }
 }
 
 // ONE-OFF MAINTENANCE: remove alongside BackfillSoldListingsAsync.

@@ -83,6 +83,27 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// ONE-OFF DIAGNOSTIC: probes the candidate Reverb endpoints for sold history and reports
+    /// what this account returns. Read-only — writes nothing. Remove once the backfill is done.
+    /// </summary>
+    [HttpPost("probe-reverb-sold-sources")]
+    public async Task<IActionResult> ProbeReverbSoldSources()
+    {
+        _logger.LogInformation("Reverb sold-source probe requested");
+
+        try
+        {
+            var probes = await _scraperService.ProbeSoldSourcesAsync();
+            return Ok(new { success = true, message = "Probe complete", probes });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Reverb sold-source probe failed");
+            return StatusCode(500, new { success = false, message = "Probe failed", error = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// ONE-OFF MAINTENANCE: import Reverb listings that sold before this site existed so they
     /// appear in the /sold gallery. Writes only to my_listings — never to transactions.
     /// Call without confirm to preview; call with confirm=true to write. Remove once run.
