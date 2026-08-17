@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,9 +24,8 @@ interface SoldSearchClientProps {
   initialListings: SoldListing[];
 }
 
-// Sold listings carry no description (the API omits it to keep the archive light), so the
-// grid stays readable at 10 per page.
-const ITEMS_PER_PAGE = 10;
+// 12 divides evenly across the 2- and 3-column breakpoints, so pages end on a full row.
+const ITEMS_PER_PAGE = 12;
 
 type SortOption = 'newest' | 'oldest' | 'price-low' | 'price-high' | 'alpha';
 
@@ -53,23 +51,48 @@ function sortDate(listing: SoldListing): number {
 }
 
 export default function SoldSearchClient({ initialListings }: SoldSearchClientProps) {
-  const searchParams = useSearchParams();
-
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
-  const [selectedConditions, setSelectedConditions] = useState<string[]>(
-    searchParams.get('conditions')?.split(',').filter(Boolean) || []
-  );
-  const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
-  const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice') || '');
-  const [sortBy, setSortBy] = useState<SortOption>(
-    (searchParams.get('sort') as SortOption) || 'newest'
-  );
-  const [currentPage, setCurrentPage] = useState(
-    parseInt(searchParams.get('page') || '1', 10)
-  );
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedConditions, setSelectedConditions] = useState<string[]>([]);
+  const [minPrice, setMinPrice] = useState('');
+  const [maxPrice, setMaxPrice] = useState('');
+  const [sortBy, setSortBy] = useState<SortOption>('newest');
+  const [currentPage, setCurrentPage] = useState(1);
   const [showMobileFilters, setShowMobileFilters] = useState(false);
+  const hydratedRef = useRef(false);
+
+  // Filters are restored from the URL here rather than with useSearchParams(). Reading that
+  // hook opts this subtree out of server rendering, which left the whole sold grid out of the
+  // indexed HTML — only a "Loading..." fallback was served. Defaults render on the server; a
+  // shared link applies its filters immediately after hydration.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    const q = params.get('q');
+    if (q) setSearchQuery(q);
+
+    const conditions = params.get('conditions')?.split(',').filter(Boolean);
+    if (conditions?.length) setSelectedConditions(conditions);
+
+    const min = params.get('minPrice');
+    if (min) setMinPrice(min);
+
+    const max = params.get('maxPrice');
+    if (max) setMaxPrice(max);
+
+    const sort = params.get('sort') as SortOption | null;
+    if (sort) setSortBy(sort);
+
+    const page = parseInt(params.get('page') || '1', 10);
+    if (page > 1) setCurrentPage(page);
+  }, []);
 
   useEffect(() => {
+    // Skip the first pass so the initial render cannot wipe the params before they are read.
+    if (!hydratedRef.current) {
+      hydratedRef.current = true;
+      return;
+    }
+
     const params = new URLSearchParams();
     if (searchQuery) params.set('q', searchQuery);
     if (selectedConditions.length > 0) params.set('conditions', selectedConditions.join(','));

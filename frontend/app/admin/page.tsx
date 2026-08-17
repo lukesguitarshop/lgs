@@ -428,6 +428,16 @@ export default function AdminPage() {
     return true;
   });
 
+  // The public /sold page caches the sold archive, so anything that changes which guitars are
+  // sold has to drop that cache or the page keeps showing a guitar that is no longer there.
+  const refreshSoldPageCache = async () => {
+    try {
+      await fetch('/api/revalidate-sold', { method: 'POST' });
+    } catch (err) {
+      console.error('Failed to refresh the sold page cache:', err);
+    }
+  };
+
   const toggleListing = async (id: string) => {
     setTogglingId(id);
     try {
@@ -435,6 +445,7 @@ export default function AdminPage() {
       setListings(prev =>
         prev.map(l => (l.id === id ? { ...l, disabled: response.disabled } : l))
       );
+      await refreshSoldPageCache();
       // Only when deactivating (active -> disabled), offer to edit the linked transaction.
       if (response.disabled) {
         try {
@@ -490,6 +501,7 @@ export default function AdminPage() {
     try {
       await api.authDelete(`/admin/listings/${listing.id}`);
       setListings(prev => prev.filter(l => l.id !== listing.id));
+      await refreshSoldPageCache();
     } catch (err) {
       console.error('Failed to delete listing:', err);
       alert('Failed to delete listing');
@@ -707,6 +719,8 @@ export default function AdminPage() {
     try {
       const response = await api.authPost<ScraperResponse>('/admin/run-scraper', {});
       setResult(response);
+      // The scraper disables anything no longer live on Reverb, which moves it into /sold.
+      await refreshSoldPageCache();
     } catch (err) {
       setResult({
         success: false,
@@ -772,6 +786,9 @@ export default function AdminPage() {
         {}
       );
       setBackfillResult(response);
+      if (confirm) {
+        await refreshSoldPageCache();
+      }
     } catch (err) {
       setBackfillResult({
         success: false,
