@@ -56,6 +56,8 @@ interface SoldBackfillResponse {
   duplicatesInFeed?: number;
   skippedNoLink?: number;
   imported?: number;
+  pendingTotal?: number;
+  remaining?: number;
   totalPhotos?: number;
   stateTally?: Record<string, number>;
   items?: SoldBackfillItem[];
@@ -739,8 +741,12 @@ export default function AdminPage() {
   // ONE-OFF MAINTENANCE: import pre-site sold Reverb listings into the /sold gallery.
   // Preview first (confirm=false), then commit. Never touches transactions.
   const backfillSoldListings = async (confirm: boolean) => {
+    const outstanding = backfillResult?.confirmed
+      ? backfillResult.remaining ?? 0
+      : backfillResult?.items?.length ?? 0;
+
     if (confirm && !window.confirm(
-      `Import ${backfillResult?.items?.length ?? 0} sold listings into the Sold gallery? ` +
+      `Import up to 40 of ${outstanding} sold listings into the Sold gallery? ` +
       'This only adds listings — no transactions or finance data are changed.'
     )) {
       return;
@@ -1333,7 +1339,9 @@ export default function AdminPage() {
               >
                 Diagnose Reverb Sources
               </Button>
-              {backfillResult?.success && !backfillResult.confirmed && (backfillResult.items?.length ?? 0) > 0 && (
+              {backfillResult?.success
+                && ((!backfillResult.confirmed && (backfillResult.items?.length ?? 0) > 0)
+                  || (backfillResult.confirmed && (backfillResult.remaining ?? 0) > 0)) && (
                 <Button
                   onClick={() => backfillSoldListings(true)}
                   disabled={backfillLoading}
@@ -1344,8 +1352,10 @@ export default function AdminPage() {
                       <Loader2 className="h-5 w-5 mr-2 animate-spin" />
                       Importing...
                     </>
+                  ) : backfillResult.confirmed ? (
+                    `Import Next ${Math.min(backfillResult.remaining ?? 0, 40)} (${backfillResult.remaining} left)`
                   ) : (
-                    `Import ${backfillResult.items?.length ?? 0} Listings`
+                    `Import ${Math.min(backfillResult.items?.length ?? 0, 40)} of ${backfillResult.items?.length ?? 0}`
                   )}
                 </Button>
               )}

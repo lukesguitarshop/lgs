@@ -168,11 +168,16 @@ public class ScraperService
     private async Task<List<ReverbListing>> FetchMyListingsAsync(
         Func<ReverbListing, bool> keep,
         CancellationToken cancellationToken,
-        Dictionary<string, int>? stateTally = null)
+        Dictionary<string, int>? stateTally = null,
+        string? stateQuery = null)
     {
         var allListings = new List<ReverbListing>();
         var currentPage = 1;
-        string? nextUrl = $"{_baseUrl}/my/listings?per_page={_pageSize}";
+        // No state param means live only. "all" is the only filter value Reverb honours for
+        // widening this; state=sold returns nothing even though sold is a real state.slug,
+        // so sold listings have to be pulled from state=all and filtered client-side.
+        string? nextUrl = $"{_baseUrl}/my/listings?per_page={_pageSize}"
+            + (string.IsNullOrEmpty(stateQuery) ? "" : $"&state={stateQuery}");
 
         _logger.LogInformation("Fetching my Reverb listings...");
 
@@ -368,6 +373,7 @@ public class ScraperService
     // Remove this method, its result types, the admin endpoint, and the admin button once run.
     public async Task<SoldBackfillResult> BackfillSoldListingsAsync(
         bool confirm,
+        int maxPerRun = 40,
         CancellationToken cancellationToken = default)
     {
         var startTime = DateTime.UtcNow;
@@ -386,7 +392,8 @@ public class ScraperService
         var soldListings = await FetchMyListingsAsync(
             l => l.State.Slug.Equals("sold", StringComparison.OrdinalIgnoreCase),
             cancellationToken,
-            stateTally);
+            stateTally,
+            stateQuery: "all");
 
         result.StateTally = stateTally;
         result.TotalReverbListings = stateTally.Values.Sum();
@@ -428,6 +435,8 @@ public class ScraperService
             $"{result.SoldOnReverb} sold on Reverb, {result.AlreadyOnSite} already on the site, " +
             $"{result.DuplicatesInFeed} duplicates in feed, {result.SkippedNoLink} without a link");
 
+        result.PendingTotal = toImport.Count;
+
         if (!confirm)
         {
             result.Items = toImport.Select(l => new SoldBackfillItem
@@ -443,6 +452,14 @@ public class ScraperService
             result.Duration = DateTime.UtcNow - startTime;
             result.OutputLines.Add($"PREVIEW ONLY — nothing written. {toImport.Count} listings would be imported.");
             return result;
+        }
+
+        // Each listing needs its own detail fetch for the full photo set, so a large backfill
+        // would outlast the browser's patience in one request. Cap each run and let the caller
+        // click again — the whole thing is insert-only and idempotent, so batches just resume.
+        if (maxPerRun > 0 && toImport.Count > maxPerRun)
+        {
+            toImport = toImport.Take(maxPerRun).ToList();
         }
 
         // Committing. Use CancellationToken.None from here on so a browser timeout mid-run
@@ -488,8 +505,13 @@ public class ScraperService
             }
         }
 
+        result.Remaining = Math.Max(0, result.PendingTotal - result.Imported);
         result.Duration = DateTime.UtcNow - startTime;
         result.OutputLines.Add($"Imported {result.Imported} sold listings ({result.TotalPhotos} photos). No transactions written.");
+        if (result.Remaining > 0)
+        {
+            result.OutputLines.Add($"{result.Remaining} still to go — run it again to continue.");
+        }
 
         _logger.LogInformation("===== Backfill imported {Count} sold listings in {Duration} =====",
             result.Imported, result.Duration);
@@ -600,6 +622,8 @@ public class SoldBackfillResult
     public int DuplicatesInFeed { get; set; }
     public int SkippedNoLink { get; set; }
     public int Imported { get; set; }
+    public int PendingTotal { get; set; }
+    public int Remaining { get; set; }
     public int TotalPhotos { get; set; }
     public TimeSpan Duration { get; set; }
     public Dictionary<string, int> StateTally { get; set; } = new();

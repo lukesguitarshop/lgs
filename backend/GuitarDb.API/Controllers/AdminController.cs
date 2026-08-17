@@ -109,13 +109,16 @@ public class AdminController : ControllerBase
     /// Call without confirm to preview; call with confirm=true to write. Remove once run.
     /// </summary>
     [HttpPost("backfill-sold-listings")]
-    public async Task<IActionResult> BackfillSoldListings([FromQuery] bool confirm = false)
+    public async Task<IActionResult> BackfillSoldListings(
+        [FromQuery] bool confirm = false,
+        [FromQuery] int maxPerRun = 40)
     {
-        _logger.LogInformation("Sold-listing backfill requested (confirm={Confirm})", confirm);
+        _logger.LogInformation("Sold-listing backfill requested (confirm={Confirm}, maxPerRun={Max})",
+            confirm, maxPerRun);
 
         try
         {
-            var result = await _scraperService.BackfillSoldListingsAsync(confirm);
+            var result = await _scraperService.BackfillSoldListingsAsync(confirm, maxPerRun);
 
             return Ok(new
             {
@@ -130,6 +133,8 @@ public class AdminController : ControllerBase
                 duplicatesInFeed = result.DuplicatesInFeed,
                 skippedNoLink = result.SkippedNoLink,
                 imported = result.Imported,
+                pendingTotal = result.PendingTotal,
+                remaining = result.Remaining,
                 totalPhotos = result.TotalPhotos,
                 stateTally = result.StateTally,
                 duration = result.Duration.ToString(),
