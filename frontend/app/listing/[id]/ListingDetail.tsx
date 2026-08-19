@@ -527,7 +527,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
           {/* Condition badge */}
           {listing.condition && (
-            <div className="text-sm text-muted-foreground">
+            <div className="text-sm font-semibold text-primary">
               Used - {listing.condition}
             </div>
           )}
@@ -683,21 +683,21 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                   variant="ghost"
                   size="sm"
                   onClick={handleCopyDescription}
-                  className="text-muted-foreground hover:text-foreground"
+                  className="text-foreground hover:text-primary"
                 >
                   <Copy className="h-4 w-4 mr-1" />
                   {descriptionCopied ? 'Copied!' : 'Copy'}
                 </Button>
               </div>
               <div
-                className="text-muted-foreground leading-relaxed [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1 [&_p]:my-2 [&_br]:block [&_a]:text-[#6E0114] [&_a]:underline [&_strong]:font-semibold [&_b]:font-semibold"
+                className="text-foreground leading-relaxed [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1 [&_p]:my-2 [&_br]:block [&_a]:text-[#6E0114] [&_a]:underline [&_strong]:font-semibold [&_b]:font-semibold"
                 dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
               />
             </div>
           )}
 
           {/* Additional details */}
-          <div className="pt-6 border-t border-border text-sm text-muted-foreground flex items-center justify-between">
+          <div className="pt-6 border-t border-border text-sm text-foreground flex items-center justify-between">
             <p>
               Listed on {listing.listed_at
                 ? new Date(listing.listed_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
@@ -708,7 +708,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 href={listing.reverb_link}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="underline hover:text-foreground transition-colors cursor-pointer"
+                className="underline hover:text-primary transition-colors cursor-pointer"
               >
                 View on Reverb
               </a>

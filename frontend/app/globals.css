@@ -101,11 +101,16 @@
     font-size: 17px;
     letter-spacing: 0.02em;
   }
+  /* Applied to every shared Button. Mono at 0.14em made labels like
+     "Proceed to Checkout" wider than their container, and the base Button sets
+     whitespace-nowrap, so they overflowed rather than wrapped. Archivo at these
+     proportions matches what Lato bold gave before the type change; surfaces that
+     want the mono treatment opt in with .btn-mono. */
   .font-btn {
-    font-family: var(--font-jetbrains), ui-monospace, monospace;
-    font-weight: 400;
+    font-family: var(--font-archivo), system-ui, sans-serif;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.08em;
   }
 }
 

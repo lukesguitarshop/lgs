@@ -19,8 +19,9 @@ interface FeaturedGuitarProps {
 }
 
 /**
- * Sits directly under the record card in the hero's right column, so it is built to the
- * same narrow width rather than reusing the grid card.
+ * Sits directly under the record card in the hero's right column: same narrow width, same
+ * paper treatment and same tilt, so the two read as one stack rather than two unrelated
+ * cards. Deliberately unlabelled — the guitar carries itself.
  */
 export default function FeaturedGuitar({ listing }: FeaturedGuitarProps) {
   const isOnSale = Boolean(listing.original_price && listing.price < listing.original_price);
@@ -28,12 +29,9 @@ export default function FeaturedGuitar({ listing }: FeaturedGuitarProps) {
   return (
     <Link
       href={`/listing/${listing.id}`}
-      className="group block border border-foreground/22 bg-background transition-colors hover:border-primary cursor-pointer"
+      className="receipt group block -rotate-2 transition-colors hover:border-primary cursor-pointer"
     >
-      <p className="label-mono-sm flex items-center gap-2 border-b border-foreground/14 px-3 py-2 text-primary">
-        <span className="inline-block h-1.5 w-1.5 rounded-full bg-primary" />
-        Featured
-      </p>
+      <span className="receipt-rule block" />
 
       <div className="photo-panel relative aspect-[4/3] w-full">
         {listing.images?.[0] ? (
