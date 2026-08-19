@@ -6,6 +6,9 @@ test.describe('Favorites', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Heart/favorite button has title "Add to favorites" (use first() for multiple matches)
       const heartButton = page.locator('button[title*="favorites"]').first();
@@ -18,6 +21,9 @@ test.describe('Favorites', () => {
 
         const firstListing = page.locator('a[href*="/listing/"]').first();
         await firstListing.click();
+        // The grid now has its own listing links and cart buttons; wait for the
+        // navigation so the assertions below don't match the homepage.
+        await expect(page).toHaveURL(/\/listing\//);
 
         // Find heart button by title
         const heartButton = page.locator('button[title*="favorites"]').first();
@@ -64,6 +70,9 @@ test.describe('Favorites', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Find and click heart button by title
       const heartButton = page.locator('button[title*="favorites"]').first();

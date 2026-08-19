@@ -430,6 +430,44 @@ public class MongoDbService
         return result.MatchedCount > 0;
     }
 
+    /// <summary>
+    /// The homepage hero shows one guitar, so featuring a listing clears the flag
+    /// everywhere else first. Doing it in this order means a failure between the two
+    /// writes leaves nothing featured rather than two competing for one slot.
+    /// </summary>
+    public async Task<bool> SetFeaturedListingAsync(string id)
+    {
+        await ClearFeaturedListingAsync();
+
+        var filter = Builders<MyListing>.Filter.Eq(l => l.Id, id);
+        var update = Builders<MyListing>.Update.Set(l => l.Featured, true);
+        var result = await _myListingsCollection.UpdateOneAsync(filter, update);
+        return result.MatchedCount > 0;
+    }
+
+    public async Task ClearFeaturedListingAsync()
+    {
+        var filter = Builders<MyListing>.Filter.Eq(l => l.Featured, true);
+        var update = Builders<MyListing>.Update.Set(l => l.Featured, false);
+        await _myListingsCollection.UpdateManyAsync(filter, update);
+    }
+
+    /// <summary>
+    /// The featured guitar, or null when nothing is featured or the featured listing is
+    /// no longer buyable. Disabled and pending listings are excluded here rather than
+    /// cleared, so re-enabling a guitar restores it to the hero without re-picking it.
+    /// </summary>
+    public async Task<MyListing?> GetFeaturedListingAsync()
+    {
+        var filterBuilder = Builders<MyListing>.Filter;
+        var filter = filterBuilder.And(
+            filterBuilder.Eq(l => l.Featured, true),
+            filterBuilder.Ne(l => l.Disabled, true),
+            filterBuilder.Ne(l => l.Pending, true)
+        );
+        return await _myListingsCollection.Find(filter).FirstOrDefaultAsync();
+    }
+
     public async Task<bool> SetListingPendingAsync(string id, bool pending)
     {
         var filter = Builders<MyListing>.Filter.Eq(l => l.Id, id);

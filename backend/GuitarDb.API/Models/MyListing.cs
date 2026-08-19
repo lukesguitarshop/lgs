@@ -49,4 +49,11 @@ public class MyListing
 
     [BsonElement("pending")]
     public bool Pending { get; set; } = false;
+
+    /// <summary>
+    /// Marks the one guitar shown in the homepage hero. At most a single listing
+    /// carries this at a time; setting it elsewhere clears the previous holder.
+    /// </summary>
+    [BsonElement("featured")]
+    public bool Featured { get; set; } = false;
 }

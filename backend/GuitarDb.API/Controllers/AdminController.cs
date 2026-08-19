@@ -298,6 +298,7 @@ public class AdminController : ControllerBase
                 price = l.Price,
                 currency = l.Currency,
                 disabled = l.Disabled,
+                featured = l.Featured,
                 is_reserved = isReserved,
                 reservation_id = isReserved ? reservation!.Id : null,
                 reservation_type = isReserved ? reservation!.Type : null,
@@ -307,6 +308,44 @@ public class AdminController : ControllerBase
                 reservation_unassigned = isReserved && reservation!.IsUnassigned
             };
         }));
+    }
+
+    /// <summary>
+    /// Choose the guitar shown in the homepage hero. Exactly one listing is featured at
+    /// a time, so this clears any previous pick.
+    /// </summary>
+    [HttpPut("listings/{id}/featured")]
+    public async Task<IActionResult> SetFeaturedListing(string id)
+    {
+        var listing = await _mongoDbService.GetMyListingByIdAsync(id);
+        if (listing == null)
+        {
+            return NotFound(new { error = "Listing not found" });
+        }
+
+        // Featuring something nobody can buy sends the homepage's most prominent slot to
+        // a dead end, so refuse it here rather than let the hero silently drop the card.
+        if (listing.Disabled || listing.Pending)
+        {
+            return Conflict(new
+            {
+                error = "listing_unavailable",
+                message = "This guitar isn't live on the site, so it can't be featured. Re-enable it first."
+            });
+        }
+
+        await _mongoDbService.SetFeaturedListingAsync(id);
+        return Ok(new { id, featured = true });
+    }
+
+    /// <summary>
+    /// Clear the featured guitar, leaving the hero without a featured slot.
+    /// </summary>
+    [HttpDelete("listings/featured")]
+    public async Task<IActionResult> ClearFeaturedListing()
+    {
+        await _mongoDbService.ClearFeaturedListingAsync();
+        return Ok(new { featured = (string?)null });
     }
 
     /// <summary>

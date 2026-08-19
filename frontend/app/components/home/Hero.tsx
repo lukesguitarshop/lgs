@@ -1,8 +1,11 @@
 import Link from 'next/link';
 import type { ShopStats } from './shopStats';
+import FeaturedGuitar, { type FeaturedListing } from './FeaturedGuitar';
 
 interface HeroProps {
   stats: ShopStats;
+  /** Null when nothing is featured, in which case the slot is simply omitted. */
+  featured: FeaturedListing | null;
 }
 
 /** One row of the rotated receipt card. */
@@ -11,20 +14,27 @@ function RecordRow({
   value,
   suffix,
   last = false,
+  compact = false,
 }: {
   label: string;
   value: React.ReactNode;
   suffix?: string;
   last?: boolean;
+  /** Tightened up when the featured guitar shares the column. */
+  compact?: boolean;
 }) {
   return (
     <div
       className={`flex items-baseline justify-between gap-2.5 ${
-        last ? '' : 'border-b border-dashed border-foreground/28 pb-[11px]'
+        last ? '' : `border-b border-dashed border-foreground/28 ${compact ? 'pb-2' : 'pb-[11px]'}`
       }`}
     >
       <dt className="label-mono-sm text-[10.5px] tracking-[0.13em] text-foreground/60">{label}</dt>
-      <dd className="m-0 flex flex-col items-end gap-[3px] font-heading text-[30px] leading-none">
+      <dd
+        className={`m-0 flex flex-col items-end gap-[3px] font-heading leading-none ${
+          compact ? 'text-[23px]' : 'text-[30px]'
+        }`}
+      >
         {value}
         {suffix && (
           <span className="label-mono-sm text-[8px] tracking-[0.13em] text-foreground/60">
@@ -36,7 +46,7 @@ function RecordRow({
   );
 }
 
-export default function Hero({ stats }: HeroProps) {
+export default function Hero({ stats, featured }: HeroProps) {
   return (
     <section
       id="top"
@@ -79,21 +89,23 @@ export default function Hero({ stats }: HeroProps) {
         </div>
       </div>
 
-      {/* The record: a paper receipt, pinned slightly off-square. */}
-      <div className="flex flex-[0_1_300px] justify-start pt-[clamp(8px,2vw,54px)]">
-        <div className="receipt relative w-[clamp(230px,26vw,290px)] -rotate-2 pb-[22px]">
+      {/* The record, then the featured guitar beneath it. Both are built to the same
+          narrow width so the column reads as one stack. */}
+      <div className="flex flex-[0_1_300px] flex-col items-start gap-5 pt-[clamp(8px,2vw,54px)]">
+        <div className={`receipt relative w-[clamp(230px,26vw,290px)] -rotate-2 ${featured ? 'pb-4' : 'pb-[22px]'}`}>
           <div className="receipt-rule" />
-          <div className="flex justify-center pt-3.5 pb-1">
-            <span className="block h-[15px] w-[15px] rounded-full bg-foreground" />
+          <div className="flex justify-center pt-2.5 pb-1">
+            <span className="block h-3 w-3 rounded-full bg-foreground" />
           </div>
-          <p className="label-mono mt-2 mb-4 text-center text-[10px] tracking-[0.22em] text-primary">
+          <p className="label-mono mt-1.5 mb-3 text-center text-[10px] tracking-[0.22em] text-primary">
             The record
           </p>
-          <dl className="m-0 grid gap-3.5 px-[22px] font-mono">
-            <RecordRow label="Sold" value={stats.soldCount} />
+          <dl className={`m-0 grid px-[22px] font-mono ${featured ? 'gap-2.5' : 'gap-3.5'}`}>
+            <RecordRow label="Sold" value={stats.soldCount} compact={!!featured} />
             {stats.averageRating !== null && (
               <RecordRow
                 label="Rating"
+                compact={!!featured}
                 value={
                   <span>
                     {stats.averageRating} <span className="text-[15px] text-primary">★</span>
@@ -101,10 +113,22 @@ export default function Hero({ stats }: HeroProps) {
                 }
               />
             )}
-            <RecordRow label="Years" value={stats.years} />
-            <RecordRow label="Listed across" value={stats.platforms} suffix="platforms" last />
+            <RecordRow label="Years" value={stats.years} compact={!!featured} />
+            <RecordRow
+              label="Listed across"
+              value={stats.platforms}
+              suffix="platforms"
+              last
+              compact={!!featured}
+            />
           </dl>
         </div>
+
+        {featured && (
+          <div className="w-[clamp(230px,26vw,290px)]">
+            <FeaturedGuitar listing={featured} />
+          </div>
+        )}
       </div>
     </section>
   );

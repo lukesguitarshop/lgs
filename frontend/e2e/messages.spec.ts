@@ -6,18 +6,24 @@ test.describe('Messages', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Message seller button should be visible
-      await expect(page.getByRole('button', { name: /message.*seller/i })).toBeVisible();
+      await expect(page.getByRole('button', { name: /message (luke|seller)/i })).toBeVisible();
     });
 
     test('prompts login when not authenticated', async ({ page }) => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Click message seller button
-      await page.getByRole('button', { name: /message.*seller/i }).click();
+      await page.getByRole('button', { name: /message (luke|seller)/i }).click();
 
       // Should show login modal
       await expect(page.getByRole('dialog')).toBeVisible({ timeout: 5000 });
@@ -48,9 +54,12 @@ test.describe('Messages', () => {
 
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Click message seller button
-      await page.getByRole('button', { name: /message.*seller/i }).click();
+      await page.getByRole('button', { name: /message (luke|seller)/i }).click();
 
       // Should navigate to messages page
       await expect(page).toHaveURL(/messages/, { timeout: 10000 });

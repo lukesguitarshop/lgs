@@ -53,6 +53,37 @@ public class MyListingsController : ControllerBase
         }));
     }
 
+    /// <summary>
+    /// The guitar shown in the homepage hero. Returns 204 when nothing is featured, so
+    /// the hero can simply omit the slot rather than reason about an empty body.
+    /// </summary>
+    [HttpGet("featured")]
+    public async Task<IActionResult> GetFeaturedListing()
+    {
+        var listing = await _mongoDbService.GetFeaturedListingAsync();
+        if (listing == null)
+        {
+            return NoContent();
+        }
+
+        var reservation = await _mongoDbService.GetActiveReservationByListingAsync(listing.Id!);
+        var isReserved = reservation != null && reservation.IsActive;
+
+        return Ok(new
+        {
+            id = listing.Id,
+            listing_title = listing.ListingTitle,
+            condition = listing.Condition,
+            images = listing.Images,
+            price = listing.Price,
+            original_price = listing.OriginalPrice,
+            currency = listing.Currency,
+            // Reservation state only. Never the holder's identity.
+            is_reserved = isReserved,
+            reservation_badge = isReserved ? ReservationType.PublicBadge(reservation!.Type) : null
+        });
+    }
+
     [HttpGet("sold")]
     public async Task<IActionResult> GetSoldListings([FromQuery] int? limit = null)
     {

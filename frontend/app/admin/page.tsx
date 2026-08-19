@@ -76,6 +76,7 @@ interface AdminListing {
   price: number;
   currency: string;
   disabled: boolean;
+  featured: boolean;
   is_reserved: boolean;
   reservation_id: string | null;
   reservation_type: string | null;
@@ -210,6 +211,10 @@ export default function AdminPage() {
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDisabledListings, setShowDisabledListings] = useState(false);
+  // Featured-guitar picker: search text, and the id currently being written.
+  const [featuredSearch, setFeaturedSearch] = useState('');
+  const [savingFeatured, setSavingFeatured] = useState(false);
+  const [featuredError, setFeaturedError] = useState<string | null>(null);
   // The sold/disabled group runs to hundreds of rows after the Reverb backfill, so it gets
   // its own search and paging rather than rendering the whole archive into the accordion.
   const [disabledSearch, setDisabledSearch] = useState('');
@@ -435,6 +440,41 @@ export default function AdminPage() {
       await fetch('/api/revalidate-sold', { method: 'POST' });
     } catch (err) {
       console.error('Failed to refresh the sold page cache:', err);
+    }
+  };
+
+  /**
+   * Feature one guitar on the homepage. The server clears the previous pick, so the
+   * local state is updated the same way rather than trusting two flags to agree.
+   */
+  const setFeatured = async (id: string) => {
+    setSavingFeatured(true);
+    setFeaturedError(null);
+    try {
+      await api.authPut<{ id: string; featured: boolean }>(`/admin/listings/${id}/featured`);
+      setListings(prev => prev.map(l => ({ ...l, featured: l.id === id })));
+      setFeaturedSearch('');
+    } catch (err) {
+      setFeaturedError(
+        err instanceof Error ? err.message : 'Could not feature that guitar.'
+      );
+    } finally {
+      setSavingFeatured(false);
+    }
+  };
+
+  const clearFeatured = async () => {
+    setSavingFeatured(true);
+    setFeaturedError(null);
+    try {
+      await api.authDelete<{ featured: string | null }>('/admin/listings/featured');
+      setListings(prev => prev.map(l => ({ ...l, featured: false })));
+    } catch (err) {
+      setFeaturedError(
+        err instanceof Error ? err.message : 'Could not clear the featured guitar.'
+      );
+    } finally {
+      setSavingFeatured(false);
     }
   };
 
@@ -930,6 +970,90 @@ export default function AdminPage() {
                 {loadingListings ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
               </Button>
             </div>
+
+            {/* Featured guitar picker. One guitar sits in the homepage hero; choosing
+                another replaces it. Sold and disabled listings are excluded because the
+                hero will not show them. */}
+            {(() => {
+              const current = listings.find(l => l.featured && !l.disabled);
+              const query = featuredSearch.trim().toLowerCase();
+              const matches = query
+                ? listings
+                    .filter(l => !l.disabled && l.listing_title?.toLowerCase().includes(query))
+                    .slice(0, 6)
+                : [];
+
+              return (
+                <div className="mb-6 rounded-lg border border-[#6E0114]/30 bg-[#6E0114]/5 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-semibold text-[#020E1C]">Featured on the homepage</h3>
+                      <p className="mt-0.5 text-sm text-gray-600">
+                        {current
+                          ? `Currently showing "${current.listing_title}" in the hero.`
+                          : 'Nothing is featured — the hero hides the slot.'}
+                      </p>
+                    </div>
+                    {current && (
+                      <Button
+                        onClick={clearFeatured}
+                        disabled={savingFeatured}
+                        variant="outline"
+                        className="text-sm"
+                      >
+                        {savingFeatured ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Clear'}
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="mt-3">
+                    <Input
+                      type="search"
+                      value={featuredSearch}
+                      onChange={e => setFeaturedSearch(e.target.value)}
+                      placeholder="Search a listing to feature..."
+                      className="max-w-md bg-[#FFFFF3]"
+                    />
+                  </div>
+
+                  {featuredError && (
+                    <p className="mt-2 text-sm text-red-600">{featuredError}</p>
+                  )}
+
+                  {query && matches.length === 0 && (
+                    <p className="mt-2 text-sm text-gray-500">No live listings match that.</p>
+                  )}
+
+                  {matches.length > 0 && (
+                    <ul className="mt-3 divide-y divide-gray-200 rounded-md border border-gray-200 bg-[#FFFFF3]">
+                      {matches.map(listing => (
+                        <li
+                          key={listing.id}
+                          className="flex items-center justify-between gap-3 px-3 py-2"
+                        >
+                          <span className="min-w-0 flex-1 truncate text-sm text-[#020E1C]">
+                            {listing.listing_title}
+                          </span>
+                          {listing.featured ? (
+                            <span className="text-xs font-semibold text-[#6E0114] uppercase">
+                              Featured
+                            </span>
+                          ) : (
+                            <Button
+                              onClick={() => setFeatured(listing.id)}
+                              disabled={savingFeatured}
+                              className="bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] text-xs"
+                            >
+                              Feature
+                            </Button>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              );
+            })()}
 
             {loadingListings && listings.length === 0 ? (
               <div className="flex justify-center py-8">

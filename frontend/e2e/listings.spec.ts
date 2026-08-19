@@ -99,6 +99,7 @@ test.describe('Listings', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Should show heading with listing title
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -108,14 +109,20 @@ test.describe('Listings', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid also has Add to Cart buttons now, so wait for the navigation before
+      // asserting or the locator matches the homepage cards instead.
+      await expect(page).toHaveURL(/\/listing\//);
 
-      await expect(page.getByRole('button', { name: /add to cart/i })).toBeVisible();
+      await expect(
+        page.getByRole('button', { name: /add to cart/i }).first()
+      ).toBeVisible();
     });
 
     test('detail page shows price', async ({ page }) => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Should show price
       await expect(page.getByText(/\$[\d,]+/).first()).toBeVisible();
@@ -125,6 +132,7 @@ test.describe('Listings', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Should show listing images
       await expect(page.locator('img').first()).toBeVisible();

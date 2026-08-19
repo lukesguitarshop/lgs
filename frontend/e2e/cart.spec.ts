@@ -14,6 +14,9 @@ test.describe('Shopping Cart', () => {
       // Go to first listing
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Add to cart
       await page.getByRole('button', { name: /add to cart/i }).click();
@@ -34,6 +37,9 @@ test.describe('Shopping Cart', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Store initial button text
       const addButton = page.getByRole('button', { name: /add to cart/i });
@@ -66,6 +72,9 @@ test.describe('Shopping Cart', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
       await page.getByRole('button', { name: /add to cart/i }).click();
 
       await page.goto('/cart');
@@ -83,6 +92,9 @@ test.describe('Shopping Cart', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
       await page.getByRole('button', { name: /add to cart/i }).click();
 
       // Go to cart

@@ -6,6 +6,9 @@ test.describe('Offers', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Make offer button should be visible
       await expect(page.getByRole('button', { name: /make.*offer/i })).toBeVisible();
@@ -17,6 +20,9 @@ test.describe('Offers', () => {
 
         const firstListing = page.locator('a[href*="/listing/"]').first();
         await firstListing.click();
+        // The grid now has its own listing links and cart buttons; wait for the
+        // navigation so the assertions below don't match the homepage.
+        await expect(page).toHaveURL(/\/listing\//);
 
         // Click make offer button
         await page.getByRole('button', { name: /make.*offer/i }).click();
@@ -32,6 +38,9 @@ test.describe('Offers', () => {
       await page.goto('/');
       const firstListing = page.locator('a[href*="/listing/"]').first();
       await firstListing.click();
+      // The grid now has its own listing links and cart buttons; wait for the
+      // navigation so the assertions below don't match the homepage.
+      await expect(page).toHaveURL(/\/listing\//);
 
       // Click make offer button
       const offerButton = page.getByRole('button', { name: /make.*offer/i });
@@ -51,6 +60,9 @@ test.describe('Offers', () => {
 
         const firstListing = page.locator('a[href*="/listing/"]').first();
         await firstListing.click();
+        // The grid now has its own listing links and cart buttons; wait for the
+        // navigation so the assertions below don't match the homepage.
+        await expect(page).toHaveURL(/\/listing\//);
 
         await page.getByRole('button', { name: /make.*offer/i }).click();
 
@@ -67,6 +79,9 @@ test.describe('Offers', () => {
 
         const firstListing = page.locator('a[href*="/listing/"]').first();
         await firstListing.click();
+        // The grid now has its own listing links and cart buttons; wait for the
+        // navigation so the assertions below don't match the homepage.
+        await expect(page).toHaveURL(/\/listing\//);
 
         await page.getByRole('button', { name: /make.*offer/i }).click();
 

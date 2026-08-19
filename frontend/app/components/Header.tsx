@@ -147,9 +147,11 @@ export default function Header() {
             </Link>
           )}
 
-          <div className="hidden md:block">
+          {/* A nav element, not a div: the profile menu is navigation, and the e2e
+              auth fixture identifies the signed-in state by `nav button:has(svg)`. */}
+          <nav className="hidden md:block">
             <ProfileButton />
-          </div>
+          </nav>
 
           {/* Mobile: admin shortcut or cart, then the menu toggle */}
           <div className="flex items-center gap-2 md:hidden">

@@ -1,5 +1,6 @@
 import SearchClient, { type InitialFilters } from './components/SearchClient';
 import Hero from './components/home/Hero';
+import { type FeaturedListing } from './components/home/FeaturedGuitar';
 import TrustBar from './components/home/TrustBar';
 import About from './components/home/About';
 import SoldStrip, { type SoldStripListing } from './components/home/SoldStrip';
@@ -91,21 +92,42 @@ function parseFilters(params: Record<string, string | string[] | undefined>): In
   };
 }
 
+/**
+ * The featured guitar, or null. The endpoint answers 204 when nothing is featured, and a
+ * failure here costs the hero its featured slot rather than the page.
+ */
+async function getFeaturedListing(): Promise<FeaturedListing | null> {
+  try {
+    const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
+    const res = await fetch(`${apiBaseUrl}/listings/featured`, { cache: 'no-store' });
+
+    if (res.status === 204 || !res.ok) {
+      return null;
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error('Error fetching featured listing:', error);
+    return null;
+  }
+}
+
 export default async function HomePage({
   searchParams,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const [listings, soldListings, params] = await Promise.all([
+  const [listings, soldListings, featured, params] = await Promise.all([
     getListings(),
     getSoldListings(),
+    getFeaturedListing(),
     searchParams,
   ]);
   const stats = await getShopStats(soldListings.length);
 
   return (
     <>
-      <Hero stats={stats} />
+      <Hero stats={stats} featured={featured} />
       <TrustBar />
       <SearchClient initialListings={listings} initialFilters={parseFilters(params)} />
       <About stats={stats} />
