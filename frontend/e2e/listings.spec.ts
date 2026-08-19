@@ -4,8 +4,8 @@ test.describe('Listings', () => {
   test.describe('Browse Listings', () => {
     test('home page loads listing grid', async ({ page }) => {
       await page.goto('/');
-      // Should show listings heading
-      await expect(page.getByRole('heading', { name: /listings/i })).toBeVisible();
+      // Should show the inventory heading
+      await expect(page.getByRole('heading', { name: /in stock right now/i })).toBeVisible();
       // Should show at least one listing card
       await expect(page.locator('a[href*="/listing/"]').first()).toBeVisible({ timeout: 10000 });
     });
@@ -31,25 +31,32 @@ test.describe('Listings', () => {
 
     test('displays listing count', async ({ page }) => {
       await page.goto('/');
-      // Should show listing count (e.g., "7 listings")
-      await expect(page.getByText(/\d+ listings?/i)).toBeVisible();
+      // The count now leads the inventory heading (e.g. "7 in stock right now")
+      await expect(
+        page.getByRole('heading', { name: /\d+ in stock right now/i })
+      ).toBeVisible();
     });
   });
 
   test.describe('Search & Filter', () => {
+    // The sidebar search carries an example placeholder ("Gibson, PRS, flame top…"),
+    // so it is addressed by its label rather than its placeholder text.
     test('search input is visible', async ({ page }) => {
       await page.goto('/');
-      await expect(page.getByPlaceholder(/search/i)).toBeVisible();
+      await expect(page.getByLabel(/^search$/i)).toBeVisible();
     });
 
     test('search filters results', async ({ page }) => {
       await page.goto('/');
-      const searchInput = page.getByPlaceholder(/search/i);
+      const searchInput = page.getByLabel(/^search$/i);
       await searchInput.fill('Gibson');
       await page.waitForTimeout(500); // Debounce
 
-      // Should filter or show results
-      await page.waitForTimeout(500);
+      // The heading carries the live count, so filtering is observable there.
+      await expect(
+        page.getByRole('heading', { name: /\d+ in stock right now/i })
+      ).toBeVisible();
+      await expect(page).toHaveURL(/q=Gibson/i);
     });
 
     test('price filter inputs are visible', async ({ page }) => {

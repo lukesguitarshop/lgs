@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Search, Filter, X, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
@@ -11,7 +11,7 @@ import { getAuthHeaders } from '@/lib/auth';
 import { addToCart, isInCart } from '@/lib/cart';
 import { logAddToCart } from '@/lib/activity';
 import { trackAddToCart } from '@/lib/analytics';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, toPlainText } from '@/lib/format';
 
 interface Listing {
   id: string;
@@ -32,8 +32,19 @@ interface Listing {
   reserved_for_me?: boolean;
 }
 
+/** Filter state lifted out of the URL by the server page. */
+export interface InitialFilters {
+  q: string;
+  conditions: string[];
+  minPrice: string;
+  maxPrice: string;
+  sort: SortOption;
+  page: number;
+}
+
 interface SearchClientProps {
   initialListings: Listing[];
+  initialFilters: InitialFilters;
 }
 
 const ITEMS_PER_PAGE = 25;
@@ -59,24 +70,19 @@ const pricePresets: { label: string; min: string; max: string }[] = [
   { label: '$2k+', min: '2000', max: '' },
 ];
 
-export default function SearchClient({ initialListings }: SearchClientProps) {
+export default function SearchClient({ initialListings, initialFilters }: SearchClientProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const { isAuthenticated, setShowLoginModal } = useAuth();
 
-  // Initialize state from URL params
-  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') || '');
-  const [selectedConditions, setSelectedConditions] = useState<string[]>(
-    searchParams.get('conditions')?.split(',').filter(Boolean) || []
-  );
-  const [minPrice, setMinPrice] = useState(searchParams.get('minPrice') || '');
-  const [maxPrice, setMaxPrice] = useState(searchParams.get('maxPrice') || '');
-  const [sortBy, setSortBy] = useState<SortOption>(
-    (searchParams.get('sort') as SortOption) || 'newest'
-  );
-  const [currentPage, setCurrentPage] = useState(
-    parseInt(searchParams.get('page') || '1', 10)
-  );
+  // Seeded from the URL by the server page. Reading useSearchParams here instead would
+  // force a Suspense boundary, and that boundary leaves a duplicate copy of the grid in
+  // the DOM — the same defect b5d778b removed from /sold.
+  const [searchQuery, setSearchQuery] = useState(initialFilters.q);
+  const [selectedConditions, setSelectedConditions] = useState<string[]>(initialFilters.conditions);
+  const [minPrice, setMinPrice] = useState(initialFilters.minPrice);
+  const [maxPrice, setMaxPrice] = useState(initialFilters.maxPrice);
+  const [sortBy, setSortBy] = useState<SortOption>(initialFilters.sort);
+  const [currentPage, setCurrentPage] = useState(initialFilters.page);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
 
   // Fetch user's favorites when authenticated
@@ -129,8 +135,8 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
     }
   };
 
-  // Update URL when filters change
-  useEffect(() => {
+  /** The current filter state as a query string, shared by the URL and the /filter link. */
+  const queryString = useMemo(() => {
     const params = new URLSearchParams();
     if (searchQuery) params.set('q', searchQuery);
     if (selectedConditions.length > 0) params.set('conditions', selectedConditions.join(','));
@@ -138,11 +144,15 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
     if (maxPrice) params.set('maxPrice', maxPrice);
     if (sortBy !== 'newest') params.set('sort', sortBy);
     if (currentPage > 1) params.set('page', currentPage.toString());
+    return params.toString();
+  }, [searchQuery, selectedConditions, minPrice, maxPrice, sortBy, currentPage]);
 
-    const paramString = params.toString();
-    const newUrl = paramString ? `?${paramString}` : '/';
-    router.replace(newUrl, { scroll: false });
-  }, [searchQuery, selectedConditions, minPrice, maxPrice, sortBy, currentPage, router]);
+  // Keep the URL shareable as filters change. The hash is carried through so landing on
+  // /#inventory doesn't lose the anchor the moment this runs.
+  useEffect(() => {
+    const hash = window.location.hash;
+    router.replace(`/${queryString ? `?${queryString}` : ''}${hash}`, { scroll: false });
+  }, [queryString, router]);
 
   const availableConditions = useMemo(() => {
     const conditions = new Set(initialListings.map(l => l.condition).filter((c): c is string => Boolean(c)));
@@ -305,7 +315,7 @@ export default function SearchClient({ initialListings }: SearchClientProps) {
           />
         </div>
         <Link
-          href={`/filter${searchParams.toString() ? `?${searchParams.toString()}` : ''}`}
+          href={`/filter${queryString ? `?${queryString}` : ''}`}
           className="flex min-h-[46px] items-center justify-center border border-foreground/35 px-4 text-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer"
           aria-label="Filters"
         >
@@ -541,6 +551,11 @@ function ListingCard({ listing, isFavorite, onToggleFavorite, priority = false }
   };
 
   const savedAmount = isOnSale ? listing.original_price! - listing.price : 0;
+  // Descriptions are stored as HTML; the card shows a flattened two-line blurb.
+  const blurb = useMemo(
+    () => (listing.description ? toPlainText(listing.description) : ''),
+    [listing.description]
+  );
 
   return (
     <article className="flex flex-col">
@@ -630,9 +645,9 @@ function ListingCard({ listing, isFavorite, onToggleFavorite, priority = false }
           </Link>
         </h3>
 
-        {listing.description && (
+        {blurb && (
           <p className="mb-4 line-clamp-2 text-sm leading-[1.45] text-foreground/68">
-            {listing.description}
+            {blurb}
           </p>
         )}
 

@@ -45,9 +45,12 @@
     color: hsl(var(--foreground));
     font-family: var(--font-archivo), system-ui, sans-serif;
   }
-  /* The header is sticky, so anchored sections must clear it when jumped to. */
-  :target {
-    scroll-margin-top: 140px;
+  /* The header is sticky, so anchored sections must clear it when jumped to. This sits
+     on the sections themselves rather than :target — Next scrolls with scrollIntoView,
+     which never triggers a fragment match. The value tracks the header's own height:
+     the logo clamp plus its 10px of padding top and bottom. */
+  section[id] {
+    scroll-margin-top: calc(clamp(56px, 9vw, 128px) + 28px);
   }
 }
 

@@ -1,5 +1,4 @@
-import { Suspense } from 'react';
-import SearchClient from './components/SearchClient';
+import SearchClient, { type InitialFilters } from './components/SearchClient';
 import Hero from './components/home/Hero';
 import TrustBar from './components/home/TrustBar';
 import About from './components/home/About';
@@ -64,20 +63,51 @@ async function getSoldListings(): Promise<SoldStripListing[]> {
   }
 }
 
-export default async function HomePage() {
-  const [listings, soldListings] = await Promise.all([getListings(), getSoldListings()]);
+type SortOption = InitialFilters['sort'];
+
+const SORT_OPTIONS: SortOption[] = ['newest', 'oldest', 'price-low', 'price-high', 'alpha'];
+
+function first(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return value[0] ?? '';
+  return value ?? '';
+}
+
+/**
+ * Filters are read here rather than in the client component: useSearchParams would
+ * force a Suspense boundary around the grid, and that boundary leaves a duplicate
+ * copy of it in the DOM.
+ */
+function parseFilters(params: Record<string, string | string[] | undefined>): InitialFilters {
+  const sort = first(params.sort) as SortOption;
+  const page = parseInt(first(params.page) || '1', 10);
+
+  return {
+    q: first(params.q),
+    conditions: first(params.conditions).split(',').filter(Boolean),
+    minPrice: first(params.minPrice),
+    maxPrice: first(params.maxPrice),
+    sort: SORT_OPTIONS.includes(sort) ? sort : 'newest',
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+  };
+}
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const [listings, soldListings, params] = await Promise.all([
+    getListings(),
+    getSoldListings(),
+    searchParams,
+  ]);
   const stats = await getShopStats(soldListings.length);
 
   return (
     <>
       <Hero stats={stats} />
       <TrustBar />
-      {/* SearchClient reads useSearchParams, which needs a boundary on a dynamic page.
-          Only the inventory is wrapped — wrapping the whole page made React stream a
-          second copy of the grid (see the /sold fix in b5d778b). */}
-      <Suspense fallback={<div className="label-mono mx-auto max-w-[1320px] px-5 py-24 text-foreground/50">Loading inventory…</div>}>
-        <SearchClient initialListings={listings} />
-      </Suspense>
+      <SearchClient initialListings={listings} initialFilters={parseFilters(params)} />
       <About stats={stats} />
       <SoldStrip listings={soldListings.slice(0, 8)} totalSold={soldListings.length} />
       <ContactCta />
