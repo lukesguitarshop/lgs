@@ -104,3 +104,7 @@ frontend/.env.local
 # Keys file
 keys.md
 .vercel
+
+# Playwright artifacts
+frontend/test-results/
+frontend/playwright-report/
