@@ -5,13 +5,14 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Search, Filter, X, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
+import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
 import { addToCart, isInCart } from '@/lib/cart';
 import { logAddToCart } from '@/lib/activity';
 import { trackAddToCart } from '@/lib/analytics';
-import { formatPrice, toPlainText } from '@/lib/format';
+import { formatPrice } from '@/lib/format';
 
 interface Listing {
   id: string;
@@ -529,6 +530,7 @@ function ListingCard({ listing, isFavorite, onToggleFavorite, priority = false }
   }, [listing.id]);
 
   const handleAddToCart = (e: React.MouseEvent) => {
+    // The whole card is a link; keep the click from navigating.
     e.preventDefault();
     e.stopPropagation();
     if (isReserved || inCart) return;
@@ -550,141 +552,104 @@ function ListingCard({ listing, isFavorite, onToggleFavorite, priority = false }
     setInCart(true);
   };
 
-  const savedAmount = isOnSale ? listing.original_price! - listing.price : 0;
-  // Descriptions are stored as HTML; the card shows a flattened two-line blurb.
-  const blurb = useMemo(
-    () => (listing.description ? toPlainText(listing.description) : ''),
-    [listing.description]
-  );
+  const actionClass =
+    'flex min-h-[42px] items-center justify-center border border-foreground bg-background px-3 text-center text-xs font-bold tracking-wider uppercase text-foreground transition-colors';
 
   return (
-    <article className="flex flex-col">
-      <Link
-        href={`/listing/${listing.id}`}
-        className="photo-panel group relative block aspect-[4/5] border border-foreground/16 transition-colors hover:border-primary cursor-pointer"
-      >
-        {listing.images && listing.images.length > 0 ? (
-          <Image
-            src={listing.images[0]}
-            alt={listing.listing_title}
-            fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw"
-            className="object-cover"
-            priority={priority}
-          />
-        ) : (
-          <span className="label-mono-sm absolute inset-0 flex items-center justify-center px-6 text-center text-foreground/45">
-            No photo yet
-          </span>
-        )}
-
-        {listing.images && listing.images.length > 0 && (
-          <span className="label-mono-sm absolute top-3 left-3 border border-foreground/22 bg-background/90 px-[9px] py-[5px] text-foreground/70">
-            {listing.images.length} photos
-          </span>
-        )}
-
-        {/* Reservation state outranks the sale flag: it changes whether you can buy. */}
-        {isReserved ? (
-          <span
-            className={`absolute top-0 right-0 px-3.5 py-[9px] font-heading text-[15px] leading-none tracking-[0.06em] ${
-              listing.reserved_for_me
-                ? 'bg-green-600 text-white'
-                : 'bg-yellow-400 text-yellow-900'
-            }`}
-          >
-            {listing.reserved_for_me ? 'On hold for you' : listing.reservation_badge || 'On Hold'}
-          </span>
-        ) : (
-          isOnSale && (
-            <span className="absolute top-0 right-0 bg-primary px-3.5 py-[9px] font-heading text-[15px] leading-none tracking-[0.06em] text-primary-foreground shadow-[0_6px_18px_-8px_rgba(110,1,20,0.9)]">
-              On sale
-            </span>
-          )
-        )}
-
-        <button
-          type="button"
-          onClick={e => onToggleFavorite(listing.id, e)}
-          className={`absolute bottom-3 left-3 flex h-10 w-10 items-center justify-center border border-foreground/22 bg-background/85 transition-colors cursor-pointer ${
-            isFavorite ? 'text-primary' : 'text-foreground/45 hover:text-primary'
-          }`}
-          title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-        >
-          <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
-        </button>
-
-        {/* The price hangs off the corner as a little paper tag. */}
-        <span className="receipt absolute right-3.5 bottom-0 min-w-[104px] translate-y-[38%] -rotate-2 pb-2.5">
-          <span className="block h-1 bg-primary" />
-          <span className="flex justify-center pt-[7px] pb-[3px]">
-            <span className="block h-2 w-2 rounded-full bg-foreground" />
-          </span>
-          <span className="block px-3.5 pt-0.5 text-center font-heading text-[21px] leading-[1.1]">
-            {formatPrice(listing.price, listing.currency)}
-          </span>
-          <span className="label-mono-sm block px-3.5 pt-px text-center text-[8.5px] text-primary">
-            Free shipping
-          </span>
-        </span>
-      </Link>
-
-      <div className="flex flex-1 flex-col pt-[26px]">
-        {listing.condition && (
-          <p className="label-mono-sm mb-2.5 flex items-center gap-2.5 text-foreground/62">
-            Used
-            <span className="inline-block h-[9px] w-px bg-foreground/40" />
-            {listing.condition}
-          </p>
-        )}
-
-        <h3 className="mb-1.5 font-heading text-[19px] leading-[1.08] tracking-[0.005em]">
-          <Link href={`/listing/${listing.id}`} className="text-foreground transition-colors hover:text-primary cursor-pointer">
-            {listing.listing_title}
-          </Link>
-        </h3>
-
-        {blurb && (
-          <p className="mb-4 line-clamp-2 text-sm leading-[1.45] text-foreground/68">
-            {blurb}
-          </p>
-        )}
-
-        <div className="mt-auto flex flex-col gap-[11px] border-t border-foreground/14 pt-3.5">
-          {isOnSale && (
-            <p className="label-mono-sm m-0 flex items-baseline gap-2 tracking-[0.1em] text-primary">
-              <span className="text-foreground/50 line-through">
-                {formatPrice(listing.original_price!, listing.currency)}
-              </span>
-              Save {formatPrice(savedAmount, listing.currency)}
-            </p>
+    <Link href={`/listing/${listing.id}`} className="block h-full">
+      <Card className="flex h-full cursor-pointer flex-col overflow-hidden transition-shadow hover:shadow-lg">
+        <div className="relative aspect-square w-full bg-gradient-to-br from-muted to-muted/50">
+          {listing.images && listing.images.length > 0 ? (
+            <Image src={listing.images[0]} alt={listing.listing_title} fill sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw" className="object-cover" priority={priority} />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
+              <span className="text-6xl">🎸</span>
+            </div>
           )}
+          {listing.images && listing.images.length > 1 && (
+            <div className="absolute right-2 bottom-2 rounded bg-[#020E1C]/70 px-2 py-1 text-xs text-[#FFFFF3]">
+              {listing.images.length} photos
+            </div>
+          )}
+          {/* ON SALE badge */}
+          {isOnSale && !isReserved && (
+            <div className="absolute top-2 left-2 rounded bg-[#6E0114] px-2 py-1 text-xs font-bold text-[#FFFFF3]">
+              ON SALE
+            </div>
+          )}
+          {/* Reservation badge. Reserved guitars stay browsable — the badge creates
+              urgency — but never reveal who they're held for. */}
+          {isReserved && (
+            <div
+              className={`absolute top-2 left-2 rounded px-2 py-1 text-xs font-bold uppercase ${
+                listing.reserved_for_me
+                  ? 'bg-green-500 text-white'
+                  : 'bg-yellow-400 text-yellow-900'
+              }`}
+            >
+              {listing.reserved_for_me
+                ? 'On hold for you'
+                : listing.reservation_badge || 'On Hold'}
+            </div>
+          )}
+          {/* Favorite button */}
+          <button
+            onClick={(e) => onToggleFavorite(listing.id, e)}
+            className={`absolute top-2 right-2 cursor-pointer rounded-full p-2 transition-all ${
+              isFavorite
+                ? 'bg-[#FFFFF3] text-red-500'
+                : 'bg-[#FFFFF3]/80 text-gray-400 hover:text-red-500'
+            }`}
+            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
+          </button>
+        </div>
+        <CardContent className="flex flex-1 flex-col p-4">
+          {listing.condition && (
+            <p className="font-body mb-1 text-sm text-[#B8B0A4]">Used - {listing.condition}</p>
+          )}
+          <h3 className="font-body mb-2 line-clamp-2 text-lg font-semibold text-[#020E1C]">{listing.listing_title}</h3>
+          <div className="mb-1">
+            {isOnSale ? (
+              <div className="flex items-center gap-2">
+                <p className="text-2xl font-bold text-[#6E0114]">
+                  {formatPrice(listing.price, listing.currency)}
+                </p>
+                <p className="text-lg text-gray-400 line-through">
+                  {formatPrice(listing.original_price!, listing.currency)}
+                </p>
+              </div>
+            ) : (
+              <p className="text-2xl font-bold text-foreground">
+                {formatPrice(listing.price, listing.currency)}
+              </p>
+            )}
+          </div>
+          <p className="mb-3 text-sm text-green-600">+ Free Shipping</p>
 
-          <div className="flex items-stretch gap-2.5">
+          {/* Two halves. "View details" is a plain span, not a link: the whole card
+              already navigates there, and nesting an anchor inside one is invalid. */}
+          <div className="mt-auto grid grid-cols-2 gap-2">
             <button
               type="button"
               onClick={handleAddToCart}
               disabled={isReserved || inCart}
-              className={`btn-mono min-h-[48px] flex-[1_1_auto] border px-3 py-3.5 text-[11.5px] tracking-[0.12em] whitespace-nowrap ${
-                isReserved
-                  ? 'cursor-not-allowed border-foreground/20 bg-foreground/20 text-foreground/50'
-                  : inCart
-                    ? 'cursor-default border-foreground/60 bg-foreground/60 text-background'
-                    : 'border-foreground bg-foreground text-background hover:border-primary hover:bg-primary cursor-pointer'
+              className={`${actionClass} ${
+                isReserved || inCart
+                  ? 'cursor-not-allowed border-foreground/30 text-foreground/40'
+                  : 'cursor-pointer hover:bg-foreground hover:text-background'
               }`}
             >
-              {isReserved ? 'Reserved' : inCart ? 'In cart' : 'Add to cart'}
+              {isReserved ? 'Reserved' : inCart ? 'In cart' : 'Add to Cart'}
             </button>
-            <Link
-              href={`/listing/${listing.id}`}
-              className="btn-mono min-h-[48px] flex-none border border-foreground/30 px-4 py-3.5 text-[11.5px] tracking-[0.12em] whitespace-nowrap text-foreground hover:border-primary hover:text-primary cursor-pointer"
-            >
-              Details
-            </Link>
+            <span className={`${actionClass} hover:bg-foreground hover:text-background`}>
+              View Details
+            </span>
           </div>
-        </div>
-      </div>
-    </article>
+        </CardContent>
+      </Card>
+    </Link>
   );
 }

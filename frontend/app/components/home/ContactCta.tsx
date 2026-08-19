@@ -1,6 +1,5 @@
 import Link from 'next/link';
 
-/** The mockup's Facebook entry pointed at a bare facebook.com placeholder, so it is left out. */
 const socials = [
   {
     label: 'Instagram',
@@ -16,6 +15,12 @@ const socials = [
     label: 'YouTube',
     handle: 'lukesguitarshop',
     href: 'https://www.youtube.com/@lukesguitarshop',
+  },
+  {
+    label: 'Facebook',
+    handle: "Luke's Guitar Shop",
+    // The canonical form the profile.php?id=… link redirects to.
+    href: 'https://www.facebook.com/people/Lukes-Guitar-Shop/61577543285201/',
   },
 ];
 
