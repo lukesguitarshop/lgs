@@ -5,6 +5,7 @@ import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
 import DevBanner from "./components/DevBanner";
+import MainShell from "./components/MainShell";
 import ImpersonationBanner from "./components/ImpersonationBanner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LoginModal } from "@/components/auth/LoginModal";
@@ -197,9 +198,7 @@ export default function RootLayout({
           <AuthProvider>
             <ImpersonationBanner />
             <Header />
-            <main className="flex-grow">
-              {children}
-            </main>
+            <MainShell>{children}</MainShell>
             <Footer />
             <LoginModal />
             <RegisterModal />
