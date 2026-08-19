@@ -31,9 +31,9 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-lato), sans-serif;
-  --font-mono: monospace;
-  --font-heading: var(--font-playfair), serif;
+  --font-sans: var(--font-archivo), system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
+  --font-heading: var(--font-anton), Impact, sans-serif;
 }
 
 @layer base {
@@ -43,30 +43,82 @@
   body {
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
-    font-family: var(--font-lato), sans-serif;
+    font-family: var(--font-archivo), system-ui, sans-serif;
+  }
+  /* The header is sticky, so anchored sections must clear it when jumped to. */
+  :target {
+    scroll-margin-top: 140px;
   }
 }
 
 /* Utility classes for brand typography */
 @layer utilities {
   .font-heading {
-    font-family: var(--font-playfair), serif;
-    font-weight: 700;
+    font-family: var(--font-anton), Impact, sans-serif;
+    font-weight: 400;
+    text-transform: uppercase;
+    line-height: 0.95;
+    letter-spacing: -0.005em;
   }
   .font-body {
-    font-family: var(--font-lato), sans-serif;
+    font-family: var(--font-archivo), system-ui, sans-serif;
   }
   .font-nav {
-    font-family: var(--font-lato), sans-serif;
-    font-weight: 700;
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
+    font-family: var(--font-archivo), system-ui, sans-serif;
+    font-weight: 500;
+    font-size: 17px;
+    letter-spacing: 0.02em;
   }
   .font-btn {
-    font-family: var(--font-lato), sans-serif;
-    font-weight: 700;
+    font-family: var(--font-jetbrains), ui-monospace, monospace;
+    font-weight: 400;
     text-transform: uppercase;
-    letter-spacing: 1.5px;
+    letter-spacing: 0.14em;
+  }
+}
+
+/* Shared primitives from the shop design: the mono eyebrow label, the paper
+   "receipt" card, the mono-labelled button, and the hatched photo panel. */
+@layer utilities {
+  .label-mono {
+    font-family: var(--font-jetbrains), ui-monospace, monospace;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .label-mono-sm {
+    font-family: var(--font-jetbrains), ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+  }
+  .receipt {
+    background: hsl(var(--background));
+    border: 1px solid hsl(var(--foreground) / 0.22);
+    box-shadow: 0 20px 44px -30px hsl(var(--foreground) / 0.7);
+  }
+  .receipt-rule {
+    height: 6px;
+    background: hsl(var(--primary));
+  }
+  .btn-mono {
+    font-family: var(--font-jetbrains), ui-monospace, monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 150ms, border-color 150ms, color 150ms;
+  }
+  /* Diagonal hatch behind listing photos that have no image. */
+  .photo-panel {
+    background:
+      repeating-linear-gradient(
+        135deg,
+        hsl(var(--foreground) / 0.055) 0 9px,
+        transparent 9px 18px
+      ),
+      #f2f0e3;
   }
 }

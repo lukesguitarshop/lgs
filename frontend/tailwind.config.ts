@@ -9,9 +9,10 @@ const config: Config = {
   theme: {
     extend: {
       fontFamily: {
-        heading: ['var(--font-playfair)', 'serif'],
-        body: ['var(--font-lato)', 'sans-serif'],
-        nav: ['var(--font-lato)', 'sans-serif'],
+        heading: ['var(--font-anton)', 'Impact', 'sans-serif'],
+        body: ['var(--font-archivo)', 'system-ui', 'sans-serif'],
+        nav: ['var(--font-archivo)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-jetbrains)', 'ui-monospace', 'monospace'],
       },
       borderRadius: {
         lg: "var(--radius)",

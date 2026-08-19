@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { Playfair_Display, Lato } from "next/font/google";
+import { Anton, Archivo, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "./components/Header";
 import Footer from "./components/Footer";
@@ -14,16 +14,22 @@ import GoogleAnalytics from "@/components/GoogleAnalytics";
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
-const playfairDisplay = Playfair_Display({
-  variable: "--font-playfair",
+const anton = Anton({
+  variable: "--font-anton",
   subsets: ["latin"],
-  weight: ["700"],
+  weight: ["400"],
 });
 
-const lato = Lato({
-  variable: "--font-lato",
+const archivo = Archivo({
+  variable: "--font-archivo",
   subsets: ["latin"],
-  weight: ["300", "400", "700"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains",
+  subsets: ["latin"],
+  weight: ["400", "500"],
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://lukesguitarshop.com";
@@ -181,7 +187,7 @@ export default function RootLayout({
         <LocalBusinessJsonLd />
       </head>
       <body
-        className={`${playfairDisplay.variable} ${lato.variable} antialiased flex flex-col min-h-screen bg-background text-foreground`}
+        className={`${anton.variable} ${archivo.variable} ${jetbrainsMono.variable} antialiased flex flex-col min-h-screen bg-background text-foreground`}
       >
         <Suspense fallback={null}>
           <GoogleAnalytics />
@@ -191,7 +197,7 @@ export default function RootLayout({
           <AuthProvider>
             <ImpersonationBanner />
             <Header />
-            <main className="flex-grow container mx-auto px-4 py-8">
+            <main className="flex-grow">
               {children}
             </main>
             <Footer />
