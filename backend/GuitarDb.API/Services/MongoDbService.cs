@@ -845,18 +845,32 @@ public class MongoDbService
         await _reviewsCollection.InsertManyAsync(reviewsList);
     }
 
+    /// <summary>
+    /// Clear the scraped reviews ahead of a full rebuild from Reverb.
+    ///
+    /// Reviews written on the site are deliberately spared: Reverb is the source of truth
+    /// for its own reviews, not for ours, and a rebuild that took them out would silently
+    /// destroy customer-written content that exists nowhere else.
+    /// </summary>
     public async Task<long> DeleteAllReviewsAsync()
     {
-        var result = await _reviewsCollection.DeleteManyAsync(_ => true);
+        var filter = Builders<Review>.Filter.Ne(r => r.Source, "site");
+        var result = await _reviewsCollection.DeleteManyAsync(filter);
         return result.DeletedCount;
     }
 
     public async Task<long> DeleteManualReviewsAsync()
     {
-        // Delete reviews that don't have a reverb_order_id (manually entered)
-        var filter = Builders<Review>.Filter.Or(
-            Builders<Review>.Filter.Eq(r => r.ReverbOrderId, null),
-            Builders<Review>.Filter.Eq(r => r.ReverbOrderId, "")
+        // Delete reviews that don't have a reverb_order_id (manually entered).
+        // Customer reviews written on the site also lack one, but they are not stray data
+        // to be tidied away — they are excluded explicitly.
+        var filterBuilder = Builders<Review>.Filter;
+        var filter = filterBuilder.And(
+            filterBuilder.Or(
+                filterBuilder.Eq(r => r.ReverbOrderId, null),
+                filterBuilder.Eq(r => r.ReverbOrderId, "")
+            ),
+            filterBuilder.Ne(r => r.Source, "site")
         );
         var result = await _reviewsCollection.DeleteManyAsync(filter);
         return result.DeletedCount;
