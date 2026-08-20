@@ -434,7 +434,7 @@ export default function SearchClient({ initialListings, initialFilters }: Search
           <div className="border-t border-foreground/14 pt-[18px]">
             <p className="text-[13.5px] leading-[1.55] text-foreground/68">
               Not seeing it?{' '}
-              <Link href="/trade-in" className="border-b border-primary text-foreground hover:text-primary cursor-pointer">
+              <Link href="/contact" className="border-b border-primary text-foreground hover:text-primary cursor-pointer">
                 Tell me what you&apos;re hunting for
               </Link>{' '}
               and I&apos;ll watch for it.
