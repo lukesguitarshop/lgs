@@ -61,6 +61,13 @@ async function fetchApi<T>(
       throw error;
     }
 
+    // 204 carries no body; calling .json() on it throws. Endpoints use it to mean
+    // "nothing here" (no featured listing, no review written yet), which is a normal
+    // answer rather than an error.
+    if (response.status === 204) {
+      return null as T;
+    }
+
     return response.json();
   } catch (error) {
     if (error instanceof Error) {

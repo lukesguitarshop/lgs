@@ -33,6 +33,7 @@ import {
   Heart,
   HeartOff,
   Eye,
+  Star,
 } from 'lucide-react';
 
 interface UserDetail {
@@ -111,6 +112,12 @@ export default function AdminUserDetailPage() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [impersonating, setImpersonating] = useState(false);
+  // Review request: an optional note from Luke, plus the result banner.
+  const [reviewNote, setReviewNote] = useState('');
+  const [requestingReview, setRequestingReview] = useState(false);
+  const [reviewRequestResult, setReviewRequestResult] = useState<
+    { ok: boolean; message: string } | null
+  >(null);
   const [impersonateError, setImpersonateError] = useState<string | null>(null);
 
   // Edit state
@@ -175,6 +182,26 @@ export default function AdminUserDetailPage() {
       setLoadingOrders(false);
     }
   }, [userId]);
+
+  const handleRequestReview = async () => {
+    setRequestingReview(true);
+    setReviewRequestResult(null);
+    try {
+      const res = await api.authPost<{ messaged: boolean; emailed: boolean; message: string }>(
+        `/admin/users/${userId}/request-review`,
+        { note: reviewNote.trim() || null }
+      );
+      setReviewRequestResult({ ok: true, message: res.message });
+      setReviewNote('');
+    } catch (err) {
+      setReviewRequestResult({
+        ok: false,
+        message: err instanceof Error ? err.message : 'Could not send the review request.',
+      });
+    } finally {
+      setRequestingReview(false);
+    }
+  };
 
   const handleImpersonate = async () => {
     setImpersonating(true);
@@ -514,6 +541,67 @@ export default function AdminUserDetailPage() {
             </>
           )}
         </div>
+      </div>
+
+      {/* Ask for a review: sends an in-app message and an email in one go. */}
+      <div className="mb-6 bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
+        <div className="flex items-center gap-3 mb-2 flex-wrap">
+          <Star className="h-5 w-5 text-[#6E0114]" />
+          <h2 className="text-lg font-semibold text-[#020E1C]">Request a Review</h2>
+        </div>
+        <p className="text-sm text-gray-600 mb-4">
+          Sends {user.fullName?.split(' ')[0] || 'this customer'} a message in the site inbox and an
+          email, both linking to the review form. Their review shows on the shop page alongside the
+          Reverb ones.
+        </p>
+
+        {user.isGuest ? (
+          <p className="text-sm text-gray-500">
+            This is a guest checkout with no account, so there&apos;s nowhere to send a request.
+          </p>
+        ) : (
+          <>
+            <Input
+              value={reviewNote}
+              onChange={e => setReviewNote(e.target.value.slice(0, 300))}
+              placeholder="Optional note — e.g. &quot;hope the Strat is treating you well!&quot;"
+              className="mb-1 max-w-xl bg-[#FFFFF3]"
+              disabled={requestingReview}
+            />
+            <p className="mb-4 text-xs text-gray-500">
+              {reviewNote.length}/300 · included in both the message and the email
+            </p>
+
+            {!user.email && (
+              <p className="mb-3 text-sm text-amber-700">
+                No email on file — only the in-app message will send.
+              </p>
+            )}
+
+            <Button
+              onClick={handleRequestReview}
+              disabled={requestingReview}
+              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+            >
+              {requestingReview ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Star className="h-4 w-4 mr-2" />
+              )}
+              Request Review
+            </Button>
+
+            {reviewRequestResult && (
+              <p
+                className={`mt-3 text-sm ${
+                  reviewRequestResult.ok ? 'text-green-700' : 'text-red-600'
+                }`}
+              >
+                {reviewRequestResult.message}
+              </p>
+            )}
+          </>
+        )}
       </div>
 
       {/* Store Credit */}

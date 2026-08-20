@@ -12,7 +12,7 @@ import { api } from '@/lib/api';
 // Reviews types and helpers
 interface Review {
   id: string;
-  guitar_name: string;
+  guitar_name: string | null;
   reviewer_name: string;
   review_date: string;
   rating: number;
@@ -78,7 +78,9 @@ function ReviewCard({ review }: { review: Review }) {
     <Card className="h-full">
       <CardContent className="p-6">
         <StarRating rating={review.rating} />
-        <h3 className="font-semibold text-lg mt-3 mb-1">{review.guitar_name}</h3>
+        {review.guitar_name && (
+          <h3 className="font-semibold text-lg mt-3 mb-1">{review.guitar_name}</h3>
+        )}
         <p className="text-sm text-muted-foreground mb-3">
           {review.reviewer_name} • {formatDate(review.review_date)}
         </p>
@@ -89,6 +91,8 @@ function ReviewCard({ review }: { review: Review }) {
     </Card>
   );
 }
+
+const VALID_TABS = ['about', 'return-policy', 'reviews', 'contact'];
 
 const REVIEWS_PER_PAGE = 12;
 
@@ -422,12 +426,21 @@ function ContactTab() {
 }
 
 export default function ShopInfoPage() {
+  // /shop-info?tab=reviews deep-links the Reviews tab — used by the review form's
+  // confirmation and by the "see all reviews" links. Read after mount so the server and
+  // client render the same default.
+  const [tab, setTab] = useState('about');
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get('tab');
+    if (requested && VALID_TABS.includes(requested)) setTab(requested);
+  }, []);
+
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="font-heading text-5xl mb-6 text-[#6E0114]">Luke&apos;s Guitar Shop</h1>
 
-        <Tabs defaultValue="about" className="w-full">
+        <Tabs value={tab} onValueChange={setTab} className="w-full">
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 mb-8">
             <TabsTrigger value="about">About</TabsTrigger>
             <TabsTrigger value="return-policy">Return Policy</TabsTrigger>

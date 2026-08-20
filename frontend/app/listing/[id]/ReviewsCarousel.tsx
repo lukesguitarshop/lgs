@@ -8,7 +8,7 @@ import api from '@/lib/api';
 
 interface Review {
   id: string;
-  guitar_name: string;
+  guitar_name: string | null;
   reviewer_name: string;
   review_date: string;
   rating: number;
@@ -60,7 +60,9 @@ function ReviewCardContent({ review }: { review: Review }) {
   return (
     <CardContent className="p-4">
       <StarRating rating={review.rating} />
-      <h3 className="font-semibold text-sm mt-2 mb-1 line-clamp-1">{review.guitar_name}</h3>
+      {review.guitar_name && (
+        <h3 className="font-semibold text-sm mt-2 mb-1 line-clamp-1">{review.guitar_name}</h3>
+      )}
       <p className="text-xs text-muted-foreground mb-2">
         {review.reviewer_name} • {formatDate(review.review_date)}
       </p>

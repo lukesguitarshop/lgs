@@ -259,6 +259,52 @@ public class EmailService
     }
 
     /// <summary>
+    /// Ask a customer to leave a review of the shop.
+    /// </summary>
+    public async Task SendReviewRequestAsync(
+        string recipientEmail,
+        string customerName,
+        string? personalNote = null)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(recipientEmail))
+        {
+            _logger.LogDebug("Skipping review request - email not configured");
+            return;
+        }
+
+        var reviewLink = string.IsNullOrEmpty(_frontendUrl) ? null : $"{_frontendUrl}/review";
+        var button = reviewLink == null
+            ? ""
+            : $@"<p><a href=""{reviewLink}"" style=""display: inline-block; background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"">Leave a Review</a></p>
+
+<p>Or copy and paste this link into your browser:</p>
+<p style=""word-break: break-all; color: #666;"">{reviewLink}</p>";
+
+        var subject = "How did we do? Leave a review - Luke's Guitar Shop";
+        var body = $@"
+<h2>How did we do?</h2>
+<p>Hi {customerName},</p>
+<p>Thanks again for your order. If you have a minute, I'd really appreciate a short review — it's the main thing that helps other players decide to buy from a one-person shop.</p>
+
+{(string.IsNullOrEmpty(personalNote) ? "" : $@"
+<h3>A note from Luke</h3>
+<p style=""background-color: #f5f5f5; padding: 15px; border-radius: 5px;"">{personalNote}</p>
+")}
+
+<p>It's a star rating and a comment — takes less than a minute.</p>
+
+{button}
+
+<p>Thanks,<br>Luke</p>
+
+<hr>
+<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
+";
+
+        await SendEmailAsync(recipientEmail, subject, body);
+    }
+
+    /// <summary>
     /// Send password reset email
     /// </summary>
     public async Task SendPasswordResetEmailAsync(

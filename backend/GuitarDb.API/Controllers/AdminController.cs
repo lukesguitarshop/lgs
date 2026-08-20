@@ -44,6 +44,9 @@ public class AdminController : ControllerBase
         _sweetwaterDealFinderService = sweetwaterDealFinderService;
     }
 
+    /// <summary>Site root, used to build the review link sent to customers.</summary>
+    private string? _frontendUrl => _configuration["FrontendUrl"];
+
     /// <summary>
     /// Manually trigger the Reverb scraper to refresh listings
     /// </summary>
@@ -1737,6 +1740,93 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Ask a customer for a review: an in-app message plus an email, so it reaches them
+    /// whichever they actually check.
+    /// </summary>
+    [HttpPost("users/{id}/request-review")]
+    public async Task<IActionResult> RequestReview(string id, [FromBody] RequestReviewRequest? request = null)
+    {
+        var user = await _mongoDbService.GetUserByIdAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { error = "User not found" });
+        }
+
+        // A guest has no account to sign into and no inbox to receive this.
+        if (user.IsGuest)
+        {
+            return Conflict(new
+            {
+                error = "guest_account",
+                message = "This is a guest checkout with no account, so there's nowhere to send a review request."
+            });
+        }
+
+        var adminId = User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (adminId == null) return Unauthorized(new { error = "Invalid token" });
+        if (adminId == id)
+        {
+            return BadRequest(new { error = "You can't request a review from yourself." });
+        }
+
+        var note = (request?.Note ?? string.Empty).Trim();
+        var customerName = string.IsNullOrWhiteSpace(user.FullName) ? "there" : user.FullName.Split(' ')[0];
+
+        var messageText = string.IsNullOrEmpty(note)
+            ? $"Hi {customerName} — thanks again for your order! If you have a minute, I'd really appreciate a quick review: {_frontendUrl}/review. It's a star rating and a comment, takes under a minute, and it genuinely helps a one-person shop. Thanks! — Luke"
+            : $"Hi {customerName} — {note} If you have a minute, I'd really appreciate a quick review: {_frontendUrl}/review — Luke";
+
+        // Reuse the existing thread with this customer when there is one, so the request
+        // lands in the conversation they already know rather than starting a stray one.
+        var conversation = await _mongoDbService.GetConversationByParticipantsAsync(adminId, id, null);
+        if (conversation == null)
+        {
+            conversation = await _mongoDbService.CreateConversationAsync(new Conversation
+            {
+                ParticipantIds = new List<string> { adminId, id }
+            });
+        }
+
+        await _mongoDbService.CreateMessageAsync(new Message
+        {
+            ConversationId = conversation.Id!,
+            SenderId = adminId,
+            RecipientId = id,
+            MessageText = messageText
+        });
+
+        var preview = messageText.Length > 50 ? messageText.Substring(0, 47) + "..." : messageText;
+        await _mongoDbService.UpdateConversationLastMessageAsync(conversation.Id!, preview);
+
+        // The message is the part that must not fail; email is best-effort, exactly as the
+        // rest of the app treats it.
+        var emailed = false;
+        if (!string.IsNullOrEmpty(user.Email))
+        {
+            try
+            {
+                await _emailService.SendReviewRequestAsync(user.Email, customerName, note);
+                emailed = true;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Review request email failed for user {UserId}", id);
+            }
+        }
+
+        return Ok(new
+        {
+            success = true,
+            conversation_id = conversation.Id,
+            messaged = true,
+            emailed,
+            message = emailed
+                ? "Review request sent by message and email."
+                : "Review request sent by message. No email went out — check the customer has an email address and that SMTP is configured."
+        });
+    }
+
+    /// <summary>
     /// Update a user's details (admin only)
     /// </summary>
     [HttpPut("users/{id}")]
@@ -1911,6 +2001,12 @@ public class AdminController : ControllerBase
     public class AdminStoreCreditRequest
     {
         public decimal NewBalance { get; set; }
+    }
+
+    public class RequestReviewRequest
+    {
+        /// <summary>Optional line from Luke, shown in both the message and the email.</summary>
+        public string? Note { get; set; }
     }
 
     public class UpdateUserRequest

@@ -783,6 +783,58 @@ public class MongoDbService
         await _reviewsCollection.InsertOneAsync(review);
     }
 
+    /// <summary>
+    /// A customer's own site review, if they have written one.
+    /// </summary>
+    public async Task<Review?> GetSiteReviewByUserAsync(string userId)
+    {
+        var filterBuilder = Builders<Review>.Filter;
+        var filter = filterBuilder.And(
+            filterBuilder.Eq(r => r.UserId, userId),
+            filterBuilder.Eq(r => r.Source, "site")
+        );
+        return await _reviewsCollection.Find(filter).FirstOrDefaultAsync();
+    }
+
+    /// <summary>
+    /// Write a customer's review of the shop. One per account: submitting again edits the
+    /// existing entry rather than stacking duplicates in the public list. The date moves to
+    /// the edit so the review sorts by when it was actually written.
+    /// </summary>
+    public async Task<Review> UpsertSiteReviewAsync(string userId, string reviewerName, int rating, string reviewText)
+    {
+        var existing = await GetSiteReviewByUserAsync(userId);
+
+        if (existing != null)
+        {
+            var update = Builders<Review>.Update
+                .Set(r => r.Rating, rating)
+                .Set(r => r.ReviewText, reviewText)
+                .Set(r => r.ReviewerName, reviewerName)
+                .Set(r => r.ReviewDate, DateTime.UtcNow);
+
+            await _reviewsCollection.UpdateOneAsync(r => r.Id == existing.Id, update);
+
+            existing.Rating = rating;
+            existing.ReviewText = reviewText;
+            existing.ReviewerName = reviewerName;
+            existing.ReviewDate = DateTime.UtcNow;
+            return existing;
+        }
+
+        var review = new Review
+        {
+            UserId = userId,
+            Source = "site",
+            ReviewerName = reviewerName,
+            Rating = rating,
+            ReviewText = reviewText,
+            ReviewDate = DateTime.UtcNow
+        };
+        await _reviewsCollection.InsertOneAsync(review);
+        return review;
+    }
+
     public async Task InsertManyReviewsAsync(IEnumerable<Review> reviews)
     {
         var reviewsList = reviews.ToList();
