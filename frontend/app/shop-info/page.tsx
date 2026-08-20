@@ -220,7 +220,7 @@ function ReviewsTab() {
 
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/60" />
           <Input
             type="text"
             placeholder="Search by guitar or reviewer..."
@@ -453,32 +453,32 @@ export default function ShopInfoPage() {
 
           <TabsContent value="about">
             <div className="prose prose-lg dark:prose-invert max-w-none">
-              <p className="text-muted-foreground mb-6">
+              <p className="text-foreground/80 mb-6">
                 Luke's Guitar Shop was founded in 2022 by Luke Walden, a guitar enthusiast turned full-time dealer with a passion for connecting players with quality pre-owned instruments.
               </p>
 
               <h2 className="text-2xl font-semibold mt-8 mb-4">Our Story</h2>
-              <p className="text-muted-foreground mb-6">
+              <p className="text-foreground/80 mb-6">
                 What started as a love for guitars has grown into a thriving online business dedicated to buying, selling, and trading used guitars. While we operate exclusively online for now, the dream of opening a physical storefront one day keeps us motivated and growing.
               </p>
 
               <h2 className="text-2xl font-semibold mt-8 mb-4">What We Offer</h2>
-              <p className="text-muted-foreground mb-6">
+              <p className="text-foreground/80 mb-6">
                 We specialize in pre-owned guitars, with a carefully curated selection that changes regularly. You'll also find amps, parts, and accessories listed from time to time. Every instrument is inspected and honestly described so you know exactly what you're getting.
               </p>
 
               <h2 className="text-2xl font-semibold mt-8 mb-4">Where to Find Us</h2>
-              <p className="text-muted-foreground mb-6">
+              <p className="text-foreground/80 mb-6">
                 You can find our listings on Reverb, eBay, Sweetwater Gear Exchange, and Facebook Marketplace—but your best price will always be right here on our shop page. We cut out the middleman fees and pass those savings directly to you.
               </p>
 
               <h2 className="text-2xl font-semibold mt-8 mb-4">Easy, Secure Checkout</h2>
-              <p className="text-muted-foreground mb-6">
+              <p className="text-foreground/80 mb-6">
                 Creating an account is quick and easy—just enter your email and you're ready to go. All payments are securely processed through Stripe or PayPal. Need a payment plan? PayPal Pay Later makes it easy to spread out your purchase.
               </p>
 
               <h2 className="text-2xl font-semibold mt-8 mb-4">Our Promise</h2>
-              <p className="text-muted-foreground mb-6">
+              <p className="text-foreground/80 mb-6">
                 Every purchase from Luke's Guitar Shop includes free shipping, fully covered by us. We believe in making the buying process as smooth and affordable as possible, so you can focus on what matters: finding your next great instrument.
               </p>
             </div>
@@ -488,20 +488,20 @@ export default function ShopInfoPage() {
             <div className="prose prose-lg dark:prose-invert max-w-none space-y-8">
               <div>
                 <h2 className="text-xl font-semibold mb-2">Payment</h2>
-                <p className="text-muted-foreground">Item is not reserved or considered sold until payment has fully cleared. Pending or unverified payments do not hold the item.</p>
+                <p className="text-foreground/80">Item is not reserved or considered sold until payment has fully cleared. Pending or unverified payments do not hold the item.</p>
               </div>
               <div>
                 <h2 className="text-xl font-semibold mb-2">Pre-purchase Inspection</h2>
-                <p className="text-muted-foreground">All buyers are responsible for reviewing every photo and the full listing description before purchasing. Additional photos, measurements, or details are available on request — please ask before you buy, not after. Purchasing constitutes acknowledgment that you have reviewed the listing in full.</p>
+                <p className="text-foreground/80">All buyers are responsible for reviewing every photo and the full listing description before purchasing. Additional photos, measurements, or details are available on request — please ask before you buy, not after. Purchasing constitutes acknowledgment that you have reviewed the listing in full.</p>
               </div>
               <div>
                 <h2 className="text-xl font-semibold mb-2">All Sales Final</h2>
-                <p className="text-muted-foreground">Items are sold as-is. Cancellations are not accepted once payment has cleared. A 15% restocking fee applies to any cancelled order, regardless of shipping or tracking status, as preparation, packing, and handling begin immediately upon sale.</p>
+                <p className="text-foreground/80">Items are sold as-is. Cancellations are not accepted once payment has cleared. A 15% restocking fee applies to any cancelled order, regardless of shipping or tracking status, as preparation, packing, and handling begin immediately upon sale.</p>
               </div>
               <div>
                 <h2 className="text-xl font-semibold mb-2">Returns</h2>
-                <p className="text-muted-foreground mb-3">Returns are by approval only and must be requested within 24 hours of delivery. Approved returns are subject to:</p>
-                <ul className="space-y-2 text-muted-foreground list-none pl-0">
+                <p className="text-foreground/80 mb-3">Returns are by approval only and must be requested within 24 hours of delivery. Approved returns are subject to:</p>
+                <ul className="space-y-2 text-foreground/80 list-none pl-0">
                   <li className="flex items-start gap-3">
                     <span className="text-[#6E0114] font-bold mt-0.5">—</span>
                     <span>A 15% restocking fee (non-negotiable)</span>
@@ -519,19 +519,19 @@ export default function ShopInfoPage() {
                     <span>Refund issued only after the item is received and inspected</span>
                   </li>
                 </ul>
-                <p className="text-muted-foreground mt-3">Items returned damaged, incomplete, or without insurance are not eligible for refund.</p>
+                <p className="text-foreground/80 mt-3">Items returned damaged, incomplete, or without insurance are not eligible for refund.</p>
               </div>
               <div>
                 <h2 className="text-xl font-semibold mb-2">Store Credit Purchases</h2>
-                <p className="text-muted-foreground">Guitars purchased using store credit are final sale and are not eligible for return under any circumstances. No exceptions will be made.</p>
+                <p className="text-foreground/80">Guitars purchased using store credit are final sale and are not eligible for return under any circumstances. No exceptions will be made.</p>
               </div>
               <div>
                 <h2 className="text-xl font-semibold mb-2">Condition Expectations</h2>
-                <p className="text-muted-foreground">You are purchasing a used instrument, not a professionally set-up guitar. Minor adjustments (intonation, action, tuning stability, etc.) are expected and are the buyer&apos;s responsibility. &ldquo;Used&rdquo; condition is not grounds for a return.</p>
+                <p className="text-foreground/80">You are purchasing a used instrument, not a professionally set-up guitar. Minor adjustments (intonation, action, tuning stability, etc.) are expected and are the buyer&apos;s responsibility. &ldquo;Used&rdquo; condition is not grounds for a return.</p>
               </div>
               <div>
                 <h2 className="text-xl font-semibold mb-2">Communication</h2>
-                <p className="text-muted-foreground">Questions are welcome before purchase. Message me anytime — I&apos;d rather answer ten questions upfront than deal with a misunderstanding after the sale.</p>
+                <p className="text-foreground/80">Questions are welcome before purchase. Message me anytime — I&apos;d rather answer ten questions upfront than deal with a misunderstanding after the sale.</p>
               </div>
             </div>
           </TabsContent>
