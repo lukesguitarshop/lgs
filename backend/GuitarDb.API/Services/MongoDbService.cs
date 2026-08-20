@@ -784,26 +784,42 @@ public class MongoDbService
     }
 
     /// <summary>
-    /// A customer's own site review, if they have written one.
+    /// Every site review this customer has written, newest first. The review form uses it
+    /// to show what they already said about whichever order they pick.
     /// </summary>
-    public async Task<Review?> GetSiteReviewByUserAsync(string userId)
+    public async Task<List<Review>> GetSiteReviewsByUserAsync(string userId)
     {
         var filterBuilder = Builders<Review>.Filter;
         var filter = filterBuilder.And(
             filterBuilder.Eq(r => r.UserId, userId),
             filterBuilder.Eq(r => r.Source, "site")
         );
-        return await _reviewsCollection.Find(filter).FirstOrDefaultAsync();
+        return await _reviewsCollection
+            .Find(filter)
+            .SortByDescending(r => r.ReviewDate)
+            .ToListAsync();
     }
 
     /// <summary>
-    /// Write a customer's review of the shop. One per account: submitting again edits the
-    /// existing entry rather than stacking duplicates in the public list. The date moves to
-    /// the edit so the review sorts by when it was actually written.
+    /// Write a customer's review of one order. One review per order, matching how Reverb
+    /// reviews work: submitting again for the same order edits it rather than stacking
+    /// duplicates in the public list, while a different order gets its own review. The date
+    /// moves to the edit so the review sorts by when it was actually written.
     /// </summary>
-    public async Task<Review> UpsertSiteReviewAsync(string userId, string reviewerName, int rating, string reviewText)
+    public async Task<Review> UpsertSiteReviewAsync(
+        string userId,
+        string orderId,
+        string guitarName,
+        string reviewerName,
+        int rating,
+        string reviewText)
     {
-        var existing = await GetSiteReviewByUserAsync(userId);
+        var filterBuilder = Builders<Review>.Filter;
+        var existing = await _reviewsCollection.Find(filterBuilder.And(
+            filterBuilder.Eq(r => r.UserId, userId),
+            filterBuilder.Eq(r => r.OrderId, orderId),
+            filterBuilder.Eq(r => r.Source, "site")
+        )).FirstOrDefaultAsync();
 
         if (existing != null)
         {
@@ -811,6 +827,7 @@ public class MongoDbService
                 .Set(r => r.Rating, rating)
                 .Set(r => r.ReviewText, reviewText)
                 .Set(r => r.ReviewerName, reviewerName)
+                .Set(r => r.GuitarName, guitarName)
                 .Set(r => r.ReviewDate, DateTime.UtcNow);
 
             await _reviewsCollection.UpdateOneAsync(r => r.Id == existing.Id, update);
@@ -818,6 +835,7 @@ public class MongoDbService
             existing.Rating = rating;
             existing.ReviewText = reviewText;
             existing.ReviewerName = reviewerName;
+            existing.GuitarName = guitarName;
             existing.ReviewDate = DateTime.UtcNow;
             return existing;
         }
@@ -825,7 +843,9 @@ public class MongoDbService
         var review = new Review
         {
             UserId = userId,
+            OrderId = orderId,
             Source = "site",
+            GuitarName = guitarName,
             ReviewerName = reviewerName,
             Rating = rating,
             ReviewText = reviewText,

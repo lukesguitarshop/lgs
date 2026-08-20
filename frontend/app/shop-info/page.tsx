@@ -432,6 +432,9 @@ export default function ShopInfoPage() {
   const [tab, setTab] = useState('about');
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get('tab');
+    // Deliberately in an effect: reading the URL during render would make the server
+    // (always "about") and the client disagree and trip a hydration mismatch.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (requested && VALID_TABS.includes(requested)) setTab(requested);
   }, []);
 

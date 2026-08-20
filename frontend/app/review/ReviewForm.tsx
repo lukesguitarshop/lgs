@@ -1,56 +1,96 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { Star, Loader2, Check } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { formatPrice } from '@/lib/format';
 
 /** Matches ReviewsController.MaxReviewLength. */
 const MAX_LENGTH = 1000;
 
+interface OrderItem {
+  listingTitle: string;
+  price: number;
+  quantity: number;
+}
+
+interface Order {
+  id: string;
+  totalAmount: number;
+  currency: string;
+  status: string;
+  createdAt: string;
+  itemCount: number;
+  items: OrderItem[];
+}
+
 interface MyReview {
   id: string;
+  order_id: string | null;
+  guitar_name: string | null;
   rating: number;
   review_text: string | null;
   review_date: string;
 }
 
+/** What the dropdown shows for an order: the guitar, then when it was bought. */
+function orderLabel(order: Order): string {
+  const titles = order.items?.map(i => i.listingTitle).filter(Boolean) ?? [];
+  const name =
+    titles.length === 0
+      ? `Order ${order.id.slice(-6)}`
+      : titles.length === 1
+        ? titles[0]
+        : `${titles[0]} + ${titles.length - 1} more`;
+  const when = new Date(order.createdAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  return `${name} — ${when}`;
+}
+
 export default function ReviewForm() {
   const { isAuthenticated, isLoading, setShowLoginModal } = useAuth();
 
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [myReviews, setMyReviews] = useState<MyReview[]>([]);
+  const [orderId, setOrderId] = useState('');
   const [rating, setRating] = useState(0);
   const [hovered, setHovered] = useState(0);
   const [text, setText] = useState('');
-  const [loadingExisting, setLoadingExisting] = useState(true);
-  const [hadExisting, setHadExisting] = useState(false);
+  const [loadingData, setLoadingData] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Load any review already written so the form edits it rather than quietly
-  // replacing it with a blank one.
+  // Orders and any reviews already written, so picking an order can show what was said
+  // about it rather than quietly overwriting it.
   useEffect(() => {
     if (isLoading) return;
     if (!isAuthenticated) {
-      setLoadingExisting(false);
+      setLoadingData(false);
       return;
     }
 
     let cancelled = false;
     (async () => {
-      try {
-        const existing = await api.authGet<MyReview | null>('/reviews/mine');
-        if (!cancelled && existing && existing.rating) {
-          setRating(existing.rating);
-          setText(existing.review_text ?? '');
-          setHadExisting(true);
-        }
-      } catch {
-        // No review yet, or the lookup failed — either way, start from a blank form.
-      } finally {
-        if (!cancelled) setLoadingExisting(false);
-      }
+      const [orderList, reviewList] = await Promise.all([
+        api.authGet<Order[]>('/auth/orders').catch(() => [] as Order[]),
+        api.authGet<MyReview[]>('/reviews/mine').catch(() => [] as MyReview[]),
+      ]);
+      if (cancelled) return;
+
+      // Newest first: with one order, which is the usual case, it is already the right one.
+      const sorted = [...(orderList ?? [])].sort(
+        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+      );
+      setOrders(sorted);
+      setMyReviews(reviewList ?? []);
+      if (sorted.length > 0) setOrderId(sorted[0].id);
+      setLoadingData(false);
     })();
 
     return () => {
@@ -58,10 +98,27 @@ export default function ReviewForm() {
     };
   }, [isAuthenticated, isLoading]);
 
+  const existingForOrder = useMemo(
+    () => myReviews.find(r => r.order_id === orderId) ?? null,
+    [myReviews, orderId]
+  );
+
+  // Switching orders swaps in that order's review, or clears back to a blank form.
+  useEffect(() => {
+    if (!orderId) return;
+    setRating(existingForOrder?.rating ?? 0);
+    setText(existingForOrder?.review_text ?? '');
+    setError(null);
+  }, [orderId, existingForOrder]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
+    if (!orderId) {
+      setError('Pick which order you’re reviewing.');
+      return;
+    }
     if (rating < 1) {
       setError('Pick a star rating first.');
       return;
@@ -73,9 +130,14 @@ export default function ReviewForm() {
 
     setSaving(true);
     try {
-      await api.authPost('/reviews', { rating, reviewText: text.trim() });
+      const saved = await api.authPost<MyReview>('/reviews', {
+        rating,
+        reviewText: text.trim(),
+        orderId,
+      });
+      // Keep the local copy in step so switching orders and back shows the new text.
+      setMyReviews(prev => [...prev.filter(r => r.order_id !== orderId), saved]);
       setSaved(true);
-      setHadExisting(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
     } finally {
@@ -83,7 +145,7 @@ export default function ReviewForm() {
     }
   };
 
-  if (isLoading || loadingExisting) {
+  if (isLoading || loadingData) {
     return (
       <div className="flex justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -105,6 +167,33 @@ export default function ReviewForm() {
         >
           Sign in
         </button>
+      </div>
+    );
+  }
+
+  // A review names the guitar it is about, so there has to be an order behind it.
+  if (orders.length === 0) {
+    return (
+      <div className="mx-auto max-w-xl border border-foreground/15 bg-card p-8 text-center">
+        <h1 className="font-heading text-3xl">Leave a review</h1>
+        <p className="mt-3 text-foreground/70">
+          Reviews are tied to an order, and there aren&apos;t any on this account yet. If you bought
+          as a guest or through another platform, email me and I&apos;ll sort it out.
+        </p>
+        <div className="mt-6 flex flex-wrap justify-center gap-3">
+          <Link
+            href="/"
+            className="font-btn inline-flex min-h-[48px] items-center justify-center bg-primary px-6 text-primary-foreground transition-colors hover:bg-foreground cursor-pointer"
+          >
+            Browse guitars
+          </Link>
+          <a
+            href="mailto:lukesguitarshop@gmail.com"
+            className="font-btn inline-flex min-h-[48px] items-center justify-center border border-foreground px-6 text-foreground transition-colors hover:bg-foreground hover:text-background cursor-pointer"
+          >
+            Email Luke
+          </a>
+        </div>
       </div>
     );
   }
@@ -131,7 +220,7 @@ export default function ReviewForm() {
             onClick={() => setSaved(false)}
             className="font-btn inline-flex min-h-[48px] items-center justify-center border border-foreground px-6 text-foreground transition-colors hover:bg-foreground hover:text-background cursor-pointer"
           >
-            Edit my review
+            {orders.length > 1 ? 'Review another order' : 'Edit my review'}
           </button>
         </div>
       </div>
@@ -143,11 +232,11 @@ export default function ReviewForm() {
   return (
     <form onSubmit={handleSubmit} className="mx-auto max-w-xl border border-foreground/15 bg-card p-6 sm:p-8">
       <h1 className="font-heading text-3xl">
-        {hadExisting ? 'Edit your review' : 'Leave a review'}
+        {existingForOrder ? 'Edit your review' : 'Leave a review'}
       </h1>
       <p className="mt-3 text-foreground/70">
-        {hadExisting
-          ? 'You’ve already written a review — updating it replaces what’s on the shop page.'
+        {existingForOrder
+          ? 'You’ve already reviewed this order — updating it replaces what’s on the shop page.'
           : 'How did your order go? A star rating and a few words is all it takes.'}
       </p>
 
@@ -178,6 +267,35 @@ export default function ReviewForm() {
           </span>
         </div>
       </fieldset>
+
+      {/* Which order — names the guitar on the review, the way the Reverb ones do. */}
+      <div className="mt-8">
+        <label htmlFor="review-order" className="label-mono-sm mb-3 block text-foreground/62">
+          Which order
+        </label>
+        <select
+          id="review-order"
+          value={orderId}
+          onChange={e => setOrderId(e.target.value)}
+          className="w-full border border-foreground/35 bg-background p-3 text-[15px] text-foreground outline-none transition-colors focus:border-primary cursor-pointer"
+        >
+          {orders.map(order => (
+            <option key={order.id} value={order.id}>
+              {orderLabel(order)}
+            </option>
+          ))}
+        </select>
+        {orders.length === 1 ? (
+          <p className="mt-2 text-xs text-foreground/50">
+            {formatPrice(orders[0].totalAmount, orders[0].currency)} · this is the only order on
+            your account
+          </p>
+        ) : (
+          <p className="mt-2 text-xs text-foreground/50">
+            You can leave a separate review for each order.
+          </p>
+        )}
+      </div>
 
       {/* Comment */}
       <div className="mt-8">
@@ -210,7 +328,7 @@ export default function ReviewForm() {
         className="font-btn mt-6 inline-flex min-h-[52px] w-full items-center justify-center bg-primary px-6 text-primary-foreground transition-colors hover:bg-foreground disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
       >
         {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-        {hadExisting ? 'Update review' : 'Submit review'}
+        {existingForOrder ? 'Update review' : 'Submit review'}
       </button>
     </form>
   );

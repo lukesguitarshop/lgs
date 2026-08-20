@@ -1,4 +1,5 @@
 using GuitarDb.API.Services;
+using MongoDB.Bson;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
@@ -70,26 +71,27 @@ public class ReviewsController : ControllerBase
     }
 
     /// <summary>
-    /// The signed-in customer's own review, so the form can load already-written text
-    /// instead of silently replacing it.
+    /// Every review the signed-in customer has written, keyed by order, so the form can
+    /// load what they already said instead of silently replacing it.
     /// </summary>
     [HttpGet("mine")]
     [Authorize]
-    public async Task<IActionResult> GetMyReview()
+    public async Task<IActionResult> GetMyReviews()
     {
         var userId = GetUserId();
         if (userId == null) return Unauthorized(new { error = "Invalid token" });
 
-        var review = await _mongoDbService.GetSiteReviewByUserAsync(userId);
-        if (review == null) return NoContent();
+        var reviews = await _mongoDbService.GetSiteReviewsByUserAsync(userId);
 
-        return Ok(new
+        return Ok(reviews.Select(r => new
         {
-            id = review.Id,
-            rating = review.Rating,
-            review_text = review.ReviewText,
-            review_date = review.ReviewDate
-        });
+            id = r.Id,
+            order_id = r.OrderId,
+            guitar_name = r.GuitarName,
+            rating = r.Rating,
+            review_text = r.ReviewText,
+            review_date = r.ReviewDate
+        }));
     }
 
     /// <summary>
@@ -119,15 +121,43 @@ public class ReviewsController : ControllerBase
             return BadRequest(new { error = $"Reviews are limited to {MaxReviewLength} characters." });
         }
 
+        if (string.IsNullOrWhiteSpace(request.OrderId))
+        {
+            return BadRequest(new { error = "Pick which order you're reviewing." });
+        }
+
+        // Anything that isn't a real id would throw inside the driver and surface as a 500,
+        // so it is rejected as "not yours" alongside ids that simply don't exist.
+        if (!ObjectId.TryParse(request.OrderId, out _))
+        {
+            return NotFound(new { error = "That order isn't on your account." });
+        }
+
+        // The order supplies the guitar name, and checking it belongs to the caller stops a
+        // review being attached to someone else's purchase.
+        var order = await _mongoDbService.GetOrderByIdAsync(request.OrderId);
+        if (order == null || order.UserId != userId)
+        {
+            return NotFound(new { error = "That order isn't on your account." });
+        }
+
         var user = await _mongoDbService.GetUserByIdAsync(userId);
         if (user == null) return Unauthorized(new { error = "Account not found" });
 
+        // Orders are nearly always a single guitar; join the rest so nothing is dropped.
+        var guitarName = order.Items != null && order.Items.Count > 0
+            ? string.Join(", ", order.Items.Select(i => i.ListingTitle))
+            : "Order";
+
         var reviewerName = string.IsNullOrWhiteSpace(user.FullName) ? "Customer" : user.FullName;
-        var review = await _mongoDbService.UpsertSiteReviewAsync(userId, reviewerName, request.Rating, text);
+        var review = await _mongoDbService.UpsertSiteReviewAsync(
+            userId, request.OrderId, guitarName, reviewerName, request.Rating, text);
 
         return Ok(new
         {
             id = review.Id,
+            order_id = review.OrderId,
+            guitar_name = review.GuitarName,
             reviewer_name = review.ReviewerName,
             rating = review.Rating,
             review_text = review.ReviewText,
@@ -145,4 +175,6 @@ public class SubmitReviewRequest
 {
     public int Rating { get; set; }
     public string? ReviewText { get; set; }
+    /// <summary>Which order the review is about; supplies the guitar name.</summary>
+    public string? OrderId { get; set; }
 }

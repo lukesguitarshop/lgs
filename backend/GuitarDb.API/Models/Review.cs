@@ -47,4 +47,14 @@ public class Review
     [BsonRepresentation(BsonType.ObjectId)]
     [BsonIgnoreIfNull]
     public string? UserId { get; set; }
+
+    /// <summary>
+    /// The order a site review is about. Reverb reviews are tied to an order too — that is
+    /// what ReverbOrderId is — so this keeps the two kinds shaped the same, and is what
+    /// gives a site review its guitar name.
+    /// </summary>
+    [BsonElement("order_id")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    [BsonIgnoreIfNull]
+    public string? OrderId { get; set; }
 }
