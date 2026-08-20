@@ -54,7 +54,7 @@ export default function ContactPage() {
               />
             </svg>
             <h1 className="text-2xl font-bold mb-2">Message Sent Successfully</h1>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-foreground/80 mb-6">
               Thank you for reaching out! We'll get back to you as soon as possible.
             </p>
             <button
@@ -73,7 +73,7 @@ export default function ContactPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-xl mx-auto">
         <h1 className="text-4xl font-bold mb-6">Contact Us</h1>
-        <p className="text-muted-foreground mb-8">
+        <p className="text-foreground/80 mb-8">
           Have questions about a listing or looking for something specific? Fill out the form below and we'll get back to you as soon as possible.
         </p>
 
@@ -149,7 +149,7 @@ export default function ContactPage() {
           </button>
         </form>
 
-        <p className="text-muted-foreground text-sm mt-6 text-center">
+        <p className="text-foreground/80 text-sm mt-6 text-center">
           You can also email us directly at{' '}
           <a
             href="mailto:lukesguitarshop@gmail.com"

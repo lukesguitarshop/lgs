@@ -97,7 +97,7 @@ export default function FavoritesPage() {
       <div className="container mx-auto px-4 py-8">
         <Link
           href="/"
-          className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer"
+          className="inline-flex items-center text-foreground hover:text-primary mb-6 transition-colors cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to listings
@@ -126,7 +126,7 @@ export default function FavoritesPage() {
     <div className="container mx-auto px-4 py-8">
       <Link
         href="/"
-        className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer"
+        className="inline-flex items-center text-foreground hover:text-primary mb-6 transition-colors cursor-pointer"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to listings

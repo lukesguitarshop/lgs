@@ -63,10 +63,10 @@ function ReviewCardContent({ review }: { review: Review }) {
       {review.guitar_name && (
         <h3 className="font-semibold text-sm mt-2 mb-1 line-clamp-1">{review.guitar_name}</h3>
       )}
-      <p className="text-xs text-muted-foreground mb-2">
+      <p className="text-xs text-foreground/70 mb-2">
         {review.reviewer_name} • {formatDate(review.review_date)}
       </p>
-      <p className="text-sm text-muted-foreground leading-relaxed">
+      <p className="text-sm text-foreground leading-relaxed">
         {displayText}
       </p>
       {needsTruncation && (
@@ -154,7 +154,7 @@ export default function ReviewsCarousel() {
       <div className="mt-12 pt-8 border-t border-border">
         <h2 className="text-xl font-bold mb-6">Customer Reviews</h2>
         <div className="flex justify-center items-center h-48">
-          <div className="text-muted-foreground">Loading reviews...</div>
+          <div className="text-foreground/70">Loading reviews...</div>
         </div>
       </div>
     );

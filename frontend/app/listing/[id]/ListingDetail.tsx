@@ -420,7 +420,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
       {/* Back button */}
       <button
         onClick={() => router.back()}
-        className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer"
+        className="inline-flex items-center text-foreground hover:text-primary mb-6 transition-colors cursor-pointer"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back

@@ -104,7 +104,7 @@ function ResetPasswordContent() {
         <div className="max-w-md mx-auto">
           <Link
             href="/"
-            className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6"
+            className="inline-flex items-center text-foreground hover:text-primary mb-6"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Home
@@ -239,7 +239,7 @@ function ResetPasswordContent() {
       <div className="max-w-md mx-auto">
         <Link
           href="/"
-          className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6"
+          className="inline-flex items-center text-foreground hover:text-primary mb-6"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Home

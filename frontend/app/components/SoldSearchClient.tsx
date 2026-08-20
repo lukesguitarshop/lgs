@@ -314,13 +314,13 @@ export default function SoldSearchClient({ initialListings }: SoldSearchClientPr
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
           <div>
             <h1 className="font-heading text-5xl mb-2 text-[#6E0114]">Sold Guitars</h1>
-            <p className="text-muted-foreground">
+            <p className="text-foreground/70">
               {filteredListings.length} guitar{filteredListings.length !== 1 ? 's' : ''}
               {hasActiveFilters ? ' (filtered)' : ' sold'}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-muted-foreground">Sort:</span>
+            <span className="text-sm font-medium text-foreground/70">Sort:</span>
             <Select
               value={sortBy}
               onValueChange={(value: SortOption) => { setSortBy(value); setCurrentPage(1); }}
@@ -344,7 +344,7 @@ export default function SoldSearchClient({ initialListings }: SoldSearchClientPr
             <div className="flex flex-col items-center gap-4">
               <div className="text-6xl">🎸</div>
               <h2 className="text-2xl font-semibold">No sold guitars found</h2>
-              <p className="text-muted-foreground">Try adjusting your search or filters.</p>
+              <p className="text-foreground/70">Try adjusting your search or filters.</p>
               {hasActiveFilters && (
                 <Button onClick={clearFilters} variant="outline">Clear Filters</Button>
               )}
@@ -359,7 +359,7 @@ export default function SoldSearchClient({ initialListings }: SoldSearchClientPr
             </div>
             {totalPages > 1 && (
               <div className="flex items-center justify-between mt-8 pb-8">
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-foreground/70">
                   Page {currentPage} of {totalPages}
                 </div>
                 <div className="flex items-center gap-2">
@@ -428,12 +428,12 @@ function SoldCard({ listing, priority = false }: { listing: SoldListing; priorit
         </div>
         <CardContent className="p-4 flex-grow flex flex-col">
           {listing.condition && (
-            <p className="text-xs text-muted-foreground mb-1">{listing.condition}</p>
+            <p className="text-xs text-foreground/70 mb-1">{listing.condition}</p>
           )}
           <h3 className="font-semibold text-sm line-clamp-2 mb-2 flex-grow">
             {listing.listing_title}
           </h3>
-          <p className="text-lg font-bold text-muted-foreground">
+          <p className="text-lg font-bold text-foreground">
             {formatPrice(listing.price, listing.currency)}
           </p>
         </CardContent>

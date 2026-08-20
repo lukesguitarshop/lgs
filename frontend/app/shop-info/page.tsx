@@ -81,7 +81,7 @@ function ReviewCard({ review }: { review: Review }) {
         {review.guitar_name && (
           <h3 className="font-semibold text-lg mt-3 mb-1">{review.guitar_name}</h3>
         )}
-        <p className="text-sm text-muted-foreground mb-3">
+        <p className="text-sm text-foreground/70 mb-3">
           {review.reviewer_name} • {formatDate(review.review_date)}
         </p>
         {review.review_text && (
@@ -167,7 +167,7 @@ function ReviewsTab() {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center min-h-[200px] text-muted-foreground">Loading reviews...</div>;
+    return <div className="flex justify-center items-center min-h-[200px] text-foreground/70">Loading reviews...</div>;
   }
 
   if (error) {
@@ -177,7 +177,7 @@ function ReviewsTab() {
   return (
     <div>
       <div className="mb-6">
-        <p className="text-muted-foreground">
+        <p className="text-foreground/70">
           Showing {Math.min(displayCount, filteredReviews.length)} of {filteredReviews.length} review{filteredReviews.length !== 1 ? 's' : ''}
           {hasActiveFilters && ` (filtered from ${totalCount} total)`}
         </p>
@@ -200,17 +200,17 @@ function ReviewsTab() {
                 </div>
                 <div>
                   <p className="text-xl font-bold">{stats.average_rating.toFixed(1)}</p>
-                  <p className="text-sm text-muted-foreground">Average Rating</p>
+                  <p className="text-sm text-foreground/70">Average Rating</p>
                 </div>
               </div>
               <div className="flex gap-8 text-center">
                 <div>
                   <p className="text-2xl font-bold">{stats.total_count}</p>
-                  <p className="text-sm text-muted-foreground">Total Reviews</p>
+                  <p className="text-sm text-foreground/70">Total Reviews</p>
                 </div>
                 <div>
                   <p className="text-2xl font-bold">{stats.recent_count}</p>
-                  <p className="text-sm text-muted-foreground">Last 30 Days</p>
+                  <p className="text-sm text-foreground/70">Last 30 Days</p>
                 </div>
               </div>
             </div>
@@ -260,7 +260,7 @@ function ReviewsTab() {
 
       {filteredReviews.length === 0 ? (
         <Card className="p-8 text-center">
-          <p className="text-muted-foreground">
+          <p className="text-foreground/70">
             {hasActiveFilters ? 'No reviews match your filters.' : 'No reviews yet.'}
           </p>
           {hasActiveFilters && (
@@ -328,7 +328,7 @@ function ContactTab() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
           <h2 className="text-2xl font-bold mb-2">Message Sent!</h2>
-          <p className="text-muted-foreground mb-6">We'll get back to you as soon as possible.</p>
+          <p className="text-foreground/80 mb-6">We'll get back to you as soon as possible.</p>
           <Button onClick={() => setSuccess(false)} className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
             Send Another Message
           </Button>
@@ -339,7 +339,7 @@ function ContactTab() {
 
   return (
     <div className="max-w-xl mx-auto">
-      <p className="text-muted-foreground mb-6">
+      <p className="text-foreground/80 mb-6">
         Have questions about a listing or looking for something specific? Fill out the form below and we'll get back to you as soon as possible.
       </p>
 
@@ -415,7 +415,7 @@ function ContactTab() {
         </Button>
       </form>
 
-      <p className="text-muted-foreground text-sm mt-6 text-center">
+      <p className="text-foreground/80 text-sm mt-6 text-center">
         You can also email us directly at{' '}
         <a href="mailto:lukesguitarshop@gmail.com" className="text-[#6E0114] hover:text-[#580110] underline">
           lukesguitarshop@gmail.com

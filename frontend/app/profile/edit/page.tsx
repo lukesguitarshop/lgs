@@ -109,7 +109,7 @@ export default function EditProfilePage() {
       <div className="max-w-xl mx-auto">
         <Link
           href="/profile"
-          className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6"
+          className="inline-flex items-center text-foreground hover:text-primary mb-6"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Profile

@@ -384,7 +384,7 @@ function ConversationPageContent() {
       <div className="container mx-auto px-4 py-8">
         <Link
           href={fromAdmin ? "/admin" : fromListing && listingIdParam ? `/listing/${listingIdParam}` : "/messages"}
-          className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors"
+          className="inline-flex items-center text-foreground hover:text-primary mb-6 transition-colors"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           {fromAdmin ? 'Back to Admin Portal' : fromListing ? 'Back to listing' : 'Back to messages'}
@@ -413,7 +413,7 @@ function ConversationPageContent() {
     <div className="container mx-auto px-4 py-8">
       <Link
         href={fromAdmin ? "/admin" : fromListing && listingIdParam ? `/listing/${listingIdParam}` : "/messages"}
-        className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors"
+        className="inline-flex items-center text-foreground hover:text-primary mb-6 transition-colors"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
         {fromAdmin ? 'Back to Admin Portal' : fromListing ? 'Back to listing' : 'Back to messages'}
@@ -477,7 +477,7 @@ function ConversationPageContent() {
                       <div key={message.id}>
                         {showDateSeparator && (
                           <div className="flex items-center justify-center my-4">
-                            <div className="bg-muted px-3 py-1 rounded-full text-xs text-muted-foreground">
+                            <div className="bg-muted px-3 py-1 rounded-full text-xs text-foreground/70">
                               {formatDate(message.createdAt)}
                             </div>
                           </div>
@@ -796,16 +796,16 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
             {formatPrice(message.offerAmount || 0)}
           </div>
           {wasCountered && (
-            <p className={`text-xs mt-1 ${message.isMine ? 'text-red-200' : 'text-muted-foreground'}`}>
+            <p className={`text-xs mt-1 ${message.isMine ? 'text-red-200' : 'text-foreground/70'}`}>
               Countered
             </p>
           )}
           {isActiveOffer && !wasCountered && pendingActionBy && (
-            <p className={`text-xs mt-1 ${message.isMine ? 'text-red-200' : 'text-muted-foreground'}`}>
+            <p className={`text-xs mt-1 ${message.isMine ? 'text-red-200' : 'text-foreground/70'}`}>
               {pendingActionBy === 'buyer' ? 'Waiting for buyer to respond' : 'Waiting for seller to respond'}
             </p>
           )}
-          <div className={`flex items-center gap-1 text-xs mt-2 ${message.isMine ? 'text-red-200 justify-end' : 'text-muted-foreground'}`}>
+          <div className={`flex items-center gap-1 text-xs mt-2 ${message.isMine ? 'text-red-200 justify-end' : 'text-foreground/70'}`}>
             <span>{formatTime(message.createdAt)}</span>
             {message.isMine && (
               message.isRead
@@ -880,7 +880,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
         )}
         <div
           className={`flex items-center gap-1 text-xs mt-1 ${
-            message.isMine ? 'text-red-200 justify-end' : 'text-muted-foreground'
+            message.isMine ? 'text-red-200 justify-end' : 'text-foreground/70'
           }`}
         >
           <span>{formatTime(message.createdAt)}</span>

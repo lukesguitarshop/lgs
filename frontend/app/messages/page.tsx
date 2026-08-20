@@ -114,7 +114,7 @@ function MessagesPageContent() {
       <div className="container mx-auto px-4 py-8">
         <Link
           href="/"
-          className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer"
+          className="inline-flex items-center text-foreground hover:text-primary mb-6 transition-colors cursor-pointer"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to listings
@@ -145,7 +145,7 @@ function MessagesPageContent() {
     <div className="container mx-auto px-4 py-8">
       <Link
         href="/"
-        className="inline-flex items-center text-muted-foreground hover:text-foreground mb-6 transition-colors cursor-pointer"
+        className="inline-flex items-center text-foreground hover:text-primary mb-6 transition-colors cursor-pointer"
       >
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to listings
@@ -281,14 +281,14 @@ function ConversationCard({ conversation }: ConversationCardProps) {
                   {conversation.otherUserName}
                 </span>
               </div>
-              <span className="text-xs text-muted-foreground flex-shrink-0">
+              <span className="text-xs text-foreground/70 flex-shrink-0">
                 {formatTimeAgo(conversation.lastMessageAt)}
               </span>
             </div>
 
             <div className="flex items-center gap-2 mb-1">
               {conversation.listingTitle && (
-                <p className="text-sm text-muted-foreground truncate">
+                <p className="text-sm text-foreground/70 truncate">
                   Re: {conversation.listingTitle}
                 </p>
               )}
@@ -304,7 +304,7 @@ function ConversationCard({ conversation }: ConversationCardProps) {
               )}
             </div>
 
-            <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'font-medium text-foreground' : 'text-muted-foreground'}`}>
+            <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'font-medium text-foreground' : 'text-foreground/70'}`}>
               {conversation.lastMessage || 'No messages yet'}
             </p>
           </div>
