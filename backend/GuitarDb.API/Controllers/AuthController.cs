@@ -2,6 +2,7 @@ using GuitarDb.API.Models;
 using GuitarDb.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using MongoDB.Bson;
 using System.Security.Claims;
 
 namespace GuitarDb.API.Controllers;
@@ -294,6 +295,108 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
+    /// One order in full, for the customer who placed it. Everything the buyer needs to
+    /// see about a purchase — items, where it shipped, what was paid, where it is now.
+    /// </summary>
+    [HttpGet("orders/{id}")]
+    [Authorize]
+    public async Task<IActionResult> GetUserOrder(string id)
+    {
+        var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(userId))
+        {
+            return Unauthorized(new { error = "Invalid token" });
+        }
+
+        // An id that isn't a real ObjectId would throw inside the driver and surface as a
+        // 500, so it is turned away exactly like one belonging to somebody else.
+        if (!ObjectId.TryParse(id, out _))
+        {
+            return NotFound(new { error = "That order isn't on your account." });
+        }
+
+        var order = await _mongoDbService.GetOrderByIdAsync(id);
+        if (order == null || order.UserId != userId)
+        {
+            return NotFound(new { error = "That order isn't on your account." });
+        }
+
+        var items = order.Items ?? new List<Models.OrderItem>();
+
+        // Photos come from the listings themselves; sold guitars stay in the collection, so
+        // an order placed long ago still shows the guitar the customer actually bought.
+        var listingIds = items
+            .Select(i => i.ListingId)
+            .Where(lid => !string.IsNullOrEmpty(lid) && ObjectId.TryParse(lid, out _))
+            .Distinct()
+            .ToList();
+        var listings = listingIds.Count > 0
+            ? await _mongoDbService.GetListingsByIdsAsync(listingIds)
+            : new List<MyListing>();
+        var listingMap = listings.Where(l => l.Id != null).ToDictionary(l => l.Id!, l => l);
+
+        var user = await _mongoDbService.GetUserByIdAsync(userId);
+
+        // Only ever one review per order, and it drives whether the page offers to write
+        // one or to edit what was already said.
+        var reviews = await _mongoDbService.GetSiteReviewsByUserAsync(userId);
+        var review = reviews.FirstOrDefault(r => r.OrderId == order.Id);
+
+        var subtotal = items.Sum(i => i.Price * i.Quantity);
+
+        return Ok(new OrderDetailDto
+        {
+            Id = order.Id!,
+            PaymentMethod = order.PaymentMethod,
+            OrderType = order.OrderType,
+            Status = order.Status,
+            CreatedAt = order.CreatedAt,
+            Items = items.Select(i =>
+            {
+                listingMap.TryGetValue(i.ListingId, out var listing);
+                return new OrderDetailItemDto
+                {
+                    ListingId = i.ListingId,
+                    ListingTitle = i.ListingTitle,
+                    Price = i.Price,
+                    Currency = i.Currency,
+                    Quantity = i.Quantity,
+                    Image = listing?.Images.FirstOrDefault(img => !string.IsNullOrWhiteSpace(img)),
+                    // The listing page still serves sold guitars, so a link is fine as long as
+                    // the record survives; only a deleted one would land on a 404.
+                    ListingAvailable = listing != null
+                };
+            }).ToList(),
+            ShippingAddress = order.ShippingAddress == null ? null : new ShippingAddressDto
+            {
+                FullName = order.ShippingAddress.FullName,
+                Line1 = order.ShippingAddress.Line1,
+                Line2 = order.ShippingAddress.Line2,
+                City = order.ShippingAddress.City,
+                State = order.ShippingAddress.State,
+                PostalCode = order.ShippingAddress.PostalCode,
+                Country = order.ShippingAddress.Country
+            },
+            ItemsSubtotal = subtotal,
+            // PayPal orders bake a 3.5% fee into the stored total; showing the gap keeps
+            // the summary adding up instead of leaving an unexplained jump.
+            ProcessingFee = Math.Max(0m, order.TotalAmount - subtotal),
+            StoreCreditApplied = order.StoreCreditApplied,
+            DepositApplied = order.DepositApplied,
+            // Store credit and any deposit already paid come off the card charge, so this is
+            // what actually left the customer's account at checkout.
+            AmountPaid = Math.Max(0m, order.TotalAmount - order.StoreCreditApplied - order.DepositApplied),
+            TotalAmount = order.TotalAmount,
+            Currency = order.Currency,
+            TrackingCarrier = order.TrackingCarrier,
+            TrackingNumber = order.TrackingNumber,
+            BuyerEmail = user?.Email ?? order.GuestEmail,
+            ReviewId = review?.Id,
+            ReviewRating = review?.Rating
+        });
+    }
+
+    /// <summary>
     /// Request password reset email
     /// </summary>
     [HttpPost("forgot-password")]
@@ -569,3 +672,47 @@ public class OrderItemDto
     public decimal Price { get; set; }
     public int Quantity { get; set; }
 }
+
+/// <summary>
+/// A single order as the customer who placed it sees it: what they bought, where it
+/// went, what it cost, and where the package is.
+/// </summary>
+public class OrderDetailDto
+{
+    public string Id { get; set; } = string.Empty;
+    public string PaymentMethod { get; set; } = string.Empty;
+    /// <summary>"sale" for a purchase, "deposit" for a reservation deposit payment.</summary>
+    public string OrderType { get; set; } = string.Empty;
+    public string Status { get; set; } = string.Empty;
+    public DateTime CreatedAt { get; set; }
+    public List<OrderDetailItemDto> Items { get; set; } = new();
+    public ShippingAddressDto? ShippingAddress { get; set; }
+    public decimal ItemsSubtotal { get; set; }
+    /// <summary>The PayPal surcharge folded into the total, zero on card orders.</summary>
+    public decimal ProcessingFee { get; set; }
+    public decimal StoreCreditApplied { get; set; }
+    public decimal DepositApplied { get; set; }
+    /// <summary>What was actually charged after credit and any deposit came off.</summary>
+    public decimal AmountPaid { get; set; }
+    public decimal TotalAmount { get; set; }
+    public string Currency { get; set; } = "USD";
+    public string? TrackingCarrier { get; set; }
+    public string? TrackingNumber { get; set; }
+    public string? BuyerEmail { get; set; }
+    /// <summary>Set once this order has been reviewed, so the page offers an edit instead.</summary>
+    public string? ReviewId { get; set; }
+    public int? ReviewRating { get; set; }
+}
+
+public class OrderDetailItemDto
+{
+    public string ListingId { get; set; } = string.Empty;
+    public string ListingTitle { get; set; } = string.Empty;
+    public decimal Price { get; set; }
+    public string Currency { get; set; } = "USD";
+    public int Quantity { get; set; }
+    public string? Image { get; set; }
+    /// <summary>False once the listing is gone, so the page doesn't link into a 404.</summary>
+    public bool ListingAvailable { get; set; }
+}
+

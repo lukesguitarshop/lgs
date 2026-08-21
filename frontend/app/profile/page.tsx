@@ -9,6 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getAuthHeaders } from '@/lib/auth';
 import api from '@/lib/api';
 import { User, Heart, MessageSquare, Tag, Package, Edit, ChevronRight, Truck, ExternalLink, MapPin, Trash2, Guitar } from 'lucide-react';
+import { formatOrderDate, getStatusDisplay, getTrackingUrl, orderNumber } from '@/lib/orders';
 import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
 import { ShippingAddress, deleteShippingAddress } from '@/lib/auth';
 
@@ -30,47 +31,11 @@ interface Order {
   trackingNumber?: string | null;
 }
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
 function formatCurrency(amount: number, currency: string = 'USD'): string {
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
     currency: currency,
   }).format(amount);
-}
-
-function getStatusDisplay(status: string): string {
-  switch (status.toLowerCase()) {
-    case 'completed':
-    case 'paid':
-      return 'Payment Received';
-    case 'shipped':
-      return 'Shipped';
-    case 'delivered':
-      return 'Delivered';
-    default:
-      return status;
-  }
-}
-
-function getTrackingUrl(carrier: string, trackingNumber: string): string | null {
-  switch (carrier.toUpperCase()) {
-    case 'UPS':
-      return `https://www.ups.com/track?tracknum=${trackingNumber}`;
-    case 'USPS':
-      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNumber}`;
-    case 'FEDEX':
-      return `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`;
-    default:
-      return null;
-  }
 }
 
 export default function ProfilePage() {
@@ -194,7 +159,7 @@ export default function ProfilePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Member since:</span>
-                <p className="font-medium">{formatDate(user.createdAt)}</p>
+                <p className="font-medium">{formatOrderDate(user.createdAt)}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Account type:</span>
@@ -332,15 +297,22 @@ export default function ProfilePage() {
                   {orders.map((order) => (
                     <div
                       key={order.id}
-                      className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                      className="group relative border rounded-lg p-4 hover:border-[#020E1C] hover:bg-gray-50 transition-colors"
                     >
+                      {/* The whole card opens the order. It sits behind the tracking link
+                          rather than wrapping it, because anchors cannot nest. */}
+                      <Link
+                        href={`/account/orders/${order.id}`}
+                        aria-label={`View order ${orderNumber(order.id)}`}
+                        className="absolute inset-0 rounded-lg"
+                      />
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                         <div>
                           <p className="font-medium">
-                            Order #{order.id.slice(-8).toUpperCase()}
+                            Order #{orderNumber(order.id)}
                           </p>
                           <p className="text-sm text-muted-foreground">
-                            {formatDate(order.createdAt)}
+                            {formatOrderDate(order.createdAt)}
                           </p>
                         </div>
                         <div className="text-right">
@@ -354,7 +326,7 @@ export default function ProfilePage() {
                       </div>
                       {/* Tracking Information */}
                       {order.trackingNumber && order.trackingCarrier && (
-                        <div className="flex items-center gap-2 mb-2 p-2 bg-[#020E1C]/10 rounded-md">
+                        <div className="relative flex items-center gap-2 mb-2 p-2 bg-[#020E1C]/10 rounded-md w-fit">
                           <Truck className="h-4 w-4 text-[#020E1C]" />
                           <span className="text-sm font-medium text-[#020E1C]">
                             {order.trackingCarrier}:
@@ -388,6 +360,10 @@ export default function ProfilePage() {
                           </p>
                         )}
                       </div>
+                      <p className="mt-3 flex items-center gap-1 text-sm font-medium text-[#6E0114]">
+                        View order details
+                        <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                      </p>
                     </div>
                   ))}
                 </div>

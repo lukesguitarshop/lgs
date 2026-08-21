@@ -89,7 +89,14 @@ export default function ReviewForm() {
       );
       setOrders(sorted);
       setMyReviews(reviewList ?? []);
-      if (sorted.length > 0) setOrderId(sorted[0].id);
+
+      // Arriving from an order page names the order, so the form opens on that one
+      // instead of whichever was bought last. Read straight off the URL rather than
+      // useSearchParams, which would need a Suspense boundary around the whole form.
+      const requested = new URLSearchParams(window.location.search).get('order');
+      const preselected = sorted.find(o => o.id === requested);
+      if (preselected) setOrderId(preselected.id);
+      else if (sorted.length > 0) setOrderId(sorted[0].id);
       setLoadingData(false);
     })();
 

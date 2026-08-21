@@ -24,6 +24,12 @@ import {
   FileDown,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import {
+  formatOrderCurrency as formatCurrency,
+  getStatusDisplay,
+  getTrackingUrl,
+  orderNumber,
+} from '@/lib/orders';
 
 interface OrderItem {
   listingId: string;
@@ -58,19 +64,6 @@ interface Order {
   trackingNumber: string | null;
 }
 
-function getTrackingUrl(carrier: string, trackingNumber: string): string | null {
-  switch (carrier.toUpperCase()) {
-    case 'UPS':
-      return `https://www.ups.com/track?tracknum=${trackingNumber}`;
-    case 'USPS':
-      return `https://tools.usps.com/go/TrackConfirmAction?tLabels=${trackingNumber}`;
-    case 'FEDEX':
-      return `https://www.fedex.com/fedextrack/?trknbr=${trackingNumber}`;
-    default:
-      return null;
-  }
-}
-
 function formatDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('en-US', {
     weekday: 'long',
@@ -80,27 +73,6 @@ function formatDate(dateString: string): string {
     hour: 'numeric',
     minute: '2-digit',
   });
-}
-
-function formatCurrency(amount: number, currency: string = 'USD'): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: currency,
-  }).format(amount);
-}
-
-function getStatusDisplay(status: string): string {
-  switch (status.toLowerCase()) {
-    case 'completed':
-    case 'paid':
-      return 'Payment Received';
-    case 'shipped':
-      return 'Shipped';
-    case 'delivered':
-      return 'Delivered';
-    default:
-      return status;
-  }
 }
 
 function generateOrderPdf(order: Order): void {
@@ -130,7 +102,7 @@ function generateOrderPdf(order: Order): void {
 
   doc.setTextColor(...ink);
   doc.setFontSize(16);
-  doc.text(`Order #${order.id.slice(-8).toUpperCase()}`, pageWidth - margin, y, {
+  doc.text(`Order #${orderNumber(order.id)}`, pageWidth - margin, y, {
     align: 'right',
   });
   y += 22;
@@ -277,7 +249,7 @@ function generateOrderPdf(order: Order): void {
     pageHeight - margin / 2
   );
 
-  doc.save(`order-${order.id.slice(-8).toUpperCase()}.pdf`);
+  doc.save(`order-${orderNumber(order.id)}.pdf`);
 }
 
 export default function OrderDetailPage() {
@@ -476,7 +448,7 @@ export default function OrderDetailPage() {
               <div>
                 <CardTitle className="text-2xl flex items-center gap-2">
                   <Package className="h-6 w-6" />
-                  Order #{order.id.slice(-8).toUpperCase()}
+                  Order #{orderNumber(order.id)}
                 </CardTitle>
                 <div className="flex items-center gap-2 mt-2">
                   <button
