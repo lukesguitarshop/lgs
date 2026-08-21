@@ -390,6 +390,8 @@ public class AuthController : ControllerBase
             Currency = order.Currency,
             TrackingCarrier = order.TrackingCarrier,
             TrackingNumber = order.TrackingNumber,
+            ShippedAt = order.ShippedAt,
+            DeliveredAt = order.DeliveredAt,
             BuyerEmail = user?.Email ?? order.GuestEmail,
             ReviewId = review?.Id,
             ReviewRating = review?.Rating
@@ -698,6 +700,9 @@ public class OrderDetailDto
     public string Currency { get; set; } = "USD";
     public string? TrackingCarrier { get; set; }
     public string? TrackingNumber { get; set; }
+    /// <summary>When tracking landed, and when the carrier says it arrived.</summary>
+    public DateTime? ShippedAt { get; set; }
+    public DateTime? DeliveredAt { get; set; }
     public string? BuyerEmail { get; set; }
     /// <summary>Set once this order has been reviewed, so the page offers an edit instead.</summary>
     public string? ReviewId { get; set; }

@@ -73,4 +73,41 @@ describe('orderTimeline', () => {
     expect(withTracking.detail).toContain('tracking number');
     expect(without.detail).not.toContain('tracking number');
   });
+
+  it('leaves every date blank when the order carries no timestamps', () => {
+    expect(orderTimeline('shipped', true).every(s => s.date === null)).toBe(true);
+  });
+
+  it('dates the steps that have happened', () => {
+    const steps = orderTimeline('delivered', true, {
+      createdAt: '2026-03-01T12:00:00Z',
+      shippedAt: '2026-03-02T12:00:00Z',
+      deliveredAt: '2026-03-06T12:00:00Z',
+    });
+    const byStage = Object.fromEntries(steps.map(s => [s.stage, s.date]));
+    expect(byStage.placed).toBe('March 1, 2026');
+    expect(byStage.shipped).toBe('March 2, 2026');
+    expect(byStage.delivered).toBe('March 6, 2026');
+  });
+
+  it('never dates a step the order has not reached', () => {
+    // A delivery date can be recorded before the status catches up; showing it on an
+    // unreached step would read as a promise rather than a fact.
+    const steps = orderTimeline('shipped', true, {
+      createdAt: '2026-03-01T12:00:00Z',
+      shippedAt: '2026-03-02T12:00:00Z',
+      deliveredAt: '2026-03-06T12:00:00Z',
+    });
+    expect(steps.find(s => s.stage === 'delivered')!.date).toBeNull();
+  });
+
+  it('falls back to no date when a stamp is missing', () => {
+    const steps = orderTimeline('delivered', true, {
+      createdAt: '2026-03-01T12:00:00Z',
+      shippedAt: null,
+      deliveredAt: null,
+    });
+    expect(steps.find(s => s.stage === 'shipped')!.date).toBeNull();
+    expect(steps.find(s => s.stage === 'placed')!.date).toBe('March 1, 2026');
+  });
 });

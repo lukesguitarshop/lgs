@@ -600,23 +600,80 @@ public class MongoDbService
         }
 
         var result = await _ordersCollection.UpdateOneAsync(filter, updateBuilder);
+
+        // Stamp the ship date the first time tracking lands. Guarded on the field still
+        // being empty so correcting a mistyped tracking number keeps the original date.
+        if (!string.IsNullOrEmpty(carrier) && !string.IsNullOrEmpty(trackingNumber))
+        {
+            await StampShippedAtAsync(orderId);
+        }
+
         return result.ModifiedCount > 0;
     }
 
-    public async Task<bool> UpdateOrderStatusAsync(string orderId, string status)
+    /// <param name="deliveredAt">
+    /// The carrier's own delivery timestamp when we have one. It overwrites a date set by
+    /// hand, because the carrier is the better source; without it a delivery is stamped now.
+    /// </param>
+    public async Task<bool> UpdateOrderStatusAsync(string orderId, string status, DateTime? deliveredAt = null)
     {
         var filter = Builders<Order>.Filter.Eq(o => o.Id, orderId);
         var update = Builders<Order>.Update.Set(o => o.Status, status);
+
+        if (status.Equals("delivered", StringComparison.OrdinalIgnoreCase))
+        {
+            update = update.Set(o => o.DeliveredAt, deliveredAt ?? DateTime.UtcNow);
+        }
+
         var result = await _ordersCollection.UpdateOneAsync(filter, update);
+
+        // A package cannot arrive without having shipped, and orders marked delivered
+        // straight from "completed" would otherwise leave a hole in the timeline.
+        if (status.Equals("shipped", StringComparison.OrdinalIgnoreCase) ||
+            status.Equals("delivered", StringComparison.OrdinalIgnoreCase))
+        {
+            await StampShippedAtAsync(orderId);
+        }
+
         return result.ModifiedCount > 0;
     }
 
-    public async Task<List<Order>> GetShippedOrdersAsync()
+    /// <summary>Sets shipped_at to now, but only on an order that has no ship date yet.</summary>
+    private async Task StampShippedAtAsync(string orderId)
     {
-        var filter = Builders<Order>.Filter.And(
-            Builders<Order>.Filter.Eq(o => o.Status, "shipped"),
-            Builders<Order>.Filter.Ne(o => o.TrackingNumber, null)
+        var unstamped = Builders<Order>.Filter.And(
+            Builders<Order>.Filter.Eq(o => o.Id, orderId),
+            Builders<Order>.Filter.Eq(o => o.ShippedAt, null)
         );
+        await _ordersCollection.UpdateOneAsync(
+            unstamped,
+            Builders<Order>.Update.Set(o => o.ShippedAt, DateTime.UtcNow));
+    }
+
+    /// <summary>
+    /// Orders the delivery poller should still be asking the carrier about: shipped, with a
+    /// tracking number, on the given carrier, and recent enough to be worth a call. A package
+    /// that never reports delivered ages out instead of being retried hourly forever.
+    /// </summary>
+    public async Task<List<Order>> GetShippedOrdersAsync(string carrier, int maxAgeDays)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-Math.Abs(maxAgeDays));
+        var b = Builders<Order>.Filter;
+
+        // Orders predating shipped_at fall back to when they were placed.
+        var recentEnough = b.Or(
+            b.Gte(o => o.ShippedAt, cutoff),
+            b.And(b.Eq(o => o.ShippedAt, null), b.Gte(o => o.CreatedAt, cutoff))
+        );
+
+        var filter = b.And(
+            b.Eq(o => o.Status, "shipped"),
+            b.Ne(o => o.TrackingNumber, null),
+            b.Regex(o => o.TrackingCarrier, new MongoDB.Bson.BsonRegularExpression(
+                $"^{System.Text.RegularExpressions.Regex.Escape(carrier)}$", "i")),
+            recentEnough
+        );
+
         return await _ordersCollection.Find(filter).ToListAsync();
     }
 

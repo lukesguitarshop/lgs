@@ -6,6 +6,9 @@ public class DeliveryTrackingService : BackgroundService
     private readonly ILogger<DeliveryTrackingService> _logger;
     private readonly TimeSpan _checkInterval = TimeSpan.FromHours(1);
 
+    /// <summary>How far back to keep polling a package that never reports delivered.</summary>
+    private const int DefaultMaxTrackingAgeDays = 45;
+
     public DeliveryTrackingService(
         IServiceProvider serviceProvider,
         ILogger<DeliveryTrackingService> logger)
@@ -61,18 +64,19 @@ public class DeliveryTrackingService : BackgroundService
             return;
         }
 
-        var shippedOrders = await mongoDbService.GetShippedOrdersAsync();
-        _logger.LogInformation("Checking delivery status for {Count} shipped orders", shippedOrders.Count);
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var maxAgeDays = configuration.GetValue<int?>("UPS:MaxTrackingAgeDays") ?? DefaultMaxTrackingAgeDays;
+
+        // The query already narrows to UPS packages still worth asking about, so everything
+        // that comes back gets a call.
+        var shippedOrders = await mongoDbService.GetShippedOrdersAsync("UPS", maxAgeDays);
+        _logger.LogInformation("Checking delivery status for {Count} shipped UPS orders", shippedOrders.Count);
 
         foreach (var order in shippedOrders)
         {
             if (stoppingToken.IsCancellationRequested) break;
 
-            // Only check UPS packages
-            if (order.TrackingCarrier?.ToUpper() != "UPS" || string.IsNullOrEmpty(order.TrackingNumber))
-            {
-                continue;
-            }
+            if (string.IsNullOrEmpty(order.TrackingNumber)) continue;
 
             try
             {
@@ -81,10 +85,11 @@ public class DeliveryTrackingService : BackgroundService
                 if (status?.IsDelivered == true)
                 {
                     _logger.LogInformation(
-                        "Order {OrderId} with tracking {TrackingNumber} has been delivered",
-                        order.Id, order.TrackingNumber);
+                        "Order {OrderId} with tracking {TrackingNumber} was delivered {DeliveredAt}",
+                        order.Id, order.TrackingNumber,
+                        status.DeliveredAt?.ToString("u") ?? "(date not reported)");
 
-                    await mongoDbService.UpdateOrderStatusAsync(order.Id!, "delivered");
+                    await mongoDbService.UpdateOrderStatusAsync(order.Id!, "delivered", status.DeliveredAt);
                 }
 
                 // Add a small delay between API calls to avoid rate limiting

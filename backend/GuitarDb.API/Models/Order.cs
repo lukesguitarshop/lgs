@@ -69,6 +69,24 @@ public class Order
     [BsonIgnoreIfNull]
     public string? TrackingNumber { get; set; }
 
+    /// <summary>
+    /// When tracking first landed on the order. Stamped once, so editing a tracking
+    /// number later does not reset it. Null on orders that predate the field.
+    /// </summary>
+    [BsonElement("shipped_at")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    [BsonIgnoreIfNull]
+    public DateTime? ShippedAt { get; set; }
+
+    /// <summary>
+    /// When the package actually arrived — UPS's own delivery timestamp when the
+    /// tracking poller supplied one, otherwise when it was marked delivered by hand.
+    /// </summary>
+    [BsonElement("delivered_at")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    [BsonIgnoreIfNull]
+    public DateTime? DeliveredAt { get; set; }
+
     [BsonElement("store_credit_applied")]
     [BsonIgnoreIfDefault]
     public decimal StoreCreditApplied { get; set; } = 0;

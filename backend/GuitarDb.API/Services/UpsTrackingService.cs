@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
@@ -147,26 +148,12 @@ public class UpsTrackingService
             var isDelivered = statusCode.Equals("D", StringComparison.OrdinalIgnoreCase) ||
                               statusDescription.Contains("Delivered", StringComparison.OrdinalIgnoreCase);
 
-            string? deliveryDate = null;
-            if (package.TryGetProperty("deliveryDate", out var deliveryDateElement))
-            {
-                var deliveryDates = deliveryDateElement.EnumerateArray().ToList();
-                if (deliveryDates.Count > 0)
-                {
-                    var dateObj = deliveryDates[0];
-                    if (dateObj.TryGetProperty("date", out var dateStr))
-                    {
-                        deliveryDate = dateStr.GetString();
-                    }
-                }
-            }
-
             return new TrackingStatus
             {
                 StatusCode = statusCode,
                 StatusDescription = statusDescription,
                 IsDelivered = isDelivered,
-                DeliveryDate = deliveryDate
+                DeliveredAt = ExtractDeliveredAt(package)
             };
         }
         catch (Exception ex)
@@ -175,6 +162,81 @@ public class UpsTrackingService
             return null;
         }
     }
+
+    /// <summary>
+    /// The moment UPS says the package was handed over.
+    /// </summary>
+    /// <remarks>
+    /// UPS returns several dates per package, each tagged: DEL is the actual delivery,
+    /// while SDD and RDD are the scheduled and rescheduled estimates. Taking the first
+    /// entry blindly can record an estimate as the delivery date, so DEL is preferred and
+    /// anything else only used as a last resort. Everything here is optional in the
+    /// response, so a missing or malformed date yields null rather than throwing — the
+    /// caller falls back to "now", which loses precision but never loses the delivery.
+    /// </remarks>
+    private static DateTime? ExtractDeliveredAt(JsonElement package)
+    {
+        if (!package.TryGetProperty("deliveryDate", out var dates) ||
+            dates.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        var entries = dates.EnumerateArray().ToList();
+        if (entries.Count == 0) return null;
+
+        var actual = entries.FirstOrDefault(e =>
+            e.TryGetProperty("type", out var t) &&
+            string.Equals(t.GetString(), "DEL", StringComparison.OrdinalIgnoreCase));
+
+        var chosen = actual.ValueKind == JsonValueKind.Object ? actual : entries[0];
+
+        // GetString() throws on a non-string element, so the kind is checked rather than
+        // assumed — UPS is not contractually bound to keep these as strings.
+        if (!chosen.TryGetProperty("date", out var dateElement) ||
+            dateElement.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var date = dateElement.GetString();
+        if (string.IsNullOrWhiteSpace(date)) return null;
+
+        if (!DateTime.TryParseExact(date, "yyyyMMdd", CultureInfo.InvariantCulture,
+                DateTimeStyles.None, out var parsedDate))
+        {
+            return null;
+        }
+
+        // The time sits in a sibling object and is routinely absent; midnight is a fine
+        // stand-in, since the date is what anyone actually reads.
+        var time = ExtractDeliveryTime(package);
+        return DateTime.SpecifyKind(parsedDate.Add(time), DateTimeKind.Utc);
+    }
+
+    private static TimeSpan ExtractDeliveryTime(JsonElement package)
+    {
+        if (!package.TryGetProperty("deliveryTime", out var deliveryTime) ||
+            deliveryTime.ValueKind != JsonValueKind.Object)
+        {
+            return TimeSpan.Zero;
+        }
+
+        // endTime is the delivery moment for a completed delivery; startTime is the opening
+        // of a delivery window, so it is only worth reading when endTime is missing.
+        foreach (var field in new[] { "endTime", "startTime" })
+        {
+            if (deliveryTime.TryGetProperty(field, out var element) &&
+                element.ValueKind == JsonValueKind.String &&
+                TimeSpan.TryParseExact(element.GetString(), "hhmmss",
+                    CultureInfo.InvariantCulture, out var parsed))
+            {
+                return parsed;
+            }
+        }
+
+        return TimeSpan.Zero;
+    }
 }
 
 public class TrackingStatus
@@ -182,5 +244,6 @@ public class TrackingStatus
     public string StatusCode { get; set; } = string.Empty;
     public string StatusDescription { get; set; } = string.Empty;
     public bool IsDelivered { get; set; }
-    public string? DeliveryDate { get; set; }
+    /// <summary>UPS's own delivery timestamp, when the response carried a usable one.</summary>
+    public DateTime? DeliveredAt { get; set; }
 }

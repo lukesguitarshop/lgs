@@ -46,6 +46,15 @@ export interface TimelineStep {
   done: boolean;
   /** The step the order is sitting on right now. */
   current: boolean;
+  /** When this step happened, where we recorded it. Null for steps still ahead. */
+  date: string | null;
+}
+
+/** The timestamps an order carries, as far as any are known. */
+export interface OrderDates {
+  createdAt: string;
+  shippedAt?: string | null;
+  deliveredAt?: string | null;
 }
 
 const STAGE_ORDER: OrderStage[] = ['placed', 'paid', 'shipped', 'delivered'];
@@ -69,7 +78,11 @@ export function currentStage(status: string): OrderStage {
  * The four steps a purchase moves through, each marked done or not, so the page can
  * draw a progress track without re-deriving the rules.
  */
-export function orderTimeline(status: string, hasTracking: boolean): TimelineStep[] {
+export function orderTimeline(
+  status: string,
+  hasTracking: boolean,
+  dates?: OrderDates
+): TimelineStep[] {
   const stage = currentStage(status);
   const reached = STAGE_ORDER.indexOf(stage);
 
@@ -89,13 +102,28 @@ export function orderTimeline(status: string, hasTracking: boolean): TimelineSte
     delivered: 'Delivered',
   };
 
-  return STAGE_ORDER.map((s, idx) => ({
-    stage: s,
-    label: labels[s],
-    detail: details[s],
-    done: idx <= reached,
-    current: idx === reached,
-  }));
+  // Only two moments are recorded. Payment is not stamped separately — it happens at
+  // checkout, so the order date speaks for it as well.
+  const stamps: Record<OrderStage, string | null | undefined> = {
+    placed: dates?.createdAt,
+    paid: dates?.createdAt,
+    shipped: dates?.shippedAt,
+    delivered: dates?.deliveredAt,
+  };
+
+  return STAGE_ORDER.map((s, idx) => {
+    const done = idx <= reached;
+    return {
+      stage: s,
+      label: labels[s],
+      detail: details[s],
+      done,
+      current: idx === reached,
+      // A date on a step that has not happened would read as a promise, so those stay blank
+      // even when a stamp exists.
+      date: done && stamps[s] ? formatOrderDate(stamps[s]!) : null,
+    };
+  });
 }
 
 export function formatOrderDate(dateString: string): string {

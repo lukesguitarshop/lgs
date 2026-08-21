@@ -67,6 +67,8 @@ interface OrderDetail {
   currency: string;
   trackingCarrier: string | null;
   trackingNumber: string | null;
+  shippedAt: string | null;
+  deliveredAt: string | null;
   buyerEmail: string | null;
   reviewId: string | null;
   reviewRating: number | null;
@@ -183,7 +185,11 @@ export default function CustomerOrderDetailPage({
 
   const isDeposit = order.orderType === 'deposit';
   const hasTracking = Boolean(order.trackingCarrier && order.trackingNumber);
-  const steps = orderTimeline(order.status, hasTracking);
+  const steps = orderTimeline(order.status, hasTracking, {
+    createdAt: order.createdAt,
+    shippedAt: order.shippedAt,
+    deliveredAt: order.deliveredAt,
+  });
   const trackingUrl = hasTracking
     ? getTrackingUrl(order.trackingCarrier!, order.trackingNumber!)
     : null;
@@ -280,6 +286,11 @@ export default function CustomerOrderDetailPage({
                       }`}
                     >
                       {step.label}
+                      {step.date && (
+                        <span className="ml-2 font-normal text-gray-500">
+                          &middot; {step.date}
+                        </span>
+                      )}
                       {step.current && (
                         <span className="ml-2 text-xs font-semibold uppercase tracking-wide text-[#6E0114]">
                           Current
