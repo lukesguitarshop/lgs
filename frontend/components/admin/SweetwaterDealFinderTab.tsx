@@ -371,6 +371,8 @@ export function SweetwaterDealFinderTab() {
               <option value="best-deal">Best Deal First</option>
               <option value="price-low">Price: Low to High</option>
               <option value="price-high">Price: High to Low</option>
+              <option value="newest">Date Found: Newest</option>
+              <option value="oldest">Date Found: Oldest</option>
             </select>
           </div>
         </div>

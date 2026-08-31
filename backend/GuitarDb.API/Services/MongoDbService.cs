@@ -2046,6 +2046,8 @@ public class MongoDbService
             "best-deal" => Builders<PotentialBuy>.Sort.Descending(x => x.DiscountPercent),
             "price-low" => Builders<PotentialBuy>.Sort.Ascending(x => x.Price),
             "price-high" => Builders<PotentialBuy>.Sort.Descending(x => x.Price),
+            "newest" => Builders<PotentialBuy>.Sort.Descending(x => x.FirstSeenAt),
+            "oldest" => Builders<PotentialBuy>.Sort.Ascending(x => x.FirstSeenAt),
             _ => Builders<PotentialBuy>.Sort.Descending(x => x.FirstSeenAt)
         };
 
@@ -2287,6 +2289,8 @@ public class MongoDbService
             "best-deal" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.DiscountPercent),
             "price-low" => Builders<SweetwaterPotentialBuy>.Sort.Ascending(x => x.Price),
             "price-high" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.Price),
+            "newest" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.FirstSeenAt),
+            "oldest" => Builders<SweetwaterPotentialBuy>.Sort.Ascending(x => x.FirstSeenAt),
             _ => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.FirstSeenAt)
         };
 
