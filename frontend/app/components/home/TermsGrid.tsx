@@ -50,13 +50,22 @@ export default function TermsGrid() {
             </Link>
           </div>
 
-          <div className="grid min-w-0 flex-[999_1_460px] grid-cols-[repeat(auto-fit,minmax(258px,1fr))] gap-px border border-foreground/14 bg-foreground/14">
-            {terms.map(term => (
-              <div key={term.head} className="bg-background px-[19px] pt-[19px] pb-[21px]">
-                <p className="label-mono-sm mb-2 tracking-[0.16em] text-foreground">{term.head}</p>
-                <p className="text-[13.5px] leading-[1.55] text-foreground/68">{term.body}</p>
-              </div>
-            ))}
+          {/* Dividers are drawn as cell borders, not as a 1px grid gap: fractional
+              auto-fit column widths let a gap-painted line fall between device
+              pixels and disappear. The negative margins push the trailing right
+              and bottom borders under the wrapper's own border, which clips them. */}
+          <div className="min-w-0 flex-[999_1_460px] overflow-hidden border border-foreground/14">
+            <div className="-mr-px -mb-px grid grid-cols-[repeat(auto-fit,minmax(258px,1fr))]">
+              {terms.map(term => (
+                <div
+                  key={term.head}
+                  className="border-r border-b border-foreground/14 bg-background px-[19px] pt-[19px] pb-[21px]"
+                >
+                  <p className="label-mono-sm mb-2 tracking-[0.16em] text-foreground">{term.head}</p>
+                  <p className="text-[13.5px] leading-[1.55] text-foreground/68">{term.body}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
