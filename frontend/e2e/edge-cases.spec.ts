@@ -24,7 +24,7 @@ test.describe('Edge Cases', () => {
   test.describe('Navigation', () => {
     test('logo navigates to home', async ({ page }) => {
       await page.goto('/about');
-      await page.locator('a[href="/"]').first().click();
+      await page.locator('a[href="/"]:visible').first().click();
 
       await expect(page).toHaveURL('/');
     });
@@ -78,7 +78,7 @@ test.describe('Edge Cases', () => {
       await page.goto('/');
 
       // Should show listings
-      await expect(page.locator('a[href*="/listing/"]').first()).toBeVisible();
+      await expect(page.locator('a[href*="/listing/"]:visible').first()).toBeVisible();
     });
   });
 

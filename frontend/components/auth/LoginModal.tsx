@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { StateBlock } from '@/components/ui/state-block';
 import { Eye, EyeOff } from 'lucide-react';
 
 export function LoginModal() {
@@ -73,18 +74,18 @@ export function LoginModal() {
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
           {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+            <StateBlock variant="error">
               {error}
               {isEmailNotVerified && (
                 <button
                   type="button"
                   onClick={handleResendVerification}
-                  className="block mt-2 text-[#6E0114] hover:underline font-medium"
+                  className="mt-2 flex min-h-11 items-center font-medium underline underline-offset-2 md:min-h-0"
                 >
                   Resend verification email
                 </button>
               )}
-            </div>
+            </StateBlock>
           )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
@@ -109,12 +110,13 @@ export function LoginModal() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 disabled={isLoading}
-                className="pr-10"
+                className="pr-12 md:pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-foreground/60 hover:text-foreground"
                 tabIndex={-1}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -124,7 +126,7 @@ export function LoginModal() {
               <button
                 type="button"
                 onClick={handleForgotPassword}
-                className="text-sm text-[#6E0114] hover:underline"
+                className="inline-flex min-h-11 items-center text-sm text-primary hover:underline md:min-h-0"
               >
                 Forgot password?
               </button>
@@ -132,7 +134,7 @@ export function LoginModal() {
           </div>
           <Button
             type="submit"
-            className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             disabled={isLoading}
           >
             {isLoading ? 'Signing in...' : 'Sign In'}
@@ -142,7 +144,7 @@ export function LoginModal() {
             <button
               type="button"
               onClick={switchToRegister}
-              className="text-[#6E0114] hover:underline font-medium"
+              className="inline-flex min-h-11 items-center text-primary hover:underline font-medium md:min-h-0"
             >
               Create one
             </button>

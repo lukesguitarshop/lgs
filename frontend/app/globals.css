@@ -21,7 +21,9 @@
     --border: 60 20% 87%;
     --input: 60 20% 87%;
     --ring: 350 98.2% 21.8%;
-    --radius: 0.5rem;
+    /* Square everywhere. This cascades to every rounded-lg/md/sm in the codebase;
+       rounded-full is a literal 9999px, so count badges and avatars stay circular. */
+    --radius: 0;
     --chart-1: 350 98.2% 21.8%;
     --chart-2: 173 58% 39%;
     --chart-3: 212 86.7% 5.9%;
@@ -63,9 +65,27 @@
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+  /* xl and 2xl do not derive from --radius; without these they fall back to
+     Tailwind's built-in 0.75rem / 1rem and survive the change above. */
+  --radius-xl: 0;
+  --radius-2xl: 0;
+
+  /* 52px menu/CTA rows. */
+  --spacing-13: 3.25rem;
 }
 
 @layer base {
+  /* The header owns its own height. The mobile bar is a fixed h-14; above md the
+     desktop composition takes over, so the value tracks the logo clamp plus its
+     py-2.5. Anything that needs to clear the header reads this, never a literal. */
+  :root {
+    --header-h: 56px;
+  }
+  @media (min-width: 768px) {
+    :root {
+      --header-h: calc(clamp(56px, 9vw, 128px) + 20px);
+    }
+  }
   * {
     border-color: hsl(var(--border));
   }
@@ -76,10 +96,19 @@
   }
   /* The header is sticky, so anchored sections must clear it when jumped to. This sits
      on the sections themselves rather than :target — Next scrolls with scrollIntoView,
-     which never triggers a fragment match. The value tracks the header's own height:
-     the logo clamp plus its 10px of padding top and bottom. */
+     which never triggers a fragment match. */
   section[id] {
-    scroll-margin-top: calc(clamp(56px, 9vw, 128px) + 28px);
+    scroll-margin-top: calc(var(--header-h) + 16px);
+  }
+  /* A mounted <StickyBar> is `fixed`, so the page needs matching bottom padding or the
+     last line of content and the footer end up underneath it. The bar is phone-only. */
+  body.has-sticky-bar {
+    padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+  }
+  @media (min-width: 768px) {
+    body.has-sticky-bar {
+      padding-bottom: 0;
+    }
   }
 }
 
@@ -120,7 +149,7 @@
   .label-mono {
     font-family: var(--font-jetbrains), ui-monospace, monospace;
     font-size: 11px;
-    letter-spacing: 0.2em;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
   }
   .label-mono-sm {
@@ -138,15 +167,46 @@
     height: 6px;
     background: hsl(var(--primary));
   }
-  .btn-mono {
-    font-family: var(--font-jetbrains), ui-monospace, monospace;
-    font-size: 12.5px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    transition: background-color 150ms, border-color 150ms, color 150ms;
+  /* Phone-only type roles for the pages that never got the August overhaul. Below md
+     they impose the mobile handoff's Anton h1 / h2 and mono section label; from md up
+     they do nothing, so a page keeps whatever desktop classes it already carries. They
+     sit in `utilities` after Tailwind's own, so on a phone they win over e.g. text-3xl. */
+  @media (max-width: 767.98px) {
+    .mobile-h1 {
+      font-family: var(--font-anton), Impact, sans-serif;
+      font-weight: 400;
+      font-size: 30px;
+      line-height: 0.98;
+      letter-spacing: -0.005em;
+      text-transform: uppercase;
+      color: hsl(var(--foreground));
+    }
+    .mobile-h2 {
+      font-family: var(--font-anton), Impact, sans-serif;
+      font-weight: 400;
+      font-size: 26px;
+      line-height: 1;
+      letter-spacing: -0.005em;
+      text-transform: uppercase;
+      color: hsl(var(--foreground));
+    }
+    .mobile-label {
+      font-family: var(--font-jetbrains), ui-monospace, monospace;
+      font-weight: 500;
+      font-size: 11px;
+      line-height: 1.4;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: hsl(var(--primary));
+    }
+  }
+  /* Deliberate horizontal scrollers (gallery, thumbnails, sold strip, tab strip) hide
+     their scrollbar; scroll-snap does the wayfinding instead. */
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
   /* Diagonal hatch behind listing photos that have no image. */
   .photo-panel {
@@ -157,5 +217,24 @@
         transparent 9px 18px
       ),
       #f2f0e3;
+  }
+}
+
+/* .btn-mono lives in `components`, not `utilities`, and the distinction is load-bearing.
+   It sets `display`, and in `utilities` it sat after Tailwind's own generated utilities —
+   same layer, same single-class specificity — so source order decided and it beat
+   `hidden`. Every element carrying both classes rendered anyway, which is what put the
+   desktop Trade-in button on phones and wrapped the header onto a second row.
+   `components` loses to `utilities` by design, so `hidden` wins from here on. */
+@layer components {
+  .btn-mono {
+    font-family: var(--font-jetbrains), ui-monospace, monospace;
+    font-size: 12.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 150ms, border-color 150ms, color 150ms;
   }
 }

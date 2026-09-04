@@ -4,7 +4,7 @@ test.describe('Messages', () => {
   test.describe('Message Seller Button', () => {
     test('message seller button visible on listing detail', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
@@ -16,7 +16,7 @@ test.describe('Messages', () => {
 
     test('prompts login when not authenticated', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
@@ -52,7 +52,7 @@ test.describe('Messages', () => {
     test('can start conversation from listing', async ({ page, loginAsUser }) => {
       await loginAsUser();
 
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.

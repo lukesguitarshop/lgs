@@ -48,7 +48,7 @@ test.describe('Authentication', () => {
       await page.getByRole('dialog').getByRole('button', { name: /sign in/i }).click();
 
       // Should show error message (red error box)
-      await expect(page.locator('.bg-red-50')).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole('alert')).toBeVisible({ timeout: 10000 });
     });
 
     test('logs in successfully with correct credentials', async ({ page, loginAsUser }) => {

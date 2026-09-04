@@ -5,6 +5,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { StateBlock } from '@/components/ui/state-block';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Loader2, MessageSquare, Send, User, Tag, Paperclip, X, Check, CheckCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -399,7 +400,7 @@ function ConversationPageContent() {
             </p>
             <Button
               onClick={() => setShowLoginModal(true)}
-              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               Sign In
             </Button>
@@ -445,9 +446,7 @@ function ConversationPageContent() {
             {/* Messages Area */}
             <CardContent className="flex-1 overflow-y-auto p-4">
               {error && (
-                <div className="bg-red-50 border border-red-200 rounded-md p-3 mb-4">
-                  <p className="text-sm text-red-700">{error}</p>
-                </div>
+                <StateBlock variant="error" className="mb-4">{error}</StateBlock>
               )}
 
               {messages.length === 0 ? (
@@ -506,8 +505,8 @@ function ConversationPageContent() {
             <div className="border-t p-4">
               {/* Offer Status Banner */}
               {conversation?.offerStatus === 'active' && (
-                <div className="mb-3 p-3 bg-[#6E0114]/10 border border-[#6E0114]/30 rounded-lg">
-                  <div className="text-sm text-[#6E0114]">
+                <div className="mb-3 p-3 bg-primary/10 border border-primary/30 rounded-lg">
+                  <div className="text-sm text-primary">
                     <span className="font-medium">Active offer: </span>
                     {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(conversation.activeOfferAmount || 0)}
                     {isMyTurn && <span className="ml-2 opacity-80">(Your turn to respond)</span>}
@@ -516,12 +515,9 @@ function ConversationPageContent() {
               )}
 
               {conversation?.offerStatus === 'accepted' && (
-                <div className="mb-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-                  <div className="text-sm text-green-800">
-                    <span className="font-medium">Accepted: </span>
-                    {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(conversation.acceptedAmount || 0)}
-                  </div>
-                </div>
+                <StateBlock variant="success" label="Accepted" className="mb-3">
+                  {new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(conversation.acceptedAmount || 0)}
+                </StateBlock>
               )}
 
               {/* Make Offer Button */}
@@ -553,7 +549,7 @@ function ConversationPageContent() {
                       <button
                         type="button"
                         onClick={() => removeImage(index)}
-                        className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] rounded-full p-0.5 hover:bg-red-600"
+                        className="absolute -top-2 -right-2 bg-foreground/70 text-background rounded-full p-0.5 hover:bg-foreground"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -597,7 +593,7 @@ function ConversationPageContent() {
                     <Button
                       type="submit"
                       disabled={(!newMessage.trim() && selectedImages.length === 0) || isSending}
-                      className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
                       {isSending ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
@@ -608,7 +604,7 @@ function ConversationPageContent() {
                   </div>
                 </div>
                 <div className="flex justify-end">
-                  <span className={`text-xs ${newMessage.length >= MAX_MESSAGE_LENGTH ? 'text-red-500' : 'text-muted-foreground'}`}>
+                  <span className={`text-xs ${newMessage.length >= MAX_MESSAGE_LENGTH ? 'text-primary' : 'text-muted-foreground'}`}>
                     {newMessage.length}/{MAX_MESSAGE_LENGTH}
                   </span>
                 </div>
@@ -643,7 +639,7 @@ function ConversationPageContent() {
                 </Link>
 
                 <Link href={`/listing/${conversation.listingId}`}>
-                  <h3 className="font-semibold text-lg mb-3 hover:text-[#6E0114] transition-colors line-clamp-2">
+                  <h3 className="font-semibold text-lg mb-3 hover:text-primary transition-colors line-clamp-2">
                     {conversation.listingTitle}
                   </h3>
                 </Link>
@@ -657,7 +653,7 @@ function ConversationPageContent() {
                   {listingPrice && (
                     <Button
                       variant="outline"
-                      className="w-full border-[#6E0114] text-[#6E0114] hover:bg-[#6E0114]/5"
+                      className="w-full border-primary text-primary hover:bg-primary/5"
                       onClick={() => setShowOfferModal(true)}
                     >
                       <Tag className="h-4 w-4 mr-2" />
@@ -745,7 +741,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
   if (message.type === 'accept') {
     return (
       <div className="flex justify-center my-4">
-        <div className="bg-green-100 text-green-800 px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
+        <div className="label-mono flex items-center gap-2 bg-foreground px-4 py-2.5 text-background">
           <span>Offer accepted: {formatPrice(message.offerAmount || 0)}</span>
         </div>
       </div>
@@ -755,7 +751,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
   if (message.type === 'decline') {
     return (
       <div className="flex justify-center my-4">
-        <div className="bg-red-100 text-red-800 px-4 py-2 rounded-full text-sm font-medium">
+        <div className="label-mono bg-primary px-4 py-2.5 text-primary-foreground">
           Offer declined
         </div>
       </div>
@@ -765,7 +761,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
   if (message.type === 'expire') {
     return (
       <div className="flex justify-center my-4">
-        <div className="bg-gray-100 text-gray-600 px-4 py-2 rounded-full text-sm font-medium">
+        <div className="bg-muted text-foreground/70 px-4 py-2 rounded-full text-sm font-medium">
           Offer expired
         </div>
       </div>
@@ -775,7 +771,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
   if (message.type === 'counter') {
     return (
       <div className="flex justify-center my-4">
-        <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full text-sm font-medium">
+        <div className="label-mono bg-muted-foreground px-4 py-2.5 text-foreground">
           Offer countered
         </div>
       </div>
@@ -787,7 +783,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
     return (
       <div className={`flex ${message.isMine ? 'justify-end' : 'justify-start'}`}>
         <div className={`max-w-[80%] rounded-lg p-4 ${
-          message.isMine ? 'bg-[#6E0114] text-[#FFFFF3]' : 'bg-muted text-foreground border border-gray-300'
+          message.isMine ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground border border-foreground/25'
         }`}>
           <div className="text-xs uppercase tracking-wide opacity-75 mb-1">
             {message.isMine ? 'Your Offer' : 'Their Offer'}
@@ -796,20 +792,20 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
             {formatPrice(message.offerAmount || 0)}
           </div>
           {wasCountered && (
-            <p className={`text-xs mt-1 ${message.isMine ? 'text-red-200' : 'text-foreground/70'}`}>
+            <p className={`text-xs mt-1 ${message.isMine ? 'text-primary-foreground/70' : 'text-foreground/70'}`}>
               Countered
             </p>
           )}
           {isActiveOffer && !wasCountered && pendingActionBy && (
-            <p className={`text-xs mt-1 ${message.isMine ? 'text-red-200' : 'text-foreground/70'}`}>
+            <p className={`text-xs mt-1 ${message.isMine ? 'text-primary-foreground/70' : 'text-foreground/70'}`}>
               {pendingActionBy === 'buyer' ? 'Waiting for buyer to respond' : 'Waiting for seller to respond'}
             </p>
           )}
-          <div className={`flex items-center gap-1 text-xs mt-2 ${message.isMine ? 'text-red-200 justify-end' : 'text-foreground/70'}`}>
+          <div className={`flex items-center gap-1 text-xs mt-2 ${message.isMine ? 'text-primary-foreground/70 justify-end' : 'text-foreground/70'}`}>
             <span>{formatTime(message.createdAt)}</span>
             {message.isMine && (
               message.isRead
-                ? <CheckCheck className="h-3.5 w-3.5 text-blue-300" />
+                ? <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/70" />
                 : <Check className="h-3.5 w-3.5" />
             )}
           </div>
@@ -819,7 +815,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
                 size="sm"
                 onClick={onAccept}
                 disabled={isActioning}
-                className="bg-green-500 hover:bg-green-600 text-[#FFFFF3]"
+                className="bg-foreground hover:bg-foreground/90 text-background"
               >
                 Accept
               </Button>
@@ -827,7 +823,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
                 size="sm"
                 onClick={onCounter}
                 disabled={isActioning}
-                className="bg-[#FFFFF3] hover:bg-gray-100 text-[#020E1C] border border-gray-300"
+                className="bg-background hover:bg-muted text-foreground border border-foreground/25"
               >
                 Counter
               </Button>
@@ -835,7 +831,7 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
                 size="sm"
                 onClick={onDecline}
                 disabled={isActioning}
-                className="bg-red-500 hover:bg-red-600 text-[#FFFFF3]"
+                className="bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 Decline
               </Button>
@@ -852,8 +848,8 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
       <div
         className={`max-w-[80%] rounded-lg px-4 py-2 ${
           message.isMine
-            ? 'bg-[#6E0114] text-[#FFFFF3]'
-            : 'bg-muted text-foreground border border-gray-300'
+            ? 'bg-primary text-primary-foreground'
+            : 'bg-muted text-foreground border border-foreground/25'
         }`}
       >
         {/* Display images if present */}
@@ -880,13 +876,13 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
         )}
         <div
           className={`flex items-center gap-1 text-xs mt-1 ${
-            message.isMine ? 'text-red-200 justify-end' : 'text-foreground/70'
+            message.isMine ? 'text-primary-foreground/70 justify-end' : 'text-foreground/70'
           }`}
         >
           <span>{formatTime(message.createdAt)}</span>
           {message.isMine && (
             message.isRead
-              ? <CheckCheck className="h-3.5 w-3.5 text-blue-300" />
+              ? <CheckCheck className="h-3.5 w-3.5 text-primary-foreground/70" />
               : <Check className="h-3.5 w-3.5" />
           )}
         </div>

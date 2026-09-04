@@ -50,7 +50,7 @@ export default function FinancesPage() {
       <div className="mb-6">
         <Link
           href="/"
-          className="inline-flex items-center text-gray-600 hover:text-[#020E1C] transition-colors"
+          className="inline-flex items-center text-foreground/70 hover:text-[#020E1C] transition-colors"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Home
@@ -58,7 +58,7 @@ export default function FinancesPage() {
       </div>
 
       <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Finances</h1>
-      <p className="text-gray-600 mb-6">Transactions, dashboard, monthly breakdown, expenses, flip calculator</p>
+      <p className="text-foreground/70 mb-6">Transactions, dashboard, monthly breakdown, expenses, flip calculator</p>
 
       <AdminTabsNav />
 

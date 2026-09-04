@@ -12,7 +12,7 @@ test.describe('Shopping Cart', () => {
       await page.goto('/');
 
       // Go to first listing
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
@@ -30,12 +30,12 @@ test.describe('Shopping Cart', () => {
       });
 
       // Or check for price element indicating item in cart
-      await expect(page.getByText(/\$[\d,]+/).first()).toBeVisible();
+      await expect(page.getByText(/\$[\d,]+/).filter({ visible: true }).first()).toBeVisible();
     });
 
     test('button changes state after adding to cart', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
@@ -70,7 +70,7 @@ test.describe('Shopping Cart', () => {
     test('cart shows checkout when items present', async ({ page }) => {
       // Add item first
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
@@ -90,7 +90,7 @@ test.describe('Shopping Cart', () => {
     test('can remove item from cart', async ({ page }) => {
       // Add item
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
@@ -117,7 +117,7 @@ test.describe('Shopping Cart', () => {
       await page.goto('/');
 
       // Click cart link in header
-      await page.locator('a[href="/cart"]').first().click();
+      await page.locator('a[href="/cart"]:visible').first().click();
 
       // Should be on cart page
       await expect(page).toHaveURL('/cart');

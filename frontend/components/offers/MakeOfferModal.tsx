@@ -11,6 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { StateBlock } from '@/components/ui/state-block';
 import api from '@/lib/api';
 
 interface MakeOfferModalProps {
@@ -123,37 +124,25 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess, onOffer
         </DialogHeader>
 
         {isSuccess ? (
-          <div className="py-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-100 flex items-center justify-center">
-              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h3 className="text-lg font-semibold text-foreground mb-2">Offer Submitted!</h3>
-            <p className="text-muted-foreground">
-              Your offer of {formatPrice(parseFloat(offerAmount), listing.currency)} has been sent to the seller.
-            </p>
-          </div>
+          <StateBlock variant="success" label="Offer sent">
+            Your offer of {formatPrice(parseFloat(offerAmount), listing.currency)} has been sent to the seller.
+          </StateBlock>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             {/* Listing info */}
             <div className="p-3 bg-muted rounded-md">
               <p className="font-medium text-foreground text-sm line-clamp-2">{listing.title}</p>
-              <p className="text-muted-foreground text-sm mt-1">
+              <p className="text-foreground/65 text-sm mt-1">
                 Listed at: <span className="font-semibold text-foreground">{formatPrice(listing.price, listing.currency)}</span>
               </p>
             </div>
 
-            {error && (
-              <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
-                {error}
-              </div>
-            )}
+            {error && <StateBlock variant="error">{error}</StateBlock>}
 
             <div className="space-y-2">
               <Label htmlFor="offerAmount">Your Offer</Label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-foreground/60">$</span>
                 <Input
                   id="offerAmount"
                   type="number"
@@ -168,12 +157,12 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess, onOffer
                   disabled={isLoading}
                 />
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-foreground/65 md:text-xs">
                 Enter the amount you&apos;d like to offer for this item.
               </p>
             </div>
 
-            <div className="flex gap-3 pt-2">
+            <div className="grid gap-2 pt-2 sm:flex sm:gap-3">
               <Button
                 type="button"
                 variant="outline"
@@ -185,7 +174,7 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess, onOffer
               </Button>
               <Button
                 type="submit"
-                className="flex-1 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
                 disabled={isLoading || !offerAmount}
               >
                 {isLoading ? 'Submitting...' : 'Submit Offer'}

@@ -4,14 +4,14 @@ test.describe('Favorites', () => {
   test.describe('Favorite Button', () => {
     test('favorite button visible on listing detail', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
       await expect(page).toHaveURL(/\/listing\//);
 
       // Heart/favorite button has title "Add to favorites" (use first() for multiple matches)
-      const heartButton = page.locator('button[title*="favorites"]').first();
+      const heartButton = page.locator('button[title*="favorites"]:visible').first();
       await expect(heartButton).toBeVisible();
     });
 
@@ -19,14 +19,14 @@ test.describe('Favorites', () => {
       try {
         await loginAsUser();
 
-        const firstListing = page.locator('a[href*="/listing/"]').first();
+        const firstListing = page.locator('a[href*="/listing/"]:visible').first();
         await firstListing.click();
         // The grid now has its own listing links and cart buttons; wait for the
         // navigation so the assertions below don't match the homepage.
         await expect(page).toHaveURL(/\/listing\//);
 
         // Find heart button by title
-        const heartButton = page.locator('button[title*="favorites"]').first();
+        const heartButton = page.locator('button[title*="favorites"]:visible').first();
 
         if (await heartButton.isVisible()) {
           await heartButton.click();
@@ -68,14 +68,14 @@ test.describe('Favorites', () => {
   test.describe('Unauthenticated User', () => {
     test('prompts login when trying to favorite', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
       await expect(page).toHaveURL(/\/listing\//);
 
       // Find and click heart button by title
-      const heartButton = page.locator('button[title*="favorites"]').first();
+      const heartButton = page.locator('button[title*="favorites"]:visible').first();
 
       if (await heartButton.isVisible()) {
         await heartButton.click();

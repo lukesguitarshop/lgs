@@ -8,8 +8,77 @@ interface AboutProps {
 
 export default function About({ stats }: AboutProps) {
   return (
-    <section id="about" className="bg-foreground text-background">
-      <div className="mx-auto flex max-w-[1320px] flex-wrap items-start gap-[clamp(30px,4.5vw,64px)] px-5 py-[clamp(48px,6vw,88px)]">
+    <section id="about" className="order-3 md:order-none md:bg-foreground md:text-background">
+      {/* Phone: cream, not the navy band — a full-height navy block at 375px read as a
+          second footer. The photo goes edge to edge and the bio folds into a <details>
+          so the sold strip is one swipe away, not four paragraphs. */}
+      <div className="pt-8 md:hidden">
+        <h2 className="px-5 font-heading text-[26px] leading-none">Who you&apos;re buying from</h2>
+
+        <div className="relative mt-4 aspect-[4/5] w-full border-y border-foreground/12">
+          <Image
+            src="/images/luke.png"
+            alt="Luke, owner of Luke's Guitar Shop"
+            fill
+            sizes="100vw"
+            className="object-cover saturate-[0.85]"
+          />
+        </div>
+        <p className="label-mono-sm mt-2 px-5 text-foreground/60">Luke · owner, packer, photographer</p>
+
+        <div className="px-5 pt-5">
+          <h3 className="text-[18px] font-semibold leading-[1.25]">I sell what I&apos;d keep.</h3>
+          <p className="mt-3 text-base leading-[1.5] text-foreground/78">
+            I&apos;m Luke — born and raised in Columbus, Ohio. Ten years of guitar experience and
+            going on five in the industry. I play all sorts of genres, and my main player is a
+            Kiesel Delos I had custom built, so don&apos;t be surprised to see used Kiesels come
+            through here.
+          </p>
+
+          <details className="group">
+            <summary className="flex h-12 cursor-pointer list-none items-center text-sm text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+              <span className="group-open:hidden">Read the whole story →</span>
+              <span className="hidden group-open:inline">Show less</span>
+            </summary>
+            <div className="grid gap-4 pb-2 text-base leading-[1.5] text-foreground/78">
+              <p>
+                There&apos;s no team. I find the guitars, I photograph them, I answer your questions,
+                I pack the box. {stats.soldCount} rehomed guitars and counting
+                {stats.averageRating !== null &&
+                  `, ${stats.averageRating} stars across every platform I sell on`}
+                . If I wouldn&apos;t play it, I don&apos;t list it.
+              </p>
+              <p>
+                The listing tells you the truth before you spend the money: 14 or 15 photos, the wear
+                described in plain words, the case situation stated. If something&apos;s marked Very
+                Good, the photos show you exactly why it isn&apos;t Excellent.
+              </p>
+              <p>
+                Ask me anything before you buy. I&apos;d rather answer ten questions upfront than sort
+                out a misunderstanding after the sale, and I&apos;ll shoot you a video or a clip of the
+                guitar if that&apos;s what it takes.
+              </p>
+            </div>
+          </details>
+
+          <div className="mt-3 flex flex-col gap-2">
+            <a
+              href="mailto:lukesguitarshop@gmail.com"
+              className="font-btn flex h-12 items-center justify-center border border-foreground text-[13px] text-foreground"
+            >
+              Email me a question
+            </a>
+            <Link
+              href="/sold"
+              className="flex min-h-11 items-center text-sm text-primary underline underline-offset-4"
+            >
+              See what I&apos;ve sold
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      <div className="mx-auto hidden max-w-[1320px] flex-wrap items-start gap-[clamp(30px,4.5vw,64px)] px-5 py-[clamp(48px,6vw,88px)] md:flex">
         <div className="max-w-[400px] flex-[1_1_280px]">
           <Image
             src="/images/luke.png"

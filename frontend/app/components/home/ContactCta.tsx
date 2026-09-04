@@ -25,9 +25,64 @@ const socials = [
 ];
 
 export default function ContactCta() {
+  // The 32px gap above the band sits on the section, not inside it: the section is a
+  // flex item on phones, so a child margin would paint crimson instead of cream.
   return (
-    <section id="trade" className="bg-primary text-primary-foreground">
-      <div className="mx-auto flex max-w-[1320px] flex-wrap items-start gap-[clamp(30px,5vw,72px)] px-5 py-[clamp(52px,7vw,96px)]">
+    <section
+      id="trade"
+      className="order-7 mt-8 bg-primary text-primary-foreground md:order-none md:mt-0"
+    >
+      {/* Phone: one cream CTA to the contact page, the trade-in and mailto kept as rows
+          beneath so nothing the desktop band links to goes missing. */}
+      <div className="px-5 py-8 md:hidden">
+        <h2 className="font-heading text-[26px] leading-none">Tell me what you&apos;re hunting for.</h2>
+        <p className="mt-3 text-base leading-[1.5] text-primary-foreground/85">
+          A specific year, a specific finish, a neck profile you can&apos;t do without — send it
+          and I&apos;ll watch for it. Same if you&apos;ve got something to trade or sell: photos
+          and your number, and I&apos;ll come back with a real answer.
+        </p>
+        <Link
+          href="/contact"
+          className="font-btn mt-5 flex h-13 items-center justify-center bg-background text-[13px] text-primary"
+        >
+          Message Luke
+        </Link>
+        <Link
+          href="/trade-in"
+          className="mt-3 flex min-h-11 items-center justify-center text-sm text-primary-foreground/85 underline underline-offset-4"
+        >
+          Or start a trade-in →
+        </Link>
+
+        <p className="label-mono mt-6 text-primary-foreground/75">See the guitars on video</p>
+        <ul className="m-0 mt-3 list-none border-t border-primary-foreground/28 p-0">
+          {socials.map(social => (
+            <li key={social.label}>
+              <a
+                href={social.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-12 items-center justify-between gap-3 border-b border-primary-foreground/28 text-[15px] text-primary-foreground"
+              >
+                {social.label}
+                <span className="font-mono text-[11px] text-primary-foreground/72">
+                  {social.handle}
+                </span>
+              </a>
+            </li>
+          ))}
+          <li>
+            <a
+              href="mailto:lukesguitarshop@gmail.com"
+              className="flex h-12 items-center border-b border-primary-foreground/28 text-[15px] text-primary-foreground"
+            >
+              lukesguitarshop@gmail.com
+            </a>
+          </li>
+        </ul>
+      </div>
+
+      <div className="mx-auto hidden max-w-[1320px] flex-wrap items-start gap-[clamp(30px,5vw,72px)] px-5 py-[clamp(52px,7vw,96px)] md:flex">
         <div className="min-w-0 flex-[1_1_440px]">
           <h2 className="font-heading text-[clamp(34px,6vw,72px)] leading-[0.93]">
             Tell me what

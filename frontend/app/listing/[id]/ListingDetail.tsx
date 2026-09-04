@@ -1,10 +1,14 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Copy, Heart, Tag, MessageSquare, AlertTriangle, X } from 'lucide-react';
+import { StateBlock } from '@/components/ui/state-block';
+import { StickyBar } from '@/components/ui/sticky-bar';
+import { CollapsibleSection } from '@/components/ui/collapsible-section';
+import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Copy, Heart, Tag, MessageSquare, X } from 'lucide-react';
 import JSZip from 'jszip';
 import DOMPurify from 'dompurify';
 import { addToCart, isInCart, CartItem } from '@/lib/cart';
@@ -12,6 +16,7 @@ import { logAddToCart } from '@/lib/activity';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
+import { cn } from '@/lib/utils';
 import ReviewsCarousel from './ReviewsCarousel';
 import { MakeOfferModal } from '@/components/offers/MakeOfferModal';
 import { trackAddToCart, trackViewItem } from '@/lib/analytics';
@@ -50,13 +55,95 @@ function formatPrice(price: number, currency: string = 'USD'): string {
   }).format(price);
 }
 
+/**
+ * Shared by the phone slides and the desktop main image. Both carry `priority` for the
+ * first photo, and React dedupes preloads by URL — identical `sizes` is what makes the
+ * two resolve to the same candidate, so the browser fetches it once at every width.
+ */
+const GALLERY_SIZES = '(max-width: 1024px) 100vw, 50vw';
+
+/** The description's prose styling, identical on phones and desktop. */
+const DESCRIPTION_PROSE =
+  'text-foreground leading-relaxed [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1 [&_p]:my-2 [&_br]:block [&_a]:text-primary [&_a]:underline [&_strong]:font-semibold [&_b]:font-semibold';
+
+/** The indicator row holds at most this many bars; longer galleries map onto them. */
+const MAX_INDICATOR_BARS = 14;
+
+/** The owner's terms, as they appear on the homepage terms grid. */
+const SHIPPING_TERMS = [
+  {
+    head: 'Payment clears first',
+    body: "Nothing is reserved or sold until payment has fully cleared. Pending or unverified payments don't hold an instrument.",
+  },
+  {
+    head: 'Look before you buy',
+    body: 'Review every photo and the full description. More photos, measurements, or details on request — ask before you buy, not after.',
+  },
+  {
+    head: 'Sold as-is, all sales final',
+    body: "Cancellations aren't accepted once payment clears. A 15% restocking fee applies to any cancelled order, because packing starts immediately.",
+  },
+  {
+    head: 'Returns by approval, 24 hours',
+    body: 'Requested within 24 hours of delivery. 15% restocking fee, original packing and accessories, buyer-paid insured return with signature. Refunded after inspection.',
+  },
+  {
+    head: "It's a used instrument",
+    body: 'Not a professionally set-up guitar. I do a basic setup so it plays out of the box; minor intonation, action, and tuning adjustments are expected and are yours to make.',
+  },
+  {
+    head: 'Store credit is final',
+    body: "Guitars bought with store credit aren't eligible for return under any circumstances.",
+  },
+];
+
+/** A heading, or a short bold / colon-terminated paragraph doing a heading's job. */
+function isHeadingLike(el: Element): boolean {
+  if (/^H[1-6]$/.test(el.tagName)) return true;
+  if (el.tagName !== 'P' && el.tagName !== 'DIV') return false;
+  const text = (el.textContent ?? '').trim();
+  if (text.length === 0 || text.length > 40) return false;
+  if (text.endsWith(':')) return true;
+  // A trailing <br> inside the paragraph is still just a bold heading.
+  const children = Array.from(el.childNodes).filter(
+    (n) =>
+      (n.nodeType === Node.ELEMENT_NODE && (n as Element).tagName !== 'BR') ||
+      (n.nodeType === Node.TEXT_NODE && n.textContent?.trim())
+  );
+  return children.length === 1 && /^(STRONG|B)$/.test((children[0] as Element).tagName);
+}
+
+/**
+ * Drops headings with nothing under them. Reverb descriptions end in dangling
+ * "Return Policy:" and "Payment" headings whose bodies were stripped upstream, so they
+ * render as orphan bold lines; a heading is kept only if text follows it before the
+ * next heading or the end of the description.
+ */
+function stripEmptyHeadings(html: string): string {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const candidates = Array.from(doc.body.querySelectorAll('h1,h2,h3,h4,h5,h6,p,div')).filter(isHeadingLike);
+  // Last to first, so a run of headings with no body collapses in one pass.
+  for (const heading of candidates.reverse()) {
+    let hasBody = false;
+    for (let next = heading.nextElementSibling; next; next = next.nextElementSibling) {
+      if (isHeadingLike(next)) break;
+      if ((next.textContent ?? '').trim()) {
+        hasBody = true;
+        break;
+      }
+    }
+    if (!hasBody) heading.remove();
+  }
+  return doc.body.innerHTML;
+}
+
 interface ListingDetailProps {
   listing: Listing;
 }
 
 export default function ListingDetail({ listing }: ListingDetailProps) {
   const router = useRouter();
-  const { isAuthenticated, setShowLoginModal } = useAuth();
+  const { isAuthenticated, isAdmin, setShowLoginModal } = useAuth();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [inCart, setInCart] = useState(false);
@@ -70,13 +157,22 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   const [isMessageLoading, setIsMessageLoading] = useState(false);
   const [existingOfferConversationId, setExistingOfferConversationId] = useState<string | null>(null);
   const [myReservation, setMyReservation] = useState<MyReservation | null>(null);
-  const images = listing.images && listing.images.length > 0 ? listing.images : [];
+  const images = useMemo(() => (listing.images && listing.images.length > 0 ? listing.images : []), [listing.images]);
   const thumbnailContainerRef = useRef<HTMLDivElement>(null);
+  const phoneThumbRef = useRef<HTMLDivElement>(null);
+  const stripRef = useRef<HTMLDivElement>(null);
+  const stripFrameRef = useRef<number | null>(null);
+  // The slide the phone strip itself last reported, so the sync effect can tell a swipe
+  // apart from an index change that came from somewhere else.
+  const stripIndexRef = useRef(0);
 
   // A reserved guitar blocks everyone except its holder.
   const isReserved = !!listing.is_reserved;
   const reservedForMe = !!myReservation;
   const blockedByHold = isReserved && !reservedForMe;
+  const isOnSale = !!(listing.original_price && listing.price < listing.original_price);
+  const addDisabled = inCart || !!listing.disabled || blockedByHold;
+  const holdMessage = listing.reservation_message || 'This guitar is currently on hold.';
 
   // Check if item is already in cart on mount
   useEffect(() => {
@@ -244,12 +340,12 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
     });
   }, [currentImageIndex, images]);
 
-  // Auto-scroll thumbnail strip to keep active thumbnail visible
+  // Auto-scroll whichever thumbnail strip is on screen to keep the active thumbnail
+  // visible; the other one is display:none and measures zero, so it is skipped.
   useEffect(() => {
-    if (thumbnailContainerRef.current && images.length > 1) {
-      const container = thumbnailContainerRef.current;
-      const thumbnailWidth = 80; // w-20 = 5rem = 80px
-      const gap = 8; // gap-2 = 0.5rem = 8px
+    if (images.length <= 1) return;
+    const centerActiveThumb = (container: HTMLDivElement | null, thumbnailWidth: number, gap: number) => {
+      if (!container || container.clientWidth === 0) return;
       const scrollPosition = currentImageIndex * (thumbnailWidth + gap);
       const containerWidth = container.clientWidth;
 
@@ -260,8 +356,53 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
         left: Math.max(0, targetScroll),
         behavior: 'smooth'
       });
-    }
+    };
+    centerActiveThumb(thumbnailContainerRef.current, 80, 8); // desktop: w-20 + gap-2
+    centerActiveThumb(phoneThumbRef.current, 56, 6); // phone: w-14 + gap-1.5
   }, [currentImageIndex, images.length]);
+
+  const scrollStripTo = useCallback((index: number, behavior: ScrollBehavior = 'smooth') => {
+    const strip = stripRef.current;
+    if (!strip || strip.clientWidth === 0) return;
+    strip.scrollTo({ left: index * strip.clientWidth, behavior });
+  }, []);
+
+  // While the user swipes, the strip is the source of truth: the slide it settles on
+  // drives the counter, the bars, the thumbnails and the fullscreen viewer. Scroll
+  // events arrive faster than they are worth rendering, so read once per frame.
+  const handleStripScroll = () => {
+    const strip = stripRef.current;
+    if (!strip) return;
+    if (stripFrameRef.current !== null) cancelAnimationFrame(stripFrameRef.current);
+    stripFrameRef.current = requestAnimationFrame(() => {
+      stripFrameRef.current = null;
+      const width = strip.clientWidth;
+      if (width === 0) return;
+      const index = Math.max(0, Math.min(images.length - 1, Math.round(strip.scrollLeft / width)));
+      stripIndexRef.current = index;
+      setCurrentImageIndex(index);
+    });
+  };
+
+  // The reverse direction: an index change from the fullscreen viewer's arrows (or the
+  // desktop gallery) moves the strip. A change the strip reported itself is skipped, or a
+  // swipe would bounce back through setState into a second scroll.
+  useEffect(() => {
+    if (stripIndexRef.current === currentImageIndex) return;
+    stripIndexRef.current = currentImageIndex;
+    scrollStripTo(currentImageIndex, 'auto');
+  }, [currentImageIndex, scrollStripTo]);
+
+  useEffect(() => {
+    return () => {
+      if (stripFrameRef.current !== null) cancelAnimationFrame(stripFrameRef.current);
+    };
+  }, []);
+
+  const openFullscreenAt = (index: number) => {
+    setCurrentImageIndex(index);
+    setIsFullscreen(true);
+  };
 
   const goToPrevious = useCallback(() => {
     setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
@@ -407,16 +548,342 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
   useEffect(() => {
     if (listing.description) {
       setSanitizedDescription(
-        DOMPurify.sanitize(listing.description, {
-          ALLOWED_TAGS: ['p', 'br', 'ul', 'ol', 'li', 'strong', 'em', 'b', 'i', 'a', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-          ALLOWED_ATTR: ['href', 'target', 'rel'],
-        })
+        stripEmptyHeadings(
+          DOMPurify.sanitize(listing.description, {
+            ALLOWED_TAGS: ['p', 'br', 'ul', 'ol', 'li', 'strong', 'em', 'b', 'i', 'a', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+            ALLOWED_ATTR: ['href', 'target', 'rel'],
+          })
+        )
       );
     }
   }, [listing.description]);
 
+  const listedOn = listing.listed_at
+    ? new Date(listing.listed_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
+    : 'Reverb';
+
+  const barCount = Math.min(images.length, MAX_INDICATOR_BARS);
+  const activeBar =
+    images.length <= MAX_INDICATOR_BARS || images.length < 2
+      ? currentImageIndex
+      : Math.round((currentImageIndex * (barCount - 1)) / (images.length - 1));
+
+  const favoriteLabel = isFavorite ? 'Remove from favorites' : 'Add to favorites';
+
   return (
     <div className="max-w-7xl mx-auto">
+      {/* ------------------------------------------------------------------ */}
+      {/* Phone composition (below md). Everything here is fed by the same state
+          as the desktop block, which is display:none at these widths.          */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="md:hidden">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="label-mono flex h-12 cursor-pointer items-center gap-2 text-foreground"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Back to listings
+        </button>
+
+        {/* Full-bleed snap gallery. The page sits in the shell's px-5 container, so the
+            strip pulls itself out to the viewport edges. */}
+        <div className="relative -mx-5">
+          <div
+            ref={stripRef}
+            onScroll={handleStripScroll}
+            className="flex snap-x snap-mandatory overflow-x-auto scrollbar-none"
+          >
+            {images.length > 0 ? (
+              images.map((image, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => openFullscreenAt(index)}
+                  aria-label={`Open photo ${index + 1} of ${images.length}`}
+                  className="photo-panel relative aspect-[4/5] w-full shrink-0 cursor-zoom-in snap-start"
+                >
+                  <Image
+                    src={image}
+                    alt={`${listing.listing_title} - Image ${index + 1}`}
+                    fill
+                    sizes={GALLERY_SIZES}
+                    className="object-cover"
+                    priority={index === 0}
+                    loading={index === 0 ? undefined : 'lazy'}
+                    quality={85}
+                  />
+                </button>
+              ))
+            ) : (
+              <div className="photo-panel relative aspect-[4/5] w-full shrink-0">
+                <span className="label-mono absolute inset-0 flex items-center justify-center text-foreground/45">
+                  No photo
+                </span>
+              </div>
+            )}
+          </div>
+          {images.length > 1 && (
+            <div className="label-mono absolute right-3 bottom-3 bg-foreground/85 px-2.5 py-1.5 text-background">
+              {currentImageIndex + 1} / {images.length}
+            </div>
+          )}
+        </div>
+
+        {images.length > 1 && (
+          <>
+            <div className="mt-3 flex items-center justify-between gap-2">
+              <div className="flex flex-1 gap-[5px]" aria-hidden>
+                {Array.from({ length: barCount }, (_, i) => (
+                  <span
+                    key={i}
+                    className={cn('h-1 max-w-[18px] flex-1', i === activeBar ? 'bg-primary' : 'bg-foreground/20')}
+                  />
+                ))}
+              </div>
+              <span className="shrink-0 font-mono text-[11px] uppercase tracking-[0.1em] text-foreground/50">
+                Swipe · tap to open
+              </span>
+            </div>
+
+            <div ref={phoneThumbRef} className="mt-3 flex snap-x snap-mandatory gap-1.5 overflow-x-auto scrollbar-none">
+              {images.map((image, index) => {
+                const active = index === currentImageIndex;
+                return (
+                  <button
+                    key={index}
+                    type="button"
+                    onClick={() => scrollStripTo(index)}
+                    aria-label={`Show photo ${index + 1}`}
+                    aria-current={active ? 'true' : undefined}
+                    className={cn(
+                      'photo-panel relative h-[70px] w-14 shrink-0 cursor-pointer snap-start overflow-hidden',
+                      active ? 'border-2 border-primary' : 'border border-foreground/15'
+                    )}
+                  >
+                    <Image src={image} alt="" fill sizes="56px" className="object-cover" />
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+
+        <div className="mt-6">
+          {listing.disabled && (
+            <StateBlock variant="success" label="Sold" className="mb-4">
+              This guitar has found a new home.
+            </StateBlock>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            {listing.condition && <span className="label-mono text-primary">Used · {listing.condition}</span>}
+            {isOnSale && (
+              <span className="label-mono-sm bg-primary px-2 py-1 text-primary-foreground">On sale</span>
+            )}
+            {isReserved && (
+              <span className="label-mono-sm bg-muted-foreground px-2 py-1 text-foreground">
+                {listing.reservation_badge || 'On hold'}
+              </span>
+            )}
+            {listing.disabled && (
+              <span className="label-mono-sm bg-foreground px-2 py-1 text-background">Sold</span>
+            )}
+          </div>
+
+          <h1 className="mt-3 font-heading text-[30px] leading-[0.98] text-pretty text-foreground">
+            {listing.listing_title}
+          </h1>
+
+          <div className="mt-4 flex items-baseline gap-2.5">
+            <span className="font-heading text-[30px] leading-none text-foreground">
+              {formatPrice(listing.price, listing.currency)}
+            </span>
+            {isOnSale && (
+              <span className="text-[15px] text-muted-foreground line-through">
+                {formatPrice(listing.original_price!, listing.currency)}
+              </span>
+            )}
+          </div>
+          <p className="label-mono mt-2 text-primary">Free insured shipping · Out in one business day</p>
+        </div>
+
+        {/* Reserved for this user — show their terms and the right next step. */}
+        {myReservation && (
+          <div className="mt-4">
+            <ReservationBanner reservation={myReservation} onAddToCart={handleAddToCart} inCart={inCart} />
+          </div>
+        )}
+
+        {!listing.disabled && (
+          <div className="mt-4 grid grid-cols-2 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto min-h-12 px-2 text-center text-[13px] leading-[1.15] whitespace-normal"
+              onClick={handleMakeOffer}
+              disabled={blockedByHold}
+              title={blockedByHold ? 'This guitar is currently on hold and not accepting offers.' : undefined}
+            >
+              {blockedByHold ? 'Not accepting offers' : existingOfferConversationId ? 'View offer(s)' : 'Make an offer'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-auto min-h-12 px-2 text-center text-[13px] leading-[1.15] whitespace-normal"
+              onClick={handleMessageSeller}
+              disabled={isMessageLoading}
+            >
+              {isMessageLoading ? 'Opening...' : 'Message Luke'}
+            </Button>
+          </div>
+        )}
+
+        {/* Explanation for anyone who isn't the holder. */}
+        {blockedByHold && <p className="mt-3 text-sm leading-[1.45] text-foreground/65">{holdMessage}</p>}
+
+        <div className="mt-6">
+          <CollapsibleSection title="Specs" defaultOpen>
+            <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-5 gap-y-2.5 text-[15px] leading-[1.4] text-foreground">
+              {listing.condition && (
+                <>
+                  <dt className="label-mono-sm tracking-[0.12em] text-foreground/55">Condition</dt>
+                  <dd>{listing.condition}</dd>
+                </>
+              )}
+              <dt className="label-mono-sm tracking-[0.12em] text-foreground/55">Listed</dt>
+              <dd>{listedOn}</dd>
+              <dt className="label-mono-sm tracking-[0.12em] text-foreground/55">Photos</dt>
+              <dd>{images.length}</dd>
+              {listing.reverb_link && (
+                <>
+                  <dt className="label-mono-sm tracking-[0.12em] text-foreground/55">Source</dt>
+                  <dd>
+                    <a
+                      href={listing.reverb_link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex min-h-11 items-center text-primary underline underline-offset-2"
+                    >
+                      View on Reverb
+                    </a>
+                  </dd>
+                </>
+              )}
+            </dl>
+          </CollapsibleSection>
+
+          {sanitizedDescription && (
+            <CollapsibleSection title="Description">
+              <div className={DESCRIPTION_PROSE} dangerouslySetInnerHTML={{ __html: sanitizedDescription }} />
+            </CollapsibleSection>
+          )}
+
+          <CollapsibleSection title="Shipping & returns">
+            <div className="space-y-4">
+              {SHIPPING_TERMS.map((term) => (
+                <div key={term.head}>
+                  <p className="text-[15px] leading-[1.5] font-semibold text-foreground">{term.head}</p>
+                  <p className="text-[15px] leading-[1.5] text-foreground/78">{term.body}</p>
+                </div>
+              ))}
+              <Link
+                href="/shop-info?tab=return-policy"
+                className="label-mono-sm inline-flex h-12 items-center text-primary underline-offset-4 hover:underline"
+              >
+                Full terms on Shop Info →
+              </Link>
+            </div>
+          </CollapsibleSection>
+
+          <CollapsibleSection title="Reviews" className="border-b border-foreground/15">
+            <ReviewsCarousel variant="list" />
+          </CollapsibleSection>
+        </div>
+
+        {/* Owner tools. Downloading the photo set and copying the listing text are for
+            relisting, not for buying, so customers never see them. */}
+        {isAdmin && (
+          <div className="mt-6">
+            <p className="label-mono text-foreground/50">Shop tools</p>
+            <div className="mt-2.5 flex flex-wrap gap-2.5">
+              {images.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleDownloadPhotos}
+                  disabled={isDownloading}
+                  className="h-11 cursor-pointer border border-foreground/25 px-3.5 text-sm text-foreground/70 disabled:opacity-50"
+                >
+                  {isDownloading ? 'Downloading...' : `Download photos (${images.length})`}
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={copyTitle}
+                className="h-11 cursor-pointer border border-foreground/25 px-3.5 text-sm text-foreground/70"
+              >
+                {titleCopied ? 'Title copied' : 'Copy title'}
+              </button>
+              {listing.description && (
+                <button
+                  type="button"
+                  onClick={handleCopyDescription}
+                  className="h-11 cursor-pointer border border-foreground/25 px-3.5 text-sm text-foreground/70"
+                >
+                  {descriptionCopied ? 'Description copied' : 'Copy description'}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        <StickyBar className="grid grid-cols-[auto_1fr_auto] gap-2.5">
+          <div>
+            <p className="font-heading text-[22px] leading-none text-foreground">
+              {formatPrice(listing.price, listing.currency)}
+            </p>
+            <p className="label-mono-sm mt-0.5 text-primary">Free shipping</p>
+          </div>
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={addDisabled}
+            title={blockedByHold ? holdMessage : undefined}
+            className={cn(
+              'font-btn flex h-12 items-center justify-center px-3 text-[13px] transition-colors',
+              addDisabled
+                ? 'cursor-not-allowed border border-foreground/30 bg-transparent text-foreground/40'
+                : 'cursor-pointer bg-primary text-primary-foreground hover:bg-primary/90'
+            )}
+          >
+            {listing.disabled
+              ? 'Sold'
+              : blockedByHold
+                ? listing.reservation_badge || 'On hold'
+                : inCart
+                  ? justAdded
+                    ? 'Added to cart'
+                    : 'In cart'
+                  : 'Add to cart'}
+          </button>
+          <button
+            type="button"
+            onClick={handleToggleFavorite}
+            disabled={isFavoriteLoading}
+            aria-pressed={isFavorite}
+            aria-label={favoriteLabel}
+            title={favoriteLabel}
+            className="flex h-12 w-12 cursor-pointer items-center justify-center border-[1.5px] border-foreground text-primary transition-colors hover:bg-primary/8 disabled:opacity-50"
+          >
+            <Heart className={cn('h-5 w-5', isFavorite && 'fill-current')} />
+          </button>
+        </StickyBar>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Desktop composition (md and up) — the two-column page as it was.     */}
+      {/* ------------------------------------------------------------------ */}
+      <div className="hidden md:block">
       {/* Back button */}
       <button
         onClick={() => router.back()}
@@ -429,8 +896,8 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
         {/* Left side - Image carousel */}
         <div className="space-y-4">
-          {/* Download Photos button */}
-          {images.length > 0 && (
+          {/* Download Photos button — an owner tool, so only the admin session sees it */}
+          {isAdmin && images.length > 0 && (
             <Button
               variant="outline"
               className="py-2 text-sm"
@@ -443,14 +910,14 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
           )}
 
           {/* Main image */}
-          <div className="relative aspect-square bg-card rounded-lg overflow-hidden border border-border shadow-sm">
+          <div className="relative aspect-square bg-card rounded-lg overflow-hidden border border-border">
             {images.length > 0 ? (
               <>
                 <Image
                   src={images[currentImageIndex]}
                   alt={`${listing.listing_title} - Image ${currentImageIndex + 1}`}
                   fill
-                  sizes="(max-width: 1024px) 100vw, 50vw"
+                  sizes={GALLERY_SIZES}
                   className="object-contain cursor-zoom-in"
                   priority
                   quality={85}
@@ -461,14 +928,14 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                   <>
                     <button
                       onClick={goToPrevious}
-                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-card/90 hover:bg-card rounded-full p-2 shadow-md transition-all cursor-pointer"
+                      className="absolute left-2 top-1/2 -translate-y-1/2 bg-card/90 hover:bg-card rounded-full p-2 transition-all cursor-pointer"
                       aria-label="Previous image"
                     >
                       <ChevronLeft className="h-6 w-6 text-foreground" />
                     </button>
                     <button
                       onClick={goToNext}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-card/90 hover:bg-card rounded-full p-2 shadow-md transition-all cursor-pointer"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 bg-card/90 hover:bg-card rounded-full p-2 transition-all cursor-pointer"
                       aria-label="Next image"
                     >
                       <ChevronRight className="h-6 w-6 text-foreground" />
@@ -477,7 +944,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 )}
                 {/* Image counter */}
                 {images.length > 1 && (
-                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-[#020E1C]/70 text-[#FFFFF3] text-sm px-3 py-1 rounded-full">
+                  <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-foreground/70 text-primary-foreground text-sm px-3 py-1">
                     {currentImageIndex + 1} / {images.length}
                   </div>
                 )}
@@ -498,7 +965,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                   onClick={() => setCurrentImageIndex(index)}
                   className={`relative flex-shrink-0 w-20 h-20 rounded-md overflow-hidden border-2 transition-all cursor-pointer ${
                     index === currentImageIndex
-                      ? 'border-[#6E0114] ring-2 ring-[#6E0114]/30'
+                      ? 'border-primary ring-2 ring-primary/30'
                       : 'border-border hover:border-muted-foreground'
                   }`}
                 >
@@ -519,10 +986,9 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
         <div className="space-y-6">
           {/* SOLD banner */}
           {listing.disabled && (
-            <div className="bg-[#6E0114] text-[#FFFFF3] rounded-lg p-4 flex items-center gap-3">
-              <span className="text-2xl font-bold">SOLD</span>
-              <span className="text-sm opacity-90">This guitar has found a new home</span>
-            </div>
+            <StateBlock variant="success" label="Sold">
+              This guitar has found a new home.
+            </StateBlock>
           )}
 
           {/* Condition badge */}
@@ -537,34 +1003,36 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             <h1 className="text-2xl lg:text-3xl font-bold text-foreground leading-tight">
               {listing.listing_title}
             </h1>
-            <button
-              onClick={copyTitle}
-              className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors flex-shrink-0 mt-1"
-              title="Copy title"
-            >
-              {titleCopied ? (
-                <Check className="h-5 w-5 text-green-500" />
-              ) : (
-                <Copy className="h-5 w-5" />
-              )}
-            </button>
+            {isAdmin && (
+              <button
+                onClick={copyTitle}
+                className="p-1.5 text-foreground/40 hover:text-foreground/65 transition-colors flex-shrink-0 mt-1"
+                title="Copy title"
+              >
+                {titleCopied ? (
+                  <Check className="h-5 w-5 text-primary" />
+                ) : (
+                  <Copy className="h-5 w-5" />
+                )}
+              </button>
+            )}
           </div>
 
           {/* Price section */}
           <div className="border-t border-b border-border py-6">
-            {listing.original_price && listing.price < listing.original_price ? (
+            {isOnSale ? (
               <>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="bg-[#6E0114] text-[#FFFFF3] text-sm font-bold px-2 py-1 rounded">
+                  <span className="bg-primary text-primary-foreground text-sm font-bold px-2 py-1 rounded">
                     ON SALE
                   </span>
                 </div>
                 <div className="flex items-baseline gap-3">
-                  <span className="text-3xl font-bold text-[#6E0114]">
+                  <span className="text-3xl font-bold text-primary">
                     {formatPrice(listing.price, listing.currency)}
                   </span>
-                  <span className="text-xl text-gray-400 line-through">
-                    {formatPrice(listing.original_price, listing.currency)}
+                  <span className="text-xl text-muted-foreground line-through">
+                    {formatPrice(listing.original_price!, listing.currency)}
                   </span>
                 </div>
               </>
@@ -575,7 +1043,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
                 </span>
               </div>
             )}
-            <p className="text-green-600 font-medium mt-1">+ Free Shipping</p>
+            <p className="label-mono text-primary mt-1">Free shipping</p>
           </div>
 
           {/* Reserved for this user — show their terms and the right next step. */}
@@ -592,16 +1060,16 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             <Button
               className={`flex-1 font-semibold py-6 text-lg transition-all ${
                 listing.disabled
-                  ? 'bg-gray-400 text-[#FFFFF3] cursor-not-allowed'
+                  ? 'bg-muted-foreground text-foreground cursor-not-allowed'
                   : blockedByHold
-                  ? 'bg-gray-400 text-[#FFFFF3] cursor-not-allowed'
+                  ? 'bg-muted-foreground text-foreground cursor-not-allowed'
                   : inCart
-                  ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
-                  : 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]'
+                  ? 'bg-foreground hover:bg-foreground/90 text-background'
+                  : 'bg-primary hover:bg-primary/90 text-primary-foreground'
               }`}
               onClick={handleAddToCart}
               disabled={inCart || listing.disabled || blockedByHold}
-              title={blockedByHold ? listing.reservation_message || 'This guitar is currently on hold.' : undefined}
+              title={blockedByHold ? holdMessage : undefined}
             >
               {listing.disabled ? (
                 'SOLD'
@@ -623,12 +1091,12 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
               variant="outline"
               className={`py-6 px-4 transition-all ${
                 isFavorite
-                  ? 'text-red-500 border-red-200 hover:bg-red-50'
-                  : 'text-muted-foreground hover:text-red-500 hover:border-red-200'
+                  ? 'text-primary border-primary hover:bg-primary/8 hover:text-primary'
+                  : 'text-muted-foreground hover:text-primary hover:border-primary hover:bg-transparent'
               }`}
               onClick={handleToggleFavorite}
               disabled={isFavoriteLoading}
-              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              title={favoriteLabel}
             >
               <Heart className={`h-6 w-6 ${isFavorite ? 'fill-current' : ''}`} />
             </Button>
@@ -637,7 +1105,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
           {/* Hover/tap explanation for anyone who isn't the holder. */}
           {blockedByHold && (
             <p className="text-sm text-muted-foreground">
-              {listing.reservation_message || 'This guitar is currently on hold.'}
+              {holdMessage}
             </p>
           )}
 
@@ -679,18 +1147,20 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             <div className="pt-6 border-t border-border">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Description</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={handleCopyDescription}
-                  className="text-foreground hover:text-primary"
-                >
-                  <Copy className="h-4 w-4 mr-1" />
-                  {descriptionCopied ? 'Copied!' : 'Copy'}
-                </Button>
+                {isAdmin && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCopyDescription}
+                    className="text-foreground hover:text-primary"
+                  >
+                    <Copy className="h-4 w-4 mr-1" />
+                    {descriptionCopied ? 'Copied!' : 'Copy'}
+                  </Button>
+                )}
               </div>
               <div
-                className="text-foreground leading-relaxed [&_ul]:list-disc [&_ul]:ml-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:ml-6 [&_ol]:my-2 [&_li]:my-1 [&_p]:my-2 [&_br]:block [&_a]:text-[#6E0114] [&_a]:underline [&_strong]:font-semibold [&_b]:font-semibold"
+                className={DESCRIPTION_PROSE}
                 dangerouslySetInnerHTML={{ __html: sanitizedDescription }}
               />
             </div>
@@ -698,11 +1168,7 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
           {/* Additional details */}
           <div className="pt-6 border-t border-border text-sm text-foreground flex items-center justify-between">
-            <p>
-              Listed on {listing.listed_at
-                ? new Date(listing.listed_at).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })
-                : 'Reverb'}
-            </p>
+            <p>Listed on {listedOn}</p>
             {listing.reverb_link && (
               <a
                 href={listing.reverb_link}
@@ -719,16 +1185,17 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
 
       {/* Reviews Carousel */}
       <ReviewsCarousel />
+      </div>
 
       {/* Fullscreen image overlay */}
       {isFullscreen && images.length > 0 && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center"
+          className="fixed inset-0 z-50 bg-foreground/90 flex items-center justify-center"
           onClick={() => setIsFullscreen(false)}
         >
           {/* Close button */}
           <button
-            className="absolute top-4 right-4 text-white bg-black/50 hover:bg-black/80 rounded-full p-2 transition-colors cursor-pointer"
+            className="absolute top-4 right-4 flex h-11 w-11 items-center justify-center text-background bg-foreground/50 hover:bg-foreground/80 rounded-full transition-colors cursor-pointer md:h-auto md:w-auto md:p-2"
             onClick={() => setIsFullscreen(false)}
             aria-label="Close fullscreen"
           >
@@ -755,19 +1222,19 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
             <>
               <button
                 onClick={(e) => { e.stopPropagation(); goToPrevious(); }}
-                className="absolute left-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 rounded-full p-3 text-white transition-colors cursor-pointer"
+                className="absolute left-4 top-1/2 -translate-y-1/2 bg-foreground/50 hover:bg-foreground/80 rounded-full p-3 text-background transition-colors cursor-pointer"
                 aria-label="Previous image"
               >
                 <ChevronLeft className="h-7 w-7" />
               </button>
               <button
                 onClick={(e) => { e.stopPropagation(); goToNext(); }}
-                className="absolute right-4 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/80 rounded-full p-3 text-white transition-colors cursor-pointer"
+                className="absolute right-4 top-1/2 -translate-y-1/2 bg-foreground/50 hover:bg-foreground/80 rounded-full p-3 text-background transition-colors cursor-pointer"
                 aria-label="Next image"
               >
                 <ChevronRight className="h-7 w-7" />
               </button>
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-black/50 text-white text-sm px-3 py-1 rounded-full">
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 bg-foreground/50 text-background text-sm px-3 py-1">
                 {currentImageIndex + 1} / {images.length}
               </div>
             </>

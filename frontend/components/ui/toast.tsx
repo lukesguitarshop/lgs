@@ -47,25 +47,29 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+      {/* On phones the stack sits just above where a <StickyBar> would be (64px + safe area),
+          so a toast never lands on top of the page's primary action. */}
+      <div className="fixed inset-x-5 bottom-[calc(4rem+env(safe-area-inset-bottom)+0.75rem)] z-50 flex flex-col gap-2 md:inset-x-auto md:right-4 md:bottom-4">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`flex items-center gap-3 px-4 py-3 rounded-lg shadow-lg min-w-[300px] max-w-[400px] animate-slide-up ${
+            className={`flex items-center gap-3 py-1.5 pl-4 pr-1.5 animate-slide-up md:min-w-[300px] md:max-w-[400px] ${
               toast.type === 'success'
-                ? 'bg-green-600 text-[#FFFFF3]'
+                ? 'bg-foreground text-background'
                 : toast.type === 'error'
-                ? 'bg-red-600 text-[#FFFFF3]'
-                : 'bg-[#6E0114] text-[#FFFFF3]'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted-foreground text-foreground'
             }`}
           >
             {toast.type === 'success' && <CheckCircle className="h-5 w-5 flex-shrink-0" />}
             {toast.type === 'error' && <AlertCircle className="h-5 w-5 flex-shrink-0" />}
             {toast.type === 'info' && <Info className="h-5 w-5 flex-shrink-0" />}
-            <p className="flex-1 text-sm font-medium">{toast.message}</p>
+            <p className="flex-1 text-[15px] font-medium">{toast.message}</p>
             <button
+              type="button"
               onClick={() => removeToast(toast.id)}
-              className="p-1 hover:bg-[#FFFFF3]/20 rounded transition-colors"
+              aria-label="Dismiss"
+              className="flex h-11 w-11 flex-shrink-0 items-center justify-center hover:bg-background/20 transition-colors"
             >
               <X className="h-4 w-4" />
             </button>

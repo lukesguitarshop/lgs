@@ -72,7 +72,7 @@ function VerifyEmailContent() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
-                <Loader2 className="h-16 w-16 text-[#6E0114] mx-auto animate-spin" />
+                <Loader2 className="h-16 w-16 text-primary mx-auto animate-spin" />
                 <h2 className="text-xl font-semibold">Verifying your email...</h2>
                 <p className="text-muted-foreground">
                   Please wait while we verify your email address.
@@ -93,14 +93,14 @@ function VerifyEmailContent() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
-                <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+                <CheckCircle className="mx-auto h-16 w-16 text-foreground" />
                 <h2 className="text-xl font-semibold">Email Verified!</h2>
                 <p className="text-muted-foreground">
                   Your email has been verified successfully. You can now sign in to your account.
                 </p>
                 <Button
                   onClick={() => router.push('/')}
-                  className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   Go to Home and Sign In
                 </Button>
@@ -120,7 +120,7 @@ function VerifyEmailContent() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
-                <XCircle className="h-16 w-16 text-red-500 mx-auto" />
+                <XCircle className="mx-auto h-16 w-16 text-primary" />
                 <h2 className="text-xl font-semibold">Verification Failed</h2>
                 <p className="text-muted-foreground">
                   {verificationError}
@@ -158,7 +158,7 @@ function VerifyEmailContent() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
-                <Mail className="h-16 w-16 text-[#6E0114] mx-auto" />
+                <Mail className="h-16 w-16 text-primary mx-auto" />
                 <h2 className="text-xl font-semibold">Check Your Email</h2>
                 <p className="text-muted-foreground">
                   If an account exists with <strong>{email}</strong>, we&apos;ve sent a verification link. Please check your inbox and spam folder.
@@ -211,7 +211,7 @@ function VerifyEmailContent() {
           <CardContent>
             <form onSubmit={handleResend} className="space-y-4">
               {resendError && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                <div className="bg-primary p-3 text-sm text-primary-foreground">
                   {resendError}
                 </div>
               )}
@@ -231,7 +231,7 @@ function VerifyEmailContent() {
 
               <Button
                 type="submit"
-                className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                 disabled={isResending}
               >
                 {isResending ? (

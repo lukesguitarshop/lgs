@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import { Anton, Archivo, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
@@ -12,8 +12,6 @@ import { LoginModal } from "@/components/auth/LoginModal";
 import { RegisterModal } from "@/components/auth/RegisterModal";
 import { ToastProvider } from "@/components/ui/toast";
 import GoogleAnalytics from "@/components/GoogleAnalytics";
-
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
 
 const anton = Anton({
   variable: "--font-anton",
@@ -34,6 +32,14 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://lukesguitarshop.com";
+
+// viewport-fit=cover is what makes env(safe-area-inset-bottom) non-zero on notched
+// phones; without it the sticky action bars sit under the home indicator.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: {

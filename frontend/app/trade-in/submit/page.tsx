@@ -6,12 +6,13 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, LogIn, Upload, X, ArrowLeft, MapPin, AlertCircle } from 'lucide-react';
+import { Loader2, LogIn, Upload, X, Plus, ArrowLeft, MapPin, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { submitTradeIn } from '@/lib/api';
 import type { TradeInCondition } from '@/lib/types/trade-in';
 import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
+import { StickyBar } from '@/components/ui/sticky-bar';
 
 const CONDITIONS: TradeInCondition[] = ['Mint', 'Excellent', 'Very Good', 'Good', 'Fair'];
 
@@ -30,13 +31,28 @@ export default function TradeInSubmitPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="max-w-2xl mx-auto text-center py-16 px-4">
-        <LogIn className="w-24 h-24 mx-auto text-gray-300 mb-6" />
-        <h1 className="text-2xl font-bold text-[#020E1C] mb-4">Sign In Required</h1>
-        <p className="text-gray-600 mb-8">Please sign in or create an account to submit a trade-in.</p>
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
-          <Button onClick={() => setShowLoginModal(true)} className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-8 py-4">Sign In</Button>
-          <Button onClick={() => setShowRegisterModal(true)} variant="outline" className="font-semibold px-8 py-4">Create Account</Button>
+      <div className="mx-auto max-w-2xl px-5 py-12 sm:px-4">
+        <LogIn className="mb-5 h-12 w-12 text-primary" />
+        <h1 className="font-heading text-3xl leading-[0.98]">Sign in first</h1>
+        <p className="mt-3 text-base leading-[1.5] text-foreground/78">
+          Trade-ins are tied to your account so you can track the quote and get a
+          prepaid label. It takes a minute to make one.
+        </p>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <button
+            type="button"
+            onClick={() => setShowLoginModal(true)}
+            className="font-btn flex h-12 items-center justify-center bg-primary px-8 text-[13px] text-primary-foreground transition-colors hover:bg-primary/90"
+          >
+            Sign in
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowRegisterModal(true)}
+            className="font-btn flex h-12 items-center justify-center border border-foreground px-8 text-[13px] text-foreground transition-colors hover:bg-foreground hover:text-background"
+          >
+            Create account
+          </button>
         </div>
       </div>
     );
@@ -83,89 +99,159 @@ export default function TradeInSubmitPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <Link href="/trade-in" className="inline-flex items-center text-gray-600 hover:text-[#020E1C] mb-6">
-        <ArrowLeft className="h-4 w-4 mr-2" />Back
+    <div className="mx-auto max-w-2xl px-5 py-8 sm:px-4">
+      <Link
+        href="/trade-in"
+        className="label-mono inline-flex min-h-11 items-center text-foreground/60 transition-colors hover:text-primary"
+      >
+        <ArrowLeft className="mr-2 h-4 w-4" />Back
       </Link>
-      <h1 className="text-3xl font-bold text-[#020E1C] mb-6">Tell us about your guitar</h1>
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div>
-          <Label htmlFor="brand">Brand</Label>
-          <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Gibson, Fender, Martin..." maxLength={100} required />
-        </div>
-        <div>
-          <Label htmlFor="model">Model</Label>
-          <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Les Paul Standard, Stratocaster..." maxLength={100} required />
-        </div>
-        <div>
-          <Label htmlFor="condition">Condition</Label>
-          <select id="condition" value={condition} onChange={(e) => setCondition(e.target.value as TradeInCondition)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 bg-[#FFFFF3] focus:outline-none focus:ring-2 focus:ring-[#6E0114]">
-            {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="notes">Notes (optional)</Label>
-            <span className="text-xs text-gray-500">{notes.length}/1000</span>
-          </div>
-          <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)}
-            placeholder="Any modifications, issues, or details we should know about?" rows={4} maxLength={1000}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-[#6E0114]" />
-        </div>
-        <div>
-          <Label>Photos (up to 8, 5MB each)</Label>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
-            {photos.map((p, i) => (
-              <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={URL.createObjectURL(p)} alt={`photo ${i + 1}`} className="w-full h-full object-cover" />
-                <button type="button" onClick={() => removePhoto(i)} className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1"><X className="h-3 w-3" /></button>
+      <h1 className="font-heading mt-2 text-[clamp(30px,8vw,34px)] leading-[0.95]">
+        Tell me about your guitar
+      </h1>
+
+      <form onSubmit={handleSubmit} className="mt-8 space-y-8">
+        <section>
+          <h2 className="label-mono mb-3 text-primary">The guitar</h2>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="brand" className="mb-2 block text-sm font-semibold">Brand</Label>
+              <Input id="brand" value={brand} onChange={(e) => setBrand(e.target.value)} placeholder="Gibson, Fender, Martin..." maxLength={100} required
+                className="h-12 border-foreground/35 text-base md:h-9 md:text-sm" />
+            </div>
+            <div>
+              <Label htmlFor="model" className="mb-2 block text-sm font-semibold">Model</Label>
+              <Input id="model" value={model} onChange={(e) => setModel(e.target.value)} placeholder="Les Paul Standard, Stratocaster..." maxLength={100} required
+                className="h-12 border-foreground/35 text-base md:h-9 md:text-sm" />
+            </div>
+            <div>
+              <Label htmlFor="condition" className="mb-2 block text-sm font-semibold">Condition</Label>
+              <select id="condition" value={condition} onChange={(e) => setCondition(e.target.value as TradeInCondition)}
+                className="h-12 w-full border border-foreground/35 bg-background px-3 text-base focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary md:h-9 md:text-sm">
+                {CONDITIONS.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <Label htmlFor="notes" className="text-sm font-semibold">Notes (optional)</Label>
+                <span className="label-mono-sm text-muted-foreground">{notes.length}/1000</span>
               </div>
-            ))}
-            {photos.length < 8 && (
-              <button type="button" onClick={() => fileInputRef.current?.click()}
-                className="aspect-square border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-1 text-gray-500 hover:border-[#6E0114] hover:text-[#6E0114]">
-                <Upload className="h-6 w-6" /><span className="text-xs">Add photo</span>
-              </button>
-            )}
+              <textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)}
+                placeholder="Any modifications, issues, or details I should know about?" rows={4} maxLength={1000}
+                className="w-full border border-foreground/35 bg-background px-3.5 py-3 text-base leading-[1.5] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary md:text-sm" />
+            </div>
           </div>
-          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={(e) => handleFiles(e.target.files)} className="hidden" />
-        </div>
-        {/* Return address */}
-        <div className="border border-gray-200 rounded-lg p-4">
-          <div className="flex items-center justify-between mb-2">
-            <Label className="flex items-center gap-2 text-base">
-              <MapPin className="h-4 w-4" />
-              Return address (for shipping label)
-            </Label>
+        </section>
+        <section>
+          <h2 className="label-mono mb-3 text-primary">Photos — the more the better</h2>
+
+          {photos.length === 0 ? (
             <button
               type="button"
-              onClick={() => setAddressModalOpen(true)}
-              className="text-sm text-[#6E0114] hover:underline font-medium"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex w-full flex-col items-center justify-center border-[1.5px] border-dashed border-foreground/35 px-5 py-8 text-center transition-colors hover:border-primary"
             >
-              {user?.shippingAddress ? 'Edit' : 'Add address'}
+              <Upload className="h-6 w-6 text-primary" />
+              <span className="mt-3 text-base font-semibold text-foreground">
+                Add photos of the guitar
+              </span>
+              <span className="mt-1 text-sm leading-[1.45] text-foreground/65">
+                Up to 8, 5MB each. Front, back, headstock, and anything that isn&apos;t perfect.
+              </span>
+              <span className="font-btn mt-4 flex h-12 items-center justify-center border border-foreground px-5 text-[13px] text-foreground">
+                Choose from library
+              </span>
             </button>
-          </div>
-          {user?.shippingAddress ? (
-            <div className="text-sm text-gray-700 space-y-0.5">
-              <p className="font-medium">{user.shippingAddress.fullName}</p>
-              <p>{user.shippingAddress.line1}</p>
-              {user.shippingAddress.line2 && <p>{user.shippingAddress.line2}</p>}
-              <p>{user.shippingAddress.city}, {user.shippingAddress.state} {user.shippingAddress.postalCode}</p>
-              <p>{user.shippingAddress.country}</p>
-            </div>
           ) : (
-            <div className="flex items-start gap-2 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md p-3">
-              <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <span>An address is required so we can generate your prepaid shipping label. <button type="button" onClick={() => setAddressModalOpen(true)} className="underline font-medium">Add one now.</button></span>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+              {photos.map((p, i) => (
+                <div key={i} className="relative aspect-[4/5] overflow-hidden bg-muted">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={URL.createObjectURL(p)} alt={`photo ${i + 1}`} className="h-full w-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removePhoto(i)}
+                    aria-label={`Remove photo ${i + 1}`}
+                    className="absolute top-0 right-0 flex h-11 w-11 items-center justify-center bg-foreground/70 text-background"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              ))}
+              {photos.length < 8 && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  aria-label="Add photo"
+                  className="flex aspect-[4/5] flex-col items-center justify-center gap-1.5 border-[1.5px] border-dashed border-foreground/35 text-foreground/60 transition-colors hover:border-primary hover:text-primary"
+                >
+                  <Plus className="h-6 w-6" />
+                  <span className="label-mono-sm">Add</span>
+                </button>
+              )}
             </div>
           )}
-        </div>
+          <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={(e) => handleFiles(e.target.files)} className="hidden" />
+        </section>
+        <section>
+          <h2 className="label-mono mb-3 text-primary">Where to reach you</h2>
+          <div className="border border-foreground/15 p-4">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <Label className="flex items-center gap-2 text-sm font-semibold">
+                <MapPin className="h-4 w-4" />
+                Return address
+              </Label>
+              <button
+                type="button"
+                onClick={() => setAddressModalOpen(true)}
+                className="label-mono-sm flex min-h-11 items-center text-primary"
+              >
+                {user?.shippingAddress ? 'Edit' : 'Add address'}
+              </button>
+            </div>
+            {user?.shippingAddress ? (
+              <div className="space-y-0.5 text-sm text-foreground/78">
+                <p className="font-medium text-foreground">{user.shippingAddress.fullName}</p>
+                <p>{user.shippingAddress.line1}</p>
+                {user.shippingAddress.line2 && <p>{user.shippingAddress.line2}</p>}
+                <p>{user.shippingAddress.city}, {user.shippingAddress.state} {user.shippingAddress.postalCode}</p>
+                <p>{user.shippingAddress.country}</p>
+              </div>
+            ) : (
+              <div className="bg-muted-foreground p-4 text-foreground">
+                <p className="label-mono flex items-center gap-2 text-foreground/60">
+                  <AlertCircle className="h-3.5 w-3.5" />
+                  Heads up
+                </p>
+                <p className="mt-1.5 text-[15px] leading-[1.5]">
+                  I need an address to generate your prepaid shipping label.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setAddressModalOpen(true)}
+                    className="font-semibold underline"
+                  >
+                    Add one now.
+                  </button>
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
 
-        <Button type="submit" disabled={submitting} className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold py-6 text-lg disabled:opacity-50">
-          {submitting ? <><Loader2 className="h-5 w-5 mr-2 animate-spin" />Submitting...</> : 'Submit for review'}
+        {/* Desktop keeps the in-page button; phones get it in the sticky bar. */}
+        <Button type="submit" disabled={submitting} className="hidden w-full bg-primary py-6 text-lg font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:flex">
+          {submitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Submitting...</> : 'Submit for review'}
         </Button>
+
+        <StickyBar>
+          <button
+            type="submit"
+            disabled={submitting}
+            className="font-btn flex h-13 w-full items-center justify-center gap-2 bg-primary text-[13px] text-primary-foreground disabled:opacity-50"
+          >
+            {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Submitting…</> : 'Get my quote'}
+          </button>
+        </StickyBar>
       </form>
 
       <ShippingAddressModal

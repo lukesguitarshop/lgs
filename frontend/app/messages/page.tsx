@@ -6,11 +6,12 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { StateBlock } from '@/components/ui/state-block';
 import { ArrowLeft, Loader2, MessageSquare, Circle, Tag } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
+import { cn } from '@/lib/utils';
 
 interface Conversation {
   id: string;
@@ -52,6 +53,12 @@ function formatTimeAgo(dateString: string | null): string {
     day: 'numeric',
   });
 }
+
+// MainShell already supplies the 20px phone gutter; the page only pads from md up.
+const pageClass = 'container mx-auto md:px-4 md:py-8';
+// A 48px mono row on phones (.mobile-label is inert from md), today's inline link on desktop.
+const backLinkClass =
+  'mobile-label inline-flex min-h-12 items-center text-foreground hover:text-primary mb-6 transition-colors cursor-pointer md:min-h-0';
 
 function MessagesPageContent() {
   const { isAuthenticated, isLoading: authLoading, setShowLoginModal } = useAuth();
@@ -101,7 +108,7 @@ function MessagesPageContent() {
 
   if (authLoading || isLoading) {
     return (
-      <div className="container mx-auto px-4 py-8">
+      <div className={pageClass}>
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -111,16 +118,25 @@ function MessagesPageContent() {
 
   if (!isAuthenticated) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <Link
-          href="/"
-          className="inline-flex items-center text-foreground hover:text-primary mb-6 transition-colors cursor-pointer"
-        >
+      <div className={pageClass}>
+        <Link href="/" className={backLinkClass}>
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to listings
         </Link>
 
-        <Card className="p-12 text-center">
+        {/* Phone: the page keeps its h1 and the sign-in prompt is a warning block. */}
+        <div className="md:hidden">
+          <h1 className="mobile-h1">Messages</h1>
+          <StateBlock variant="warning" className="mt-5">
+            <p className="font-semibold">Sign in to view your messages</p>
+            <p className="mt-1">Create an account or sign in to message sellers about guitars.</p>
+          </StateBlock>
+          <Button onClick={() => setShowLoginModal(true)} className="mt-4 w-full">
+            Sign In
+          </Button>
+        </div>
+
+        <Card className="hidden md:block p-12 text-center">
           <div className="flex flex-col items-center gap-4">
             <MessageSquare className="h-16 w-16 text-muted-foreground" />
             <h2 className="text-2xl font-semibold">Sign in to view your messages</h2>
@@ -129,7 +145,7 @@ function MessagesPageContent() {
             </p>
             <Button
               onClick={() => setShowLoginModal(true)}
-              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               Sign In
             </Button>
@@ -142,35 +158,33 @@ function MessagesPageContent() {
   const totalUnread = conversations.reduce((sum, conv) => sum + conv.unreadCount, 0);
 
   return (
-    <div className="container mx-auto px-4 py-8">
-      <Link
-        href="/"
-        className="inline-flex items-center text-foreground hover:text-primary mb-6 transition-colors cursor-pointer"
-      >
+    <div className={pageClass}>
+      <Link href="/" className={backLinkClass}>
         <ArrowLeft className="h-4 w-4 mr-2" />
         Back to listings
       </Link>
 
       <div className="mb-6">
         <div className="flex items-center gap-3">
-          <h1 className="text-3xl font-bold">Messages</h1>
+          <h1 className="mobile-h1 text-3xl font-bold">Messages</h1>
           {totalUnread > 0 && (
-            <Badge className="bg-[#6E0114] text-[#FFFFF3]">
+            <span className="label-mono-sm bg-primary text-primary-foreground px-2 py-1">
               {totalUnread} unread
-            </Badge>
+            </span>
           )}
         </div>
         <p className="text-muted-foreground mt-2">
           Your conversations with sellers
         </p>
 
-        {/* Filter tabs */}
-        <div className="flex gap-2 mt-4">
+        {/* Filter tabs: a 2-up row of 48px toggles on phones, today's inline pair from md. */}
+        <div className="grid grid-cols-2 gap-2 mt-4 md:flex">
           <Button
             variant={filter === 'all' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setFilter('all')}
-            className={filter === 'all' ? 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]' : ''}
+            aria-pressed={filter === 'all'}
+            className="h-12 md:h-8"
           >
             <MessageSquare className="h-4 w-4 mr-1" />
             All Messages
@@ -179,7 +193,8 @@ function MessagesPageContent() {
             variant={filter === 'offers' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setFilter('offers')}
-            className={filter === 'offers' ? 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]' : ''}
+            aria-pressed={filter === 'offers'}
+            className="h-12 md:h-8"
           >
             <Tag className="h-4 w-4 mr-1" />
             With Offers
@@ -188,38 +203,61 @@ function MessagesPageContent() {
       </div>
 
       {filteredConversations.length === 0 ? (
-        <Card className="p-12 text-center">
-          <div className="flex flex-col items-center gap-4">
+        <>
+          {/* Phone: a bordered block that simply ends the list, in place of the centred card. */}
+          <div className="md:hidden border border-foreground/20 p-5">
+            <p className="text-[17px] font-semibold leading-[1.3] text-foreground">
+              {filter === 'offers' ? 'No offers' : 'No messages yet'}
+            </p>
+            <p className="mt-2 text-base leading-[1.5] text-foreground/78">
+              {filter === 'offers'
+                ? 'Offers will appear here.'
+                : 'When you message a seller about a guitar, your conversations will appear here.'}
+            </p>
             {filter === 'offers' ? (
-              <>
-                <Tag className="h-16 w-16 text-muted-foreground" />
-                <h2 className="text-2xl font-semibold">No offers</h2>
-                <p className="text-muted-foreground">
-                  Offers will appear here.
-                </p>
-                <Button
-                  onClick={() => setFilter('all')}
-                  className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
-                >
-                  View All Messages
-                </Button>
-              </>
+              <Button variant="outline" onClick={() => setFilter('all')} className="mt-4 w-full">
+                View All Messages
+              </Button>
             ) : (
-              <>
-                <MessageSquare className="h-16 w-16 text-muted-foreground" />
-                <h2 className="text-2xl font-semibold">No messages yet</h2>
-                <p className="text-muted-foreground">
-                  When you message a seller about a guitar, your conversations will appear here.
-                </p>
-                <Link href="/">
-                  <Button className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
-                    Browse Listings
-                  </Button>
-                </Link>
-              </>
+              <Button asChild variant="outline" className="mt-4 w-full">
+                <Link href="/">Browse Listings</Link>
+              </Button>
             )}
           </div>
-        </Card>
+
+          <Card className="hidden md:block p-12 text-center">
+            <div className="flex flex-col items-center gap-4">
+              {filter === 'offers' ? (
+                <>
+                  <Tag className="h-16 w-16 text-muted-foreground" />
+                  <h2 className="text-2xl font-semibold">No offers</h2>
+                  <p className="text-muted-foreground">
+                    Offers will appear here.
+                  </p>
+                  <Button
+                    onClick={() => setFilter('all')}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
+                    View All Messages
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <MessageSquare className="h-16 w-16 text-muted-foreground" />
+                  <h2 className="text-2xl font-semibold">No messages yet</h2>
+                  <p className="text-muted-foreground">
+                    When you message a seller about a guitar, your conversations will appear here.
+                  </p>
+                  <Link href="/">
+                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                      Browse Listings
+                    </Button>
+                  </Link>
+                </>
+              )}
+            </div>
+          </Card>
+        </>
       ) : (
         <div className="space-y-2">
           {filteredConversations.map(conversation => (
@@ -234,7 +272,7 @@ function MessagesPageContent() {
 export default function MessagesPage() {
   return (
     <Suspense fallback={
-      <div className="container mx-auto px-4 py-8">
+      <div className={pageClass}>
         <div className="flex items-center justify-center min-h-[400px]">
           <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
@@ -250,23 +288,28 @@ interface ConversationCardProps {
 }
 
 function ConversationCard({ conversation }: ConversationCardProps) {
+  const unread = conversation.unreadCount > 0;
+
   return (
     <Link href={`/messages/${conversation.id}`}>
-      <Card className={`p-4 hover:shadow-md transition-shadow cursor-pointer ${conversation.unreadCount > 0 ? 'bg-red-50 border-red-200' : ''}`}>
+      <Card
+        className={cn(
+          'p-4 transition-colors cursor-pointer hover:border-primary',
+          unread && 'border-[1.5px] border-primary'
+        )}
+      >
         <div className="flex items-center gap-4">
-          {/* Listing Image or Avatar */}
-          <div className="relative w-16 h-16 rounded-lg overflow-hidden bg-muted flex-shrink-0">
-            {conversation.listingImage ? (
+          {/* Listing photo: 4:5 on phones, the 64px square it always was from md. A
+              conversation with no listing photo shows the hatch. */}
+          <div className="photo-panel relative w-16 aspect-[4/5] overflow-hidden flex-shrink-0 md:aspect-auto md:h-16">
+            {conversation.listingImage && (
               <Image
                 src={conversation.listingImage}
                 alt={conversation.listingTitle || 'Listing'}
                 fill
+                sizes="64px"
                 className="object-cover"
               />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-2xl">
-                🎸
-              </div>
             )}
           </div>
 
@@ -274,14 +317,14 @@ function ConversationCard({ conversation }: ConversationCardProps) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between gap-2 mb-1">
               <div className="flex items-center gap-2 min-w-0">
-                {conversation.unreadCount > 0 && (
-                  <Circle className="h-2 w-2 fill-[#6E0114] text-[#6E0114] flex-shrink-0" />
+                {unread && (
+                  <Circle className="hidden md:block h-2 w-2 fill-primary text-primary flex-shrink-0" />
                 )}
-                <span className={`font-semibold truncate ${conversation.unreadCount > 0 ? 'text-foreground' : 'text-foreground'}`}>
+                <span className="font-semibold truncate text-foreground">
                   {conversation.otherUserName}
                 </span>
               </div>
-              <span className="text-xs text-foreground/70 flex-shrink-0">
+              <span className="text-[13px] text-foreground/70 flex-shrink-0 md:text-xs">
                 {formatTimeAgo(conversation.lastMessageAt)}
               </span>
             </div>
@@ -293,27 +336,31 @@ function ConversationCard({ conversation }: ConversationCardProps) {
                 </p>
               )}
               {conversation.offerStatus === 'active' && (
-                <Badge className="bg-blue-100 text-blue-800 text-xs flex-shrink-0">
+                <span className="label-mono-sm bg-muted-foreground text-foreground px-2 py-1 flex-shrink-0">
                   ${conversation.activeOfferAmount?.toLocaleString()} offer
-                </Badge>
+                </span>
               )}
               {conversation.offerStatus === 'accepted' && (
-                <Badge className="bg-green-100 text-green-800 text-xs flex-shrink-0">
+                <span className="label-mono-sm bg-foreground text-background px-2 py-1 flex-shrink-0">
                   Accepted
-                </Badge>
+                </span>
               )}
             </div>
 
-            <p className={`text-sm truncate ${conversation.unreadCount > 0 ? 'font-medium text-foreground' : 'text-foreground/70'}`}>
+            <p className={`text-sm truncate ${unread ? 'font-medium text-foreground' : 'text-foreground/70'}`}>
               {conversation.lastMessage || 'No messages yet'}
             </p>
+
+            {unread && (
+              <p className="label-mono-sm mt-1.5 text-primary md:hidden">Unread</p>
+            )}
           </div>
 
-          {/* Unread Badge */}
-          {conversation.unreadCount > 0 && (
-            <Badge className="bg-[#6E0114] text-[#FFFFF3] flex-shrink-0">
+          {/* Unread count */}
+          {unread && (
+            <span className="label-mono-sm bg-primary text-primary-foreground px-2 py-1 flex-shrink-0">
               {conversation.unreadCount}
-            </Badge>
+            </span>
           )}
         </div>
       </Card>

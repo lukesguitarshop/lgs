@@ -138,8 +138,12 @@ export default async function HomePage({
   );
 }
 
+// `absolute` opts out of the layout's "%s | Luke's Guitar Shop" template, which would
+// otherwise append the brand to a title that already leads with it.
 export const metadata = {
-  title: "Luke's Guitar Shop — Used and vintage guitars, 15 photos of the actual instrument",
+  title: {
+    absolute: "Luke's Guitar Shop — Used and vintage guitars, 15 photos of the actual instrument",
+  },
   description:
     "A one-person shop in Ohio. Every listing has 14–15 photos of the guitar you're actually buying, every flaw disclosed, free insured shipping, case included on most. Payment plans and trade-ins.",
 };

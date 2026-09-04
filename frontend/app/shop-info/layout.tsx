@@ -1,7 +1,7 @@
 import { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: "Shop Info | Luke's Guitar Shop",
+  title: "Shop info",
   description: "Learn more about Luke's Guitar Shop - quality pre-owned guitars since 2022. View our return policy and shop info.",
 };
 

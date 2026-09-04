@@ -13,7 +13,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   fetchNotifications,
@@ -46,15 +45,12 @@ export default function Notifications() {
     }
   }, [isAuthenticated]);
 
-  // Initial load and polling
+  // Initial load and polling. loadNotifications zeroes the list itself when signed out;
+  // there is no external system to read an empty inbox from.
   useEffect(() => {
-    if (!isAuthenticated) {
-      setNotifications([]);
-      setCounts({ offers: 0, messages: 0, total: 0 });
-      return;
-    }
-
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadNotifications();
+    if (!isAuthenticated) return;
 
     // Poll every 30 seconds
     const interval = setInterval(loadNotifications, 30000);
@@ -78,12 +74,12 @@ export default function Notifications() {
     <DropdownMenu open={isOpen} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <button
-          className="relative px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors flex items-center"
+          className="relative px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center"
           aria-label="Notifications"
         >
           <Bell className="h-5 w-5" />
           {counts.total > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+            <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground ring-2 ring-background text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
               {counts.total > 99 ? '99+' : counts.total}
             </span>
           )}
@@ -101,16 +97,16 @@ export default function Notifications() {
           <>
             <div className="px-2 py-2 flex gap-2 flex-wrap">
               {counts.offers > 0 && (
-                <Badge variant="outline" className="bg-red-50 text-red-800 border-red-200">
-                  <Tag className="h-3 w-3 mr-1" />
+                <span className="label-mono-sm inline-flex items-center gap-1 border border-primary/30 bg-primary/8 px-2 py-1 text-primary">
+                  <Tag className="h-3 w-3" />
                   {counts.offers} offer{counts.offers !== 1 ? 's' : ''}
-                </Badge>
+                </span>
               )}
               {counts.messages > 0 && (
-                <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-                  <MessageSquare className="h-3 w-3 mr-1" />
+                <span className="label-mono-sm inline-flex items-center gap-1 border border-foreground/20 bg-foreground/4 px-2 py-1 text-foreground/70">
+                  <MessageSquare className="h-3 w-3" />
                   {counts.messages} message{counts.messages !== 1 ? 's' : ''}
-                </Badge>
+                </span>
               )}
             </div>
             <DropdownMenuSeparator />
@@ -168,12 +164,12 @@ function OfferNotificationItem({ notification }: { notification: Notification & 
   const getStatusIcon = () => {
     switch (notification.status) {
       case 'countered':
-        return <MessageSquare className="h-4 w-4 text-blue-600" />;
+        return <MessageSquare className="h-4 w-4 text-primary" />;
       case 'accepted':
-        return <CheckCircle className="h-4 w-4 text-green-600" />;
+        return <CheckCircle className="h-4 w-4 text-foreground" />;
       case 'pending':
       default:
-        return <Clock className="h-4 w-4 text-yellow-600" />;
+        return <Clock className="h-4 w-4 text-foreground/60" />;
     }
   };
 
@@ -191,21 +187,17 @@ function OfferNotificationItem({ notification }: { notification: Notification & 
 
   return (
     <Link href={`/messages/${notification.offerId}`}>
-      <DropdownMenuItem className={`p-3 cursor-pointer ${notification.isNew ? 'bg-red-50' : ''}`}>
+      <DropdownMenuItem className={`p-3 cursor-pointer ${notification.isNew ? 'bg-primary/8' : ''}`}>
         <div className="flex gap-3 w-full">
           {/* Image */}
-          <div className="relative w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0">
-            {notification.listingImage ? (
+          <div className="photo-panel relative w-10 h-10 rounded overflow-hidden flex-shrink-0">
+            {notification.listingImage && (
               <Image
                 src={notification.listingImage}
                 alt={notification.listingTitle}
                 fill
                 className="object-cover"
               />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-lg">
-                🎸
-              </div>
             )}
           </div>
 
@@ -215,7 +207,7 @@ function OfferNotificationItem({ notification }: { notification: Notification & 
               {getStatusIcon()}
               <span className="text-xs font-medium text-muted-foreground">Offer</span>
               {notification.isNew && (
-                <Badge className="bg-blue-500 text-[#FFFFF3] text-[10px] px-1 py-0">NEW</Badge>
+                <span className="label-mono-sm bg-primary px-1.5 py-0.5 text-primary-foreground">New</span>
               )}
             </div>
             <p className="text-sm font-medium truncate">{notification.listingTitle}</p>
@@ -238,33 +230,29 @@ function OfferNotificationItem({ notification }: { notification: Notification & 
 function MessageNotificationItem({ notification }: { notification: Notification & { type: 'message' } }) {
   return (
     <Link href={`/messages/${notification.conversationId}`}>
-      <DropdownMenuItem className="p-3 cursor-pointer bg-blue-50">
+      <DropdownMenuItem className="p-3 cursor-pointer bg-foreground/4">
         <div className="flex gap-3 w-full">
           {/* Image */}
-          <div className="relative w-10 h-10 rounded overflow-hidden bg-muted flex-shrink-0">
-            {notification.listingImage ? (
+          <div className="photo-panel relative w-10 h-10 rounded overflow-hidden flex-shrink-0">
+            {notification.listingImage && (
               <Image
                 src={notification.listingImage}
                 alt={notification.listingTitle || 'Conversation'}
                 fill
                 className="object-cover"
               />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center text-lg">
-                💬
-              </div>
             )}
           </div>
 
           {/* Content */}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5 mb-0.5">
-              <MessageSquare className="h-4 w-4 text-blue-600" />
+              <MessageSquare className="h-4 w-4 text-primary" />
               <span className="text-xs font-medium text-muted-foreground">Message</span>
               {notification.unreadCount > 0 && (
-                <Badge className="bg-[#6E0114] text-[#FFFFF3] text-[10px] px-1 py-0">
+                <span className="label-mono-sm bg-primary px-1.5 py-0.5 text-primary-foreground">
                   {notification.unreadCount}
-                </Badge>
+                </span>
               )}
             </div>
             <p className="text-sm font-medium truncate">{notification.otherUserName}</p>
@@ -293,6 +281,8 @@ export function MobileNotificationButton() {
 
   useEffect(() => {
     if (!isAuthenticated) {
+      // Signing out has to zero the badge; there is no external system to read it from.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCounts({ offers: 0, messages: 0, total: 0 });
       return;
     }
@@ -318,11 +308,11 @@ export function MobileNotificationButton() {
   return (
     <Link
       href="/messages"
-      className="relative p-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors"
+      className="relative p-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
     >
       <Bell className="h-5 w-5" />
       {counts.total > 0 && (
-        <span className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+        <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground ring-2 ring-background text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
           {counts.total > 99 ? '99+' : counts.total}
         </span>
       )}

@@ -4,7 +4,7 @@ test.describe('Offers', () => {
   test.describe('Make Offer Button', () => {
     test('make offer button visible on listing detail', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
@@ -18,7 +18,7 @@ test.describe('Offers', () => {
       try {
         await loginAsUser();
 
-        const firstListing = page.locator('a[href*="/listing/"]').first();
+        const firstListing = page.locator('a[href*="/listing/"]:visible').first();
         await firstListing.click();
         // The grid now has its own listing links and cart buttons; wait for the
         // navigation so the assertions below don't match the homepage.
@@ -36,7 +36,7 @@ test.describe('Offers', () => {
 
     test('prompts login when not authenticated', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
@@ -58,7 +58,7 @@ test.describe('Offers', () => {
       try {
         await loginAsUser();
 
-        const firstListing = page.locator('a[href*="/listing/"]').first();
+        const firstListing = page.locator('a[href*="/listing/"]:visible').first();
         await firstListing.click();
         // The grid now has its own listing links and cart buttons; wait for the
         // navigation so the assertions below don't match the homepage.
@@ -77,7 +77,7 @@ test.describe('Offers', () => {
       try {
         await loginAsUser();
 
-        const firstListing = page.locator('a[href*="/listing/"]').first();
+        const firstListing = page.locator('a[href*="/listing/"]:visible').first();
         await firstListing.click();
         // The grid now has its own listing links and cart buttons; wait for the
         // navigation so the assertions below don't match the homepage.

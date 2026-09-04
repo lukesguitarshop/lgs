@@ -7,20 +7,20 @@ test.describe('Listings', () => {
       // Should show the inventory heading
       await expect(page.getByRole('heading', { name: /in stock right now/i })).toBeVisible();
       // Should show at least one listing card
-      await expect(page.locator('a[href*="/listing/"]').first()).toBeVisible({ timeout: 10000 });
+      await expect(page.locator('a[href*="/listing/"]:visible').first()).toBeVisible({ timeout: 10000 });
     });
 
     test('displays listing images', async ({ page }) => {
       await page.goto('/');
       // Listing cards should have images
-      const listingCard = page.locator('a[href*="/listing/"]').first();
-      await expect(listingCard.locator('img').first()).toBeVisible();
+      const listingCard = page.locator('a[href*="/listing/"]:visible').first();
+      await expect(listingCard.locator('img:visible').first()).toBeVisible();
     });
 
     test('displays prices', async ({ page }) => {
       await page.goto('/');
       // Should show price on listing cards (format: $XXX or $X,XXX)
-      await expect(page.getByText(/\$[\d,]+/).first()).toBeVisible();
+      await expect(page.getByText(/\$[\d,]+/).filter({ visible: true }).first()).toBeVisible();
     });
 
     test('displays condition badges', async ({ page }) => {
@@ -88,7 +88,7 @@ test.describe('Listings', () => {
       await page.goto('/');
 
       // Click first listing
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
 
       // Should navigate to detail page
@@ -97,7 +97,7 @@ test.describe('Listings', () => {
 
     test('detail page shows listing title', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       await expect(page).toHaveURL(/\/listing\//);
 
@@ -107,7 +107,7 @@ test.describe('Listings', () => {
 
     test('detail page shows add to cart button', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid also has Add to Cart buttons now, so wait for the navigation before
       // asserting or the locator matches the homepage cards instead.
@@ -120,29 +120,29 @@ test.describe('Listings', () => {
 
     test('detail page shows price', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       await expect(page).toHaveURL(/\/listing\//);
 
       // Should show price
-      await expect(page.getByText(/\$[\d,]+/).first()).toBeVisible();
+      await expect(page.getByText(/\$[\d,]+/).filter({ visible: true }).first()).toBeVisible();
     });
 
     test('detail page shows image gallery', async ({ page }) => {
       await page.goto('/');
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       await expect(page).toHaveURL(/\/listing\//);
 
       // Should show listing images
-      await expect(page.locator('img').first()).toBeVisible();
+      await expect(page.locator('img:visible').first()).toBeVisible();
     });
 
     test('detail page shows contact seller button when logged in', async ({ page, loginAsUser }) => {
       // This test requires login to work
       try {
         await loginAsUser();
-        const firstListing = page.locator('a[href*="/listing/"]').first();
+        const firstListing = page.locator('a[href*="/listing/"]:visible').first();
         await firstListing.click();
 
         // Should show message/contact button

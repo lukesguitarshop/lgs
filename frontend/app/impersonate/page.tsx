@@ -46,7 +46,7 @@ export default function ImpersonatePage() {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center py-24 text-gray-600">
+    <div className="flex flex-col items-center justify-center py-24 text-foreground/70">
       <Loader2 className="h-8 w-8 animate-spin mb-4" />
       <p>Signing in as customer...</p>
     </div>

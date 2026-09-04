@@ -390,7 +390,7 @@ export default function OrderDetailPage() {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="flex justify-center items-center min-h-[400px]">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
       </div>
     );
@@ -412,8 +412,8 @@ export default function OrderDetailPage() {
           </Link>
           <Card>
             <CardContent className="py-12 text-center">
-              <Package className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-              <p className="text-gray-500">{error || 'Order not found'}</p>
+              <Package className="h-12 w-12 mx-auto text-muted-foreground/60 mb-4" />
+              <p className="text-foreground/60">{error || 'Order not found'}</p>
             </CardContent>
           </Card>
         </div>
@@ -453,11 +453,11 @@ export default function OrderDetailPage() {
                 <div className="flex items-center gap-2 mt-2">
                   <button
                     onClick={() => copyToClipboard(order.id, 'orderId')}
-                    className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 font-mono"
+                    className="text-sm text-foreground/60 hover:text-foreground/78 flex items-center gap-1 font-mono"
                   >
                     {order.id}
                     {copiedField === 'orderId' ? (
-                      <Check className="h-3 w-3 text-green-500" />
+                      <Check className="h-3 w-3 text-primary" />
                     ) : (
                       <Copy className="h-3 w-3" />
                     )}
@@ -468,8 +468,8 @@ export default function OrderDetailPage() {
                 <span
                   className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium ${
                     order.status === 'pending'
-                      ? 'bg-yellow-100 text-yellow-700'
-                      : 'bg-green-100 text-green-700'
+                      ? 'bg-muted-foreground text-foreground'
+                      : 'bg-foreground text-background'
                   }`}
                 >
                   {getStatusDisplay(order.status)}
@@ -477,8 +477,8 @@ export default function OrderDetailPage() {
                 <span
                   className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium ${
                     order.paymentMethod === 'stripe'
-                      ? 'bg-purple-100 text-purple-700'
-                      : 'bg-blue-100 text-blue-700'
+                      ? 'bg-muted text-foreground/78'
+                      : 'bg-muted text-foreground/78'
                   }`}
                 >
                   {order.paymentMethod === 'stripe' ? 'Stripe' : 'PayPal'}
@@ -487,7 +487,7 @@ export default function OrderDetailPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="flex items-center gap-2 text-gray-600">
+            <div className="flex items-center gap-2 text-foreground/70">
               <Calendar className="h-4 w-4" />
               <span>{formatDate(order.createdAt)}</span>
             </div>
@@ -505,27 +505,27 @@ export default function OrderDetailPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <p className="text-sm text-gray-500">Name</p>
+                <p className="text-sm text-foreground/60">Name</p>
                 <p className="font-medium text-lg">{order.buyerName || 'Guest'}</p>
               </div>
               <div>
-                <p className="text-sm text-gray-500">Email</p>
+                <p className="text-sm text-foreground/60">Email</p>
                 <div className="flex items-center gap-2">
                   <p className="font-medium">{order.buyerEmail}</p>
                   <button
                     onClick={() => copyToClipboard(order.buyerEmail, 'email')}
-                    className="text-gray-400 hover:text-gray-600"
+                    className="text-muted-foreground hover:text-foreground/70"
                     title="Copy email"
                   >
                     {copiedField === 'email' ? (
-                      <Check className="h-4 w-4 text-green-500" />
+                      <Check className="h-4 w-4 text-primary" />
                     ) : (
                       <Copy className="h-4 w-4" />
                     )}
                   </button>
                   <a
                     href={`mailto:${order.buyerEmail}`}
-                    className="text-[#6E0114] hover:text-[#580110]"
+                    className="text-primary hover:text-primary/90"
                     title="Send email"
                   >
                     <Mail className="h-4 w-4" />
@@ -546,15 +546,15 @@ export default function OrderDetailPage() {
             <CardContent>
               <div className="space-y-1 mb-4">
                 <p className="font-medium">{order.shippingAddress.fullName}</p>
-                <p className="text-gray-600">{order.shippingAddress.line1}</p>
+                <p className="text-foreground/70">{order.shippingAddress.line1}</p>
                 {order.shippingAddress.line2 && (
-                  <p className="text-gray-600">{order.shippingAddress.line2}</p>
+                  <p className="text-foreground/70">{order.shippingAddress.line2}</p>
                 )}
-                <p className="text-gray-600">
+                <p className="text-foreground/70">
                   {order.shippingAddress.city}, {order.shippingAddress.state}{' '}
                   {order.shippingAddress.postalCode}
                 </p>
-                <p className="text-gray-600">{order.shippingAddress.country}</p>
+                <p className="text-foreground/70">{order.shippingAddress.country}</p>
               </div>
               <Button
                 variant="outline"
@@ -564,7 +564,7 @@ export default function OrderDetailPage() {
               >
                 {copiedField === 'address' ? (
                   <>
-                    <Check className="h-4 w-4 mr-2 text-green-500" />
+                    <Check className="h-4 w-4 mr-2 text-primary" />
                     Copied!
                   </>
                 ) : (
@@ -590,13 +590,13 @@ export default function OrderDetailPage() {
             {editingTracking ? (
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground/78 mb-1">
                     Carrier
                   </label>
                   <select
                     value={trackingCarrier}
                     onChange={(e) => setTrackingCarrier(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    className="w-full border border-foreground/25 rounded-md px-3 py-2"
                   >
                     <option value="">Select carrier...</option>
                     <option value="UPS">UPS</option>
@@ -605,7 +605,7 @@ export default function OrderDetailPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-foreground/78 mb-1">
                     Tracking Number
                   </label>
                   <input
@@ -613,14 +613,14 @@ export default function OrderDetailPage() {
                     value={trackingNumber}
                     onChange={(e) => setTrackingNumber(e.target.value)}
                     placeholder="Enter tracking number"
-                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    className="w-full border border-foreground/25 rounded-md px-3 py-2"
                   />
                 </div>
                 <div className="flex gap-3">
                   <Button
                     onClick={saveTracking}
                     disabled={savingTracking}
-                    className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     {savingTracking ? (
                       <>
@@ -642,23 +642,23 @@ export default function OrderDetailPage() {
               </div>
             ) : order.trackingCarrier && order.trackingNumber ? (
               <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 bg-red-50 rounded-lg">
+                <div className="flex items-center justify-between border border-foreground/15 bg-muted/50 p-4">
                   <div>
-                    <p className="text-sm text-gray-500">Carrier</p>
+                    <p className="text-sm text-foreground/60">Carrier</p>
                     <p className="font-medium text-lg">{order.trackingCarrier}</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-500">Tracking Number</p>
+                    <p className="text-sm text-foreground/60">Tracking Number</p>
                     <div className="flex items-center gap-2">
                       <p className="font-mono font-medium">{order.trackingNumber}</p>
                       <button
                         onClick={() =>
                           copyToClipboard(order.trackingNumber!, 'tracking')
                         }
-                        className="text-gray-400 hover:text-gray-600"
+                        className="text-muted-foreground hover:text-foreground/70"
                       >
                         {copiedField === 'tracking' ? (
-                          <Check className="h-4 w-4 text-green-500" />
+                          <Check className="h-4 w-4 text-primary" />
                         ) : (
                           <Copy className="h-4 w-4" />
                         )}
@@ -687,7 +687,7 @@ export default function OrderDetailPage() {
                       variant="outline"
                       onClick={markAsDelivered}
                       disabled={updatingStatus}
-                      className="border-green-500 text-green-600 hover:bg-green-50"
+                      className="border-foreground text-foreground hover:bg-foreground hover:text-background"
                     >
                       {updatingStatus ? (
                         <>
@@ -706,11 +706,11 @@ export default function OrderDetailPage() {
               </div>
             ) : (
               <div className="text-center py-6">
-                <Truck className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500 mb-4">No tracking information added yet</p>
+                <Truck className="h-12 w-12 mx-auto text-muted-foreground/60 mb-3" />
+                <p className="text-foreground/60 mb-4">No tracking information added yet</p>
                 <Button
                   onClick={startEditTracking}
-                  className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   Add Tracking
                 </Button>
@@ -735,11 +735,11 @@ export default function OrderDetailPage() {
                     <div className="flex-1">
                       <Link
                         href={`/listing/${item.listingId}`}
-                        className="font-medium text-[#020E1C] hover:text-[#6E0114]"
+                        className="font-medium text-foreground hover:text-primary"
                       >
                         {item.listingTitle}
                       </Link>
-                      <p className="text-sm text-gray-500 mt-1">
+                      <p className="text-sm text-foreground/60 mt-1">
                         Quantity: {item.quantity}
                       </p>
                     </div>
@@ -748,7 +748,7 @@ export default function OrderDetailPage() {
                         {formatCurrency(item.price, item.currency)}
                       </p>
                       {item.quantity > 1 && (
-                        <p className="text-sm text-gray-500">
+                        <p className="text-sm text-foreground/60">
                           {formatCurrency(item.price * item.quantity, item.currency)} total
                         </p>
                       )}
@@ -757,10 +757,10 @@ export default function OrderDetailPage() {
                 </div>
               ))}
             </div>
-            <div className="border-t border-gray-200 mt-4 pt-4">
+            <div className="border-t border-foreground/15 mt-4 pt-4">
               <div className="flex justify-between items-center">
                 <span className="text-lg font-medium">Total</span>
-                <span className="text-2xl font-bold text-[#6E0114]">
+                <span className="text-2xl font-bold text-primary">
                   {formatCurrency(order.totalAmount, order.currency)}
                 </span>
               </div>

@@ -7,7 +7,7 @@ test.describe('Checkout', () => {
       await page.goto('/');
       await page.evaluate(() => localStorage.removeItem('cart'));
 
-      const firstListing = page.locator('a[href*="/listing/"]').first();
+      const firstListing = page.locator('a[href*="/listing/"]:visible').first();
       await firstListing.click();
       // The grid now has its own listing links and cart buttons; wait for the
       // navigation so the assertions below don't match the homepage.
@@ -53,7 +53,7 @@ test.describe('Checkout', () => {
         await loginAsUser();
 
         // Add item to cart
-        const firstListing = page.locator('a[href*="/listing/"]').first();
+        const firstListing = page.locator('a[href*="/listing/"]:visible').first();
         await firstListing.click();
         // The grid now has its own listing links and cart buttons; wait for the
         // navigation so the assertions below don't match the homepage.
@@ -76,7 +76,7 @@ test.describe('Checkout', () => {
         await loginAsUser();
 
         // Add item to cart
-        const firstListing = page.locator('a[href*="/listing/"]').first();
+        const firstListing = page.locator('a[href*="/listing/"]:visible').first();
         await firstListing.click();
         // The grid now has its own listing links and cart buttons; wait for the
         // navigation so the assertions below don't match the homepage.
@@ -86,7 +86,7 @@ test.describe('Checkout', () => {
         await page.goto('/checkout');
 
         // Should show order total/summary
-        await expect(page.getByText(/\$[\d,]+/).first()).toBeVisible();
+        await expect(page.getByText(/\$[\d,]+/).filter({ visible: true }).first()).toBeVisible();
       } catch {
         test.skip();
       }

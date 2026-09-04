@@ -2,11 +2,12 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { StateBlock } from '@/components/ui/state-block';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Star, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import { api } from '@/lib/api';
 
 // Reviews types and helpers
@@ -49,50 +50,74 @@ const sortOptions: { value: SortOption; label: string }[] = [
   { value: 'oldest', label: 'Oldest First' },
 ];
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  });
-}
-
-function StarRating({ rating }: { rating: number }) {
+/**
+ * Five crimson squares, not stars. The palette is four colours and gold is not one of
+ * them; a filled square reads as a rating at 10px where a star turns to mush.
+ */
+function SquareRating({ rating, size = 10 }: { rating: number; size?: number }) {
   return (
-    <div className="flex gap-0.5">
+    <div
+      className="flex items-center gap-1"
+      role="img"
+      aria-label={`${rating} out of 5`}
+    >
       {[...Array(5)].map((_, i) => (
-        <Star
+        <span
           key={i}
-          className={`h-5 w-5 ${
-            i < rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-          }`}
+          aria-hidden
+          style={{ width: size, height: size }}
+          className={
+            i < rating
+              ? 'block bg-primary'
+              : 'block border-[1.5px] border-primary bg-transparent'
+          }
         />
       ))}
     </div>
   );
 }
 
+/** "AUG 2026" — the mono meta line wants a short date, not a long one. */
+function formatShortDate(dateString: string): string {
+  return new Date(dateString)
+    .toLocaleDateString('en-US', { year: 'numeric', month: 'short' })
+    .toUpperCase();
+}
+
 function ReviewCard({ review }: { review: Review }) {
   return (
-    <Card className="h-full">
-      <CardContent className="p-6">
-        <StarRating rating={review.rating} />
-        {review.guitar_name && (
-          <h3 className="font-semibold text-lg mt-3 mb-1">{review.guitar_name}</h3>
-        )}
-        <p className="text-sm text-foreground/70 mb-3">
-          {review.reviewer_name} • {formatDate(review.review_date)}
+    <div className="h-full border border-foreground/12 p-4">
+      <div className="flex items-center gap-2.5">
+        <SquareRating rating={review.rating} />
+        <span className="label-mono-sm text-muted-foreground">
+          {formatShortDate(review.review_date)}
+        </span>
+      </div>
+      {review.guitar_name && (
+        <h3 className="mt-2.5 text-base leading-[1.3] font-semibold text-foreground">
+          {review.guitar_name}
+        </h3>
+      )}
+      {review.review_text && (
+        <p className="mt-2 text-[15px] leading-[1.5] text-foreground/78">
+          {review.review_text}
         </p>
-        {review.review_text && (
-          <p className="text-[#020E1C] leading-relaxed">{review.review_text}</p>
-        )}
-      </CardContent>
-    </Card>
+      )}
+      <p className="label-mono-sm mt-3 text-muted-foreground">
+        {review.reviewer_name}
+      </p>
+    </div>
   );
 }
 
-const VALID_TABS = ['about', 'return-policy', 'reviews', 'contact'];
+const TAB_ITEMS = [
+  { value: 'about', label: 'About' },
+  { value: 'return-policy', label: 'Returns' },
+  { value: 'reviews', label: 'Reviews' },
+  { value: 'contact', label: 'Contact' },
+] as const;
+
+const VALID_TABS: string[] = TAB_ITEMS.map(t => t.value);
 
 const REVIEWS_PER_PAGE = 12;
 
@@ -171,80 +196,76 @@ function ReviewsTab() {
   }
 
   if (error) {
-    return <div className="flex justify-center items-center min-h-[200px] text-red-600">{error}</div>;
+    return (
+      <div className="bg-primary p-4 text-primary-foreground">
+        <p className="label-mono text-primary-foreground/70">Can&apos;t continue</p>
+        <p className="mt-1.5 text-[15px]">{error}</p>
+      </div>
+    );
   }
 
   return (
     <div>
-      <div className="mb-6">
-        <p className="text-foreground/70">
-          Showing {Math.min(displayCount, filteredReviews.length)} of {filteredReviews.length} review{filteredReviews.length !== 1 ? 's' : ''}
-          {hasActiveFilters && ` (filtered from ${totalCount} total)`}
-        </p>
-      </div>
+      <p className="label-mono mb-6 text-foreground/55">
+        Showing {Math.min(displayCount, filteredReviews.length)} of {filteredReviews.length} review{filteredReviews.length !== 1 ? 's' : ''}
+        {hasActiveFilters && ` · filtered from ${totalCount}`}
+      </p>
 
       {stats && (
-        <Card className="mb-6">
-          <CardContent className="p-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-6">
-              <div className="flex items-center gap-4">
-                <div className="flex gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star
-                      key={i}
-                      className={`h-6 w-6 ${
-                        i < Math.round(stats.average_rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-                      }`}
-                    />
-                  ))}
-                </div>
-                <div>
-                  <p className="text-xl font-bold">{stats.average_rating.toFixed(1)}</p>
-                  <p className="text-sm text-foreground/70">Average Rating</p>
-                </div>
-              </div>
-              <div className="flex gap-8 text-center">
-                <div>
-                  <p className="text-2xl font-bold">{stats.total_count}</p>
-                  <p className="text-sm text-foreground/70">Total Reviews</p>
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.recent_count}</p>
-                  <p className="text-sm text-foreground/70">Last 30 Days</p>
-                </div>
+        <div className="mb-6 border border-foreground/12 p-4 sm:p-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-4">
+              <p className="font-heading text-5xl leading-none text-foreground">
+                {stats.average_rating.toFixed(1)}
+              </p>
+              <div>
+                <SquareRating rating={Math.round(stats.average_rating)} size={12} />
+                <p className="label-mono mt-2 text-muted-foreground">
+                  {stats.total_count} reviews
+                </p>
               </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="flex gap-8 border-t border-foreground/12 pt-4 sm:border-0 sm:pt-0 sm:text-center">
+              <div>
+                <p className="font-heading text-2xl leading-none">{stats.total_count}</p>
+                <p className="label-mono-sm mt-1.5 text-muted-foreground">Total</p>
+              </div>
+              <div>
+                <p className="font-heading text-2xl leading-none">{stats.recent_count}</p>
+                <p className="label-mono-sm mt-1.5 text-muted-foreground">Last 30 days</p>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
-      <div className="flex flex-col sm:flex-row gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 mb-6">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/60" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-foreground/60" />
           <Input
             type="text"
             placeholder="Search by guitar or reviewer..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10"
+            className="h-12 pl-11 text-base md:h-9 md:text-sm"
           />
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 [&_button[role=combobox]]:h-12 md:[&_button[role=combobox]]:h-9">
           <Select value={dateFilter} onValueChange={(value: DateFilter) => setDateFilter(value)}>
-            <SelectTrigger className="w-[140px] bg-[#FFFFF3]">
+            <SelectTrigger className="w-[140px] bg-background">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-[#FFFFF3]">
+            <SelectContent className="bg-background">
               {dateFilterOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
               ))}
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={(value: SortOption) => setSortBy(value)}>
-            <SelectTrigger className="w-[140px] bg-[#FFFFF3]">
+            <SelectTrigger className="w-[140px] bg-background">
               <SelectValue />
             </SelectTrigger>
-            <SelectContent className="bg-[#FFFFF3]">
+            <SelectContent className="bg-background">
               {sortOptions.map((option) => (
                 <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>
               ))}
@@ -275,11 +296,13 @@ function ReviewsTab() {
             ))}
           </div>
           {hasMoreReviews && (
-            <div className="flex justify-center mt-6">
-              <Button onClick={loadMore} variant="outline">
-                Load More ({filteredReviews.length - displayCount} remaining)
-              </Button>
-            </div>
+            <button
+              type="button"
+              onClick={loadMore}
+              className="font-btn mt-6 flex h-12 w-full items-center justify-center border border-foreground text-[13px] text-foreground transition-colors hover:bg-foreground hover:text-background sm:mx-auto sm:w-auto sm:px-8"
+            >
+              Load {Math.min(REVIEWS_PER_PAGE, filteredReviews.length - displayCount)} more
+            </button>
           )}
         </>
       )}
@@ -322,17 +345,17 @@ function ContactTab() {
 
   if (success) {
     return (
-      <div className="text-center py-8">
-        <div className="bg-green-100 dark:bg-green-900/30 border border-green-500 rounded-lg p-8 max-w-md mx-auto">
-          <svg className="w-16 h-16 text-green-500 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          <h2 className="text-2xl font-bold mb-2">Message Sent!</h2>
-          <p className="text-foreground/80 mb-6">We'll get back to you as soon as possible.</p>
-          <Button onClick={() => setSuccess(false)} className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
-            Send Another Message
-          </Button>
-        </div>
+      <div className="mx-auto max-w-md py-8">
+        <StateBlock variant="success" label="Sent">
+          Message sent — I&apos;ll get back to you as soon as I can.
+        </StateBlock>
+        <button
+          type="button"
+          onClick={() => setSuccess(false)}
+          className="font-btn mt-4 flex h-12 w-full items-center justify-center border border-foreground text-[13px] text-foreground transition-colors hover:bg-foreground hover:text-background"
+        >
+          Send another
+        </button>
       </div>
     );
   }
@@ -344,64 +367,62 @@ function ContactTab() {
       </p>
 
       {error && (
-        <div className="bg-red-100 dark:bg-red-900/30 border border-red-500 text-red-700 dark:text-red-400 px-4 py-3 rounded-lg mb-6">
-          {error}
-        </div>
+        <StateBlock variant="error" className="mb-6">{error}</StateBlock>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label htmlFor="name" className="block text-sm font-medium mb-2">
-            Name <span className="text-red-500">*</span>
+            Name <span className="text-primary">*</span>
           </label>
           <input
             type="text"
             id="name"
             name="name"
             required
-            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent"
+            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="Your name"
           />
         </div>
 
         <div>
           <label htmlFor="email" className="block text-sm font-medium mb-2">
-            Email <span className="text-red-500">*</span>
+            Email <span className="text-primary">*</span>
           </label>
           <input
             type="email"
             id="email"
             name="email"
             required
-            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent"
+            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="your@email.com"
           />
         </div>
 
         <div>
           <label htmlFor="subject" className="block text-sm font-medium mb-2">
-            Subject <span className="text-red-500">*</span>
+            Subject <span className="text-primary">*</span>
           </label>
           <input
             type="text"
             id="subject"
             name="subject"
             required
-            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent"
+            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="What's this about?"
           />
         </div>
 
         <div>
           <label htmlFor="message" className="block text-sm font-medium mb-2">
-            Message <span className="text-red-500">*</span>
+            Message <span className="text-primary">*</span>
           </label>
           <textarea
             id="message"
             name="message"
             required
             rows={5}
-            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-[#6E0114] focus:border-transparent resize-none"
+            className="w-full px-4 py-2 rounded-lg border border-border bg-background focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
             placeholder="Your message..."
           />
         </div>
@@ -409,7 +430,7 @@ function ContactTab() {
         <Button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] py-3"
+          className="w-full bg-primary hover:bg-primary/90 text-primary-foreground py-3"
         >
           {isLoading ? 'Sending...' : 'Send Message'}
         </Button>
@@ -417,7 +438,7 @@ function ContactTab() {
 
       <p className="text-foreground/80 text-sm mt-6 text-center">
         You can also email us directly at{' '}
-        <a href="mailto:lukesguitarshop@gmail.com" className="text-[#6E0114] hover:text-[#580110] underline">
+        <a href="mailto:lukesguitarshop@gmail.com" className="text-primary hover:text-primary/90 underline">
           lukesguitarshop@gmail.com
         </a>
       </p>
@@ -439,16 +460,47 @@ export default function ShopInfoPage() {
   }, []);
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-5 py-8 sm:px-4">
       <div className="max-w-4xl mx-auto">
-        <h1 className="font-heading text-5xl mb-6 text-[#6E0114]">Luke&apos;s Guitar Shop</h1>
+        <h1 className="font-heading mb-6 text-3xl text-primary sm:text-5xl">
+          Luke&apos;s Guitar Shop
+        </h1>
 
         <Tabs value={tab} onValueChange={setTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 mb-8">
-            <TabsTrigger value="about">About</TabsTrigger>
-            <TabsTrigger value="return-policy">Return Policy</TabsTrigger>
-            <TabsTrigger value="reviews">Reviews</TabsTrigger>
-            <TabsTrigger value="contact">Contact</TabsTrigger>
+          {/* Below sm the shadcn TabsList cannot work: its base class fixes it at h-9
+              (36px) while four triggers wrap to two 34px rows, so Reviews and Contact
+              fall out the bottom of the pill. A scrolling underline strip replaces it —
+              a select would hide that the last two tabs exist and cost an extra tap. */}
+          <div className="sticky top-[calc(var(--header-h)+2px)] z-30 -mx-5 mb-6 border-b border-foreground/12 bg-background sm:hidden">
+            <div
+              className="flex snap-x snap-mandatory gap-6 overflow-x-auto px-5"
+              style={{ scrollbarWidth: 'none' }}
+            >
+              {TAB_ITEMS.map(item => (
+                <button
+                  key={item.value}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === item.value}
+                  onClick={() => setTab(item.value)}
+                  className={`label-mono flex h-12 min-w-11 flex-none snap-start items-center justify-center border-b-2 whitespace-nowrap transition-colors ${
+                    tab === item.value
+                      ? 'border-primary text-primary'
+                      : 'border-transparent text-foreground/55'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <TabsList className="mb-8 hidden w-full grid-cols-4 sm:grid">
+            {TAB_ITEMS.map(item => (
+              <TabsTrigger key={item.value} value={item.value}>
+                {item.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           <TabsContent value="about">
@@ -457,27 +509,27 @@ export default function ShopInfoPage() {
                 Luke's Guitar Shop was founded in 2022 by Luke Walden, a guitar enthusiast turned full-time dealer with a passion for connecting players with quality pre-owned instruments.
               </p>
 
-              <h2 className="text-2xl font-semibold mt-8 mb-4">Our Story</h2>
+              <h2 className="mobile-h2 mt-8 mb-4 text-2xl font-semibold">Our Story</h2>
               <p className="text-foreground/80 mb-6">
                 What started as a love for guitars has grown into a thriving online business dedicated to buying, selling, and trading used guitars. While we operate exclusively online for now, the dream of opening a physical storefront one day keeps us motivated and growing.
               </p>
 
-              <h2 className="text-2xl font-semibold mt-8 mb-4">What We Offer</h2>
+              <h2 className="mobile-h2 mt-8 mb-4 text-2xl font-semibold">What We Offer</h2>
               <p className="text-foreground/80 mb-6">
                 We specialize in pre-owned guitars, with a carefully curated selection that changes regularly. You'll also find amps, parts, and accessories listed from time to time. Every instrument is inspected and honestly described so you know exactly what you're getting.
               </p>
 
-              <h2 className="text-2xl font-semibold mt-8 mb-4">Where to Find Us</h2>
+              <h2 className="mobile-h2 mt-8 mb-4 text-2xl font-semibold">Where to Find Us</h2>
               <p className="text-foreground/80 mb-6">
                 You can find our listings on Reverb, eBay, Sweetwater Gear Exchange, and Facebook Marketplace—but your best price will always be right here on our shop page. We cut out the middleman fees and pass those savings directly to you.
               </p>
 
-              <h2 className="text-2xl font-semibold mt-8 mb-4">Easy, Secure Checkout</h2>
+              <h2 className="mobile-h2 mt-8 mb-4 text-2xl font-semibold">Easy, Secure Checkout</h2>
               <p className="text-foreground/80 mb-6">
                 Creating an account is quick and easy—just enter your email and you're ready to go. All payments are securely processed through Stripe or PayPal. Need a payment plan? PayPal Pay Later makes it easy to spread out your purchase.
               </p>
 
-              <h2 className="text-2xl font-semibold mt-8 mb-4">Our Promise</h2>
+              <h2 className="mobile-h2 mt-8 mb-4 text-2xl font-semibold">Our Promise</h2>
               <p className="text-foreground/80 mb-6">
                 Every purchase from Luke's Guitar Shop includes free shipping, fully covered by us. We believe in making the buying process as smooth and affordable as possible, so you can focus on what matters: finding your next great instrument.
               </p>
@@ -503,19 +555,19 @@ export default function ShopInfoPage() {
                 <p className="text-foreground/80 mb-3">Returns are by approval only and must be requested within 24 hours of delivery. Approved returns are subject to:</p>
                 <ul className="space-y-2 text-foreground/80 list-none pl-0">
                   <li className="flex items-start gap-3">
-                    <span className="text-[#6E0114] font-bold mt-0.5">—</span>
+                    <span className="text-primary font-bold mt-0.5">—</span>
                     <span>A 15% restocking fee (non-negotiable)</span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="text-[#6E0114] font-bold mt-0.5">—</span>
+                    <span className="text-primary font-bold mt-0.5">—</span>
                     <span>Return in original condition with all original packaging and accessories</span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="text-[#6E0114] font-bold mt-0.5">—</span>
+                    <span className="text-primary font-bold mt-0.5">—</span>
                     <span>Buyer-paid return shipping with full insurance and signature confirmation</span>
                   </li>
                   <li className="flex items-start gap-3">
-                    <span className="text-[#6E0114] font-bold mt-0.5">—</span>
+                    <span className="text-primary font-bold mt-0.5">—</span>
                     <span>Refund issued only after the item is received and inspected</span>
                   </li>
                 </ul>

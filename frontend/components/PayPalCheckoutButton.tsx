@@ -1,6 +1,7 @@
 'use client';
 
-import { PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
+import { FUNDING, PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
+import { StateBlock } from '@/components/ui/state-block';
 import { api } from '@/lib/api';
 
 interface CartItem {
@@ -31,6 +32,11 @@ interface PayPalCheckoutButtonProps {
   disabled?: boolean;
   useAuth?: boolean;
   applyStoreCredit?: boolean;
+  /**
+   * Fit a 48px row — the phone sticky bar. Renders the single PayPal funding source at
+   * that height and swaps the padded message boxes for 48px placeholders.
+   */
+  compact?: boolean;
 }
 
 export default function PayPalCheckoutButton({
@@ -43,22 +49,31 @@ export default function PayPalCheckoutButton({
   disabled = false,
   useAuth = true,
   applyStoreCredit = false,
+  compact = false,
 }: PayPalCheckoutButtonProps) {
   const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
 
   if (!clientId) {
-    return (
-      <div className="p-4 bg-red-50 border border-red-200 rounded-lg text-center">
-        <p className="text-sm font-medium text-red-700">PayPal not configured</p>
-      </div>
+    return compact ? (
+      <span className="font-btn flex h-12 items-center justify-center border border-foreground/30 text-[13px] text-foreground/40">
+        PayPal not configured
+      </span>
+    ) : (
+      <StateBlock variant="error">PayPal not configured</StateBlock>
     );
   }
 
   if (disabled) {
-    return (
-      <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg text-center">
-        <p className="text-sm font-medium text-gray-500">Please fill in shipping address first</p>
-      </div>
+    return compact ? (
+      <button
+        type="button"
+        disabled
+        className="font-btn flex h-12 w-full cursor-not-allowed items-center justify-center bg-primary text-[13px] text-primary-foreground opacity-50"
+      >
+        Pay with PayPal
+      </button>
+    ) : (
+      <StateBlock variant="warning">Please fill in shipping address first</StateBlock>
     );
   }
 
@@ -70,12 +85,15 @@ export default function PayPalCheckoutButton({
       }}
     >
       <PayPalButtons
-        style={{
-          layout: 'vertical',
-          color: 'gold',
-          shape: 'rect',
-          label: 'paypal',
-        }}
+        // A standalone PayPal button takes an explicit height (PayPal allows 25–55px);
+        // the stacked vertical set would run far taller than the 48px bar it sits in.
+        fundingSource={compact ? FUNDING.PAYPAL : undefined}
+        className={compact ? 'h-12' : undefined}
+        style={
+          compact
+            ? { color: 'gold', shape: 'rect', label: 'paypal', height: 48 }
+            : { layout: 'vertical', color: 'gold', shape: 'rect', label: 'paypal' }
+        }
         createOrder={async () => {
           try {
             const requestData = {

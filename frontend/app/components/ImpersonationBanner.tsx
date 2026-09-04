@@ -29,7 +29,7 @@ export default function ImpersonationBanner() {
   return (
     <div
       className={`sticky top-0 z-50 flex items-center justify-center gap-3 px-4 py-2 text-sm font-semibold ${
-        expired ? 'bg-gray-700 text-white' : 'bg-[#6E0114] text-[#FFFFF3]'
+        expired ? 'bg-foreground text-white' : 'bg-primary text-primary-foreground'
       }`}
     >
       <Eye className="h-4 w-4 shrink-0" />

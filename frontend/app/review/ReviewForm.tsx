@@ -208,8 +208,8 @@ export default function ReviewForm() {
   if (saved) {
     return (
       <div className="mx-auto max-w-xl border border-foreground/15 bg-card p-8 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-          <Check className="h-6 w-6 text-green-700" />
+        <div className="mx-auto flex h-12 w-12 items-center justify-center bg-foreground">
+          <Check className="h-6 w-6 text-background" />
         </div>
         <h1 className="mt-4 font-heading text-3xl">Thank you</h1>
         <p className="mt-3 text-foreground/70">
@@ -326,7 +326,7 @@ export default function ReviewForm() {
       </div>
 
       {error && (
-        <p className="mt-4 border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
+        <p className="mt-4 bg-primary px-3 py-2 text-sm text-primary-foreground">{error}</p>
       )}
 
       <button

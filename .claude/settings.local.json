@@ -70,7 +70,14 @@
       "Bash(git -C \"G:\\\\Projects\\\\lgs\" commit -m \"$\\(cat <<''EOF''\nfeat: add background job for 48-hour offer expiration\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
       "Bash(npm run build)",
       "Bash(vercel:*)",
-      "Bash(fly logs:*)"
+      "Bash(fly logs:*)",
+      "Bash(xargs grep:*)",
+      "WebFetch(domain:pagespeed.web.dev)",
+      "WebSearch",
+      "Bash(grep -r \"0x\\\\|#[0-9A-Fa-f]\\\\|rgb\\\\|hsl\\\\|color:\" G:/Projects/lgs/frontend/app --include=*.ts --include=*.tsx --include=*.js --include=*.jsx)",
+      "Bash(grep -rn \"0x\\\\|#\" G:/Projects/lgs/frontend/app --include=*.tsx --include=*.ts)",
+      "Bash(grep -E \"0x[0-9A-Fa-f]+|#[0-9A-Fa-f]{3,8}\")",
+      "Bash(grep -rn \"PayPal\\\\|paypal\\\\|03087\\\\|0070E0\" G:/Projects/lgs/frontend/app --include=*.tsx --include=*.ts)"
     ]
   }
 }

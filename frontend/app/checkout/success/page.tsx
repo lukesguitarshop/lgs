@@ -9,13 +9,14 @@ import { useAuth } from '@/contexts/AuthContext';
 import { getToken } from '@/lib/auth';
 import { trackPurchase } from '@/lib/analytics';
 import { Button } from '@/components/ui/button';
+import { StateBlock } from '@/components/ui/state-block';
 import { UserPlus } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, isAuthenticated, isGuest, isLoading: authLoading, setShowRegisterModal, setOnRegisterSuccess } = useAuth();
-  const [isCompleting, setIsCompleting] = useState(true);
+  const { isGuest, isLoading: authLoading, setShowRegisterModal, setOnRegisterSuccess } = useAuth();
   const [showCreateAccount, setShowCreateAccount] = useState(false);
   const [hasCompleted, setHasCompleted] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
@@ -65,7 +66,6 @@ function CheckoutSuccessContent() {
       clearCart();
       // Also refresh pending cart items (from accepted offers) in header
       refreshPendingCart();
-      setIsCompleting(false);
       setHasCompleted(true);
 
       // Check if we should show the create account prompt
@@ -89,60 +89,61 @@ function CheckoutSuccessContent() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto text-center py-16 px-4">
-      <div className="mb-8">
-        <svg
-          className={`w-24 h-24 mx-auto ${orderError ? 'text-yellow-500' : 'text-green-500'}`}
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          {orderError ? (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          ) : (
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          )}
-        </svg>
-      </div>
+    <div className="mx-auto max-w-2xl md:px-4 md:py-16 md:text-center">
+      <svg
+        className="h-12 w-12 text-primary md:mx-auto"
+        fill="none"
+        stroke="currentColor"
+        viewBox="0 0 24 24"
+        aria-hidden
+      >
+        {orderError ? (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          />
+        ) : (
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        )}
+      </svg>
 
-      <h1 className="text-4xl font-bold text-[#020E1C] mb-4">
+      <h1 className="mobile-h1 mt-5 text-4xl font-bold text-foreground">
         {orderError ? 'Payment Received' : 'Thank You for Your Order!'}
       </h1>
 
       {orderError ? (
-        <div className="mb-8 p-6 bg-yellow-50 border border-yellow-200 rounded-lg text-left">
-          <p className="text-yellow-800">{orderError}</p>
-        </div>
+        <StateBlock variant="warning" className="mt-4 text-left">
+          {orderError}
+        </StateBlock>
       ) : (
-        <p className="text-xl text-gray-600 mb-8">
+        <p className="mt-3 text-base leading-[1.5] text-foreground/65 md:text-xl">
           Your payment was successful. You will receive an email confirmation shortly.
         </p>
       )}
 
-      {/* Create Account Prompt for Guests */}
+      {/* Create Account Prompt for Guests — a prompt, not a state, so a plain bordered
+          block rather than a StateBlock. It takes the solid button; "Continue Shopping"
+          steps down to outline so the page keeps one primary action. */}
       {showCreateAccount && (
-        <div className="mb-8 p-6 bg-red-50 border border-red-200 rounded-lg">
-          <div className="flex items-center justify-center mb-3">
-            <UserPlus className="h-6 w-6 text-[#6E0114] mr-2" />
-            <h2 className="text-lg font-semibold text-[#020E1C]">Create an Account</h2>
+        <div className="mt-6 border border-foreground/20 p-5 text-left md:text-center">
+          <div className="flex items-center gap-2 md:justify-center">
+            <UserPlus className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+            <h2 className="text-[18px] font-semibold leading-[1.25] text-foreground">Create an Account</h2>
           </div>
-          <p className="text-gray-600 mb-4">
+          <p className="mt-2 text-base leading-[1.5] text-foreground/65">
             Create an account to track your order, save your address for faster checkout,
             and get access to exclusive features like favorites and offers.
           </p>
           <Button
             onClick={handleCreateAccount}
-            className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] font-semibold px-6 py-2"
+            className="mt-4 h-12 w-full bg-primary px-6 text-[13px] text-primary-foreground hover:bg-primary/90 md:h-12 md:w-auto"
           >
             Create Account
           </Button>
@@ -151,7 +152,12 @@ function CheckoutSuccessContent() {
 
       <Link
         href="/"
-        className="inline-block bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3] text-lg font-semibold px-8 py-4 rounded-lg transition-all"
+        className={cn(
+          'font-btn mt-6 flex h-12 w-full items-center justify-center px-8 text-[13px] transition-colors md:inline-flex md:w-auto',
+          showCreateAccount
+            ? 'border border-foreground text-foreground hover:bg-foreground hover:text-background'
+            : 'bg-primary text-primary-foreground hover:bg-primary/90'
+        )}
       >
         Continue Shopping
       </Link>
@@ -161,7 +167,11 @@ function CheckoutSuccessContent() {
 
 export default function CheckoutSuccessPage() {
   return (
-    <Suspense fallback={<div className="max-w-2xl mx-auto text-center py-16 px-4">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="mx-auto max-w-2xl py-16 text-center text-foreground/50 md:px-4">Loading...</div>
+      }
+    >
       <CheckoutSuccessContent />
     </Suspense>
   );

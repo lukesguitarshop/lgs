@@ -122,13 +122,13 @@ export default function EditProfilePage() {
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
               {error && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                <div className="bg-primary p-3 text-sm text-primary-foreground">
                   {error}
                 </div>
               )}
 
               {success && (
-                <div className="p-3 text-sm text-green-600 bg-green-50 border border-green-200 rounded-lg">
+                <div className="bg-foreground p-3 text-sm text-background">
                   {success}
                 </div>
               )}
@@ -156,7 +156,7 @@ export default function EditProfilePage() {
                     type="email"
                     value={user.email || ''}
                     disabled
-                    className="bg-gray-100"
+                    className="bg-muted"
                   />
                   <p className="text-xs text-muted-foreground">
                     Email cannot be changed
@@ -209,8 +209,8 @@ export default function EditProfilePage() {
 
               {/* Guest user notice */}
               {user.isGuest && (
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-sm text-red-900">
+                <div className="border border-primary/30 bg-primary/8 p-4">
+                  <p className="text-sm text-primary">
                     You are currently using a guest account. To set a password and unlock all
                     features, please create a full account.
                   </p>

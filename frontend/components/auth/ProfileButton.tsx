@@ -20,22 +20,19 @@ export function ProfileButton() {
   const [counts, setCounts] = useState<NotificationCounts>({ offers: 0, messages: 0, total: 0 });
 
   const loadNotifications = useCallback(async () => {
-    if (!isAuthenticated) {
-      setCounts({ offers: 0, messages: 0, total: 0 });
-      return;
-    }
-
     try {
       const result = await fetchNotifications();
       setCounts(result.counts);
     } catch {
       // Silently fail
     }
-  }, [isAuthenticated]);
+  }, []);
 
   // Initial load and polling
   useEffect(() => {
     if (!isAuthenticated) {
+      // Signing out has to zero the badge; there is no external system to read it from.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCounts({ offers: 0, messages: 0, total: 0 });
       return;
     }
@@ -49,7 +46,7 @@ export function ProfileButton() {
 
   if (isLoading) {
     return (
-      <div className="h-9 w-9 rounded-lg bg-[#6E0114]/50 animate-pulse" />
+      <div className="h-9 w-9 rounded-lg bg-primary/50 animate-pulse" />
     );
   }
 
@@ -57,7 +54,7 @@ export function ProfileButton() {
     return (
       <Button
         onClick={() => setShowLoginModal(true)}
-        className="px-4 py-2 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors"
+        className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
       >
         Sign In
       </Button>
@@ -69,17 +66,17 @@ export function ProfileButton() {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative h-9 w-9 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] p-0"
+          className="relative h-9 w-9 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 p-0"
         >
           <User className="h-5 w-5" />
           {counts.total > 0 && (
-            <span className="absolute -top-2 -right-2 bg-red-500 text-[#FFFFF3] text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
+            <span className="absolute -top-2 -right-2 bg-foreground text-background text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">
               {counts.total > 99 ? '99+' : counts.total}
             </span>
           )}
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56 bg-[#FFFFF3]">
+      <DropdownMenuContent align="end" className="w-56 bg-background">
         <DropdownMenuLabel>
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{user?.fullName}</p>
@@ -99,9 +96,9 @@ export function ProfileButton() {
             {counts.offers > 0 && (
               <DropdownMenuItem asChild>
                 <Link href="/messages?filter=offers" className="cursor-pointer">
-                  <Tag className="mr-2 h-4 w-4 text-red-700" />
+                  <Tag className="mr-2 h-4 w-4 text-primary" />
                   <span className="flex-1">Offers</span>
-                  <span className="ml-auto bg-red-100 text-red-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                  <span className="ml-auto bg-primary/8 text-primary text-xs font-medium px-2 py-0.5 rounded-full">
                     {counts.offers} pending
                   </span>
                 </Link>
@@ -110,9 +107,9 @@ export function ProfileButton() {
             {counts.messages > 0 && (
               <DropdownMenuItem asChild>
                 <Link href="/messages" className="cursor-pointer">
-                  <MessageSquare className="mr-2 h-4 w-4 text-blue-500" />
+                  <MessageSquare className="mr-2 h-4 w-4 text-foreground/60" />
                   <span className="flex-1">Messages</span>
-                  <span className="ml-auto bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                  <span className="ml-auto bg-foreground/8 text-foreground text-xs font-medium px-2 py-0.5 rounded-full">
                     {counts.messages} unread
                   </span>
                 </Link>
@@ -166,7 +163,7 @@ export function ProfileButton() {
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={logout}
-          className="cursor-pointer text-red-600 focus:text-red-600"
+          className="cursor-pointer text-primary focus:text-primary"
         >
           <LogOut className="mr-2 h-4 w-4" />
           Sign Out
@@ -180,27 +177,35 @@ interface MobileProfileButtonProps {
   onNavigate?: () => void;
 }
 
+/** One 48px row of the menu sheet's account block; hairlines between rows, none above the first. */
+const mobileRowClass =
+  'flex h-12 w-full items-center justify-between border-t border-foreground/10 px-5 text-left text-[15px] text-foreground transition-colors hover:text-primary cursor-pointer first:border-t-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring';
+
+const mobileCountClass = 'font-mono text-[11px] text-muted-foreground';
+
+/**
+ * The account block at the foot of the phone menu sheet. Plain 48px rows in the sheet's
+ * own weight — no filled slabs, no coloured pills — so the trade-in CTA above it stays
+ * the sheet's one call to action.
+ */
 export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
   const { user, isAuthenticated, isAdmin, isLoading, setShowLoginModal, logout } = useAuth();
   const [counts, setCounts] = useState<NotificationCounts>({ offers: 0, messages: 0, total: 0 });
 
   const loadNotifications = useCallback(async () => {
-    if (!isAuthenticated) {
-      setCounts({ offers: 0, messages: 0, total: 0 });
-      return;
-    }
-
     try {
       const result = await fetchNotifications();
       setCounts(result.counts);
     } catch {
       // Silently fail
     }
-  }, [isAuthenticated]);
+  }, []);
 
   // Initial load and polling
   useEffect(() => {
     if (!isAuthenticated) {
+      // Signing out has to zero the badge; there is no external system to read it from.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCounts({ offers: 0, messages: 0, total: 0 });
       return;
     }
@@ -219,116 +224,59 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
   if (!isAuthenticated) {
     return (
       <button
+        type="button"
         onClick={() => {
           setShowLoginModal(true);
           onNavigate?.();
         }}
-        className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center cursor-pointer"
+        className={mobileRowClass}
       >
-        Sign In
+        Sign in
       </button>
     );
   }
 
   return (
     <>
-      <div className="px-4 py-2 text-sm text-muted-foreground border-t border-border mt-2 pt-2">
-        Signed in as <span className="font-medium text-foreground">{user?.fullName}</span>
-      </div>
-      {/* Notifications Section - only for customers */}
-      {!isAdmin && counts.total > 0 && (
-        <div className="px-4 py-2 mb-2 bg-gray-50 rounded-lg">
-          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2">
-            <Bell className="h-3 w-3" />
-            Notifications
-          </div>
-          <div className="flex gap-2">
-            {counts.offers > 0 && (
-              <Link
-                href="/messages?filter=offers"
-                onClick={onNavigate}
-                className="flex-1 px-3 py-2 bg-red-100 text-red-800 rounded-lg text-sm font-medium text-center cursor-pointer"
-              >
-                <Tag className="h-4 w-4 inline mr-1" />
-                {counts.offers} offers
-              </Link>
-            )}
-            {counts.messages > 0 && (
-              <Link
-                href="/messages"
-                onClick={onNavigate}
-                className="flex-1 px-3 py-2 bg-blue-100 text-blue-700 rounded-lg text-sm font-medium text-center cursor-pointer"
-              >
-                <MessageSquare className="h-4 w-4 inline mr-1" />
-                {counts.messages} messages
-              </Link>
-            )}
-          </div>
-        </div>
-      )}
-      <Link
-        href="/profile"
-        onClick={onNavigate}
-        className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
-      >
-        <User className="h-4 w-4" />
+      <p className="label-mono-sm px-5 pt-4 pb-2 text-foreground/55">
+        Signed in as {user?.fullName}
+      </p>
+      <Link href="/profile" onClick={onNavigate} className={mobileRowClass}>
         Profile
       </Link>
       {!isAdmin && (
         <>
-          <Link
-            href="/favorites"
-            onClick={onNavigate}
-            className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Heart className="h-4 w-4" />
-            Favorites
-          </Link>
-          <Link
-            href="/messages?filter=offers"
-            onClick={onNavigate}
-            className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Tag className="h-4 w-4" />
-            My Offers
-          </Link>
-          <Link
-            href="/messages"
-            onClick={onNavigate}
-            className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <MessageSquare className="h-4 w-4" />
+          <Link href="/messages" onClick={onNavigate} className={mobileRowClass}>
             Messages
+            {counts.messages > 0 && (
+              <span className={mobileCountClass}>{counts.messages} unread</span>
+            )}
           </Link>
-          <Link
-            href="/account/trade-ins"
-            onClick={onNavigate}
-            className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <Guitar className="h-4 w-4" />
-            My Trade-Ins
+          <Link href="/messages?filter=offers" onClick={onNavigate} className={mobileRowClass}>
+            My offers
+            {counts.offers > 0 && (
+              <span className={mobileCountClass}>{counts.offers} pending</span>
+            )}
+          </Link>
+          <Link href="/account/trade-ins" onClick={onNavigate} className={mobileRowClass}>
+            My trade-ins
           </Link>
         </>
       )}
       {isAdmin && (
-        <Link
-          href="/admin"
-          onClick={onNavigate}
-          className="font-nav w-full px-4 py-3 rounded-lg bg-[#6E0114] text-[#FFFFF3] hover:bg-[#580110] transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
-        >
-          <Shield className="h-4 w-4" />
-          Admin Portal
+        <Link href="/admin" onClick={onNavigate} className={mobileRowClass}>
+          Admin portal
         </Link>
       )}
       <button
+        type="button"
         onClick={() => {
           logout();
           onNavigate?.();
         }}
-        className="font-nav w-full px-4 py-3 rounded-lg bg-[#020E1C] text-[#FFFFF3] hover:bg-[#020E1C]/80 transition-colors text-center flex items-center justify-center gap-2 cursor-pointer"
+        className={mobileRowClass}
       >
-        <LogOut className="h-4 w-4" />
-        Sign Out
+        Sign out
       </button>
     </>
   );

@@ -29,13 +29,13 @@ export default async function SoldPage() {
   // No Suspense boundary: the client component reads no async values, and wrapping it made
   // React stream a second copy of the whole grid into a hidden div.
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto md:px-4 md:py-8">
       <SoldSearchClient initialListings={listings} />
     </div>
   );
 }
 
 export const metadata = {
-  title: 'Sold Guitars | Luke\'s Guitar Shop',
+  title: 'Sold guitars',
   description: 'Browse guitars that have been sold from Luke\'s Guitar Shop.',
 };

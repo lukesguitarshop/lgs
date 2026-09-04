@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { StateBlock } from '@/components/ui/state-block';
 import { Loader2 } from 'lucide-react';
 import { ShippingAddress, saveShippingAddress } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +14,15 @@ interface ShippingAddressModalProps {
   onClose: () => void;
   initialAddress?: ShippingAddress | null;
   onSave: (address: ShippingAddress) => void;
+}
+
+// Mono crimson on phones (`.mobile-label` is inert from md up), today's Archivo label
+// on desktop.
+const labelClass = 'mobile-label mb-2 block text-sm font-medium text-foreground/78 md:mb-1';
+const fieldErrorClass = 'mt-1 text-[13px] text-primary';
+
+function Required() {
+  return <span className="text-primary">*</span>;
 }
 
 export default function ShippingAddressModal({
@@ -105,47 +115,46 @@ export default function ShippingAddressModal({
         </DialogHeader>
 
         <div className="space-y-4 mt-4">
-          {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
-            </div>
-          )}
+          {error && <StateBlock variant="error">{error}</StateBlock>}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name <span className="text-red-500">*</span>
+            <label htmlFor="address-fullName" className={labelClass}>
+              Full Name <Required />
             </label>
             <Input
+              id="address-fullName"
               value={address.fullName}
               onChange={(e) => handleChange('fullName', e.target.value)}
               placeholder="John Doe"
-              className={fieldErrors.fullName ? 'border-red-500' : ''}
+              className={fieldErrors.fullName ? 'border-primary' : ''}
             />
             {fieldErrors.fullName && (
-              <p className="text-red-500 text-sm mt-1">{fieldErrors.fullName}</p>
+              <p className={fieldErrorClass}>{fieldErrors.fullName}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Address Line 1 <span className="text-red-500">*</span>
+            <label htmlFor="address-line1" className={labelClass}>
+              Address Line 1 <Required />
             </label>
             <Input
+              id="address-line1"
               value={address.line1}
               onChange={(e) => handleChange('line1', e.target.value)}
               placeholder="123 Main Street"
-              className={fieldErrors.line1 ? 'border-red-500' : ''}
+              className={fieldErrors.line1 ? 'border-primary' : ''}
             />
             {fieldErrors.line1 && (
-              <p className="text-red-500 text-sm mt-1">{fieldErrors.line1}</p>
+              <p className={fieldErrorClass}>{fieldErrors.line1}</p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="address-line2" className={labelClass}>
               Address Line 2
             </label>
             <Input
+              id="address-line2"
               value={address.line2 || ''}
               onChange={(e) => handleChange('line2', e.target.value)}
               placeholder="Apt, Suite, Unit (optional)"
@@ -154,74 +163,78 @@ export default function ShippingAddressModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                City <span className="text-red-500">*</span>
+              <label htmlFor="address-city" className={labelClass}>
+                City <Required />
               </label>
               <Input
+                id="address-city"
                 value={address.city}
                 onChange={(e) => handleChange('city', e.target.value)}
                 placeholder="New York"
-                className={fieldErrors.city ? 'border-red-500' : ''}
+                className={fieldErrors.city ? 'border-primary' : ''}
               />
               {fieldErrors.city && (
-                <p className="text-red-500 text-sm mt-1">{fieldErrors.city}</p>
+                <p className={fieldErrorClass}>{fieldErrors.city}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                State <span className="text-red-500">*</span>
+              <label htmlFor="address-state" className={labelClass}>
+                State <Required />
               </label>
               <Input
+                id="address-state"
                 value={address.state}
                 onChange={(e) => handleChange('state', e.target.value)}
                 placeholder="NY"
-                className={fieldErrors.state ? 'border-red-500' : ''}
+                className={fieldErrors.state ? 'border-primary' : ''}
               />
               {fieldErrors.state && (
-                <p className="text-red-500 text-sm mt-1">{fieldErrors.state}</p>
+                <p className={fieldErrorClass}>{fieldErrors.state}</p>
               )}
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Postal Code <span className="text-red-500">*</span>
+              <label htmlFor="address-postalCode" className={labelClass}>
+                Postal Code <Required />
               </label>
               <Input
+                id="address-postalCode"
                 value={address.postalCode}
                 onChange={(e) => handleChange('postalCode', e.target.value)}
                 placeholder="10001"
-                className={fieldErrors.postalCode ? 'border-red-500' : ''}
+                className={fieldErrors.postalCode ? 'border-primary' : ''}
               />
               {fieldErrors.postalCode && (
-                <p className="text-red-500 text-sm mt-1">{fieldErrors.postalCode}</p>
+                <p className={fieldErrorClass}>{fieldErrors.postalCode}</p>
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Country <span className="text-red-500">*</span>
+              <label htmlFor="address-country" className={labelClass}>
+                Country <Required />
               </label>
               <Input
+                id="address-country"
                 value={address.country}
                 onChange={(e) => handleChange('country', e.target.value)}
                 placeholder="United States"
-                className={fieldErrors.country ? 'border-red-500' : ''}
+                className={fieldErrors.country ? 'border-primary' : ''}
               />
               {fieldErrors.country && (
-                <p className="text-red-500 text-sm mt-1">{fieldErrors.country}</p>
+                <p className={fieldErrorClass}>{fieldErrors.country}</p>
               )}
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t">
+          <div className="grid gap-2 pt-4 border-t sm:flex sm:justify-end sm:gap-3">
             <Button variant="outline" onClick={onClose} disabled={saving}>
               Cancel
             </Button>
             <Button
               onClick={handleSave}
               disabled={saving}
-              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground"
             >
               {saving ? (
                 <>

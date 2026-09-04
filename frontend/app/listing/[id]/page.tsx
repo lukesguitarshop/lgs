@@ -76,9 +76,10 @@ export async function generateMetadata({ params }: PageProps) {
   const listing = await getListing(id);
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lukesguitarshop.com';
 
+  // Bare titles: the root layout's template appends " | Luke's Guitar Shop" once.
   if (!listing) {
     return {
-      title: 'Listing Not Found | Luke\'s Guitar Shop',
+      title: 'Listing not found',
     };
   }
 
@@ -91,7 +92,7 @@ export async function generateMetadata({ params }: PageProps) {
   }).format(listing.price);
 
   return {
-    title: `${listing.listing_title} | Luke's Guitar Shop`,
+    title: listing.listing_title,
     description: plainDescription,
     keywords: ['guitar', 'used guitar', 'buy guitar', listing.condition, listing.listing_title].filter(Boolean),
     openGraph: {

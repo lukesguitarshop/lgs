@@ -3,11 +3,13 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ShoppingCart, Menu, X, Shield, User } from 'lucide-react';
+import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { ShoppingCart, Menu, X, Shield } from 'lucide-react';
 import { getCartCount } from '@/lib/cart';
 import { ProfileButton, MobileProfileButton } from '@/components/auth/ProfileButton';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
 
 /** Homepage sections are anchors; everything else is a real route. */
 const navLinks = [
@@ -17,26 +19,71 @@ const navLinks = [
   { href: '/shop-info', label: 'Shop info', primary: false },
 ];
 
+/**
+ * The phone menu sheet, grouped so crimson is spent only on the group labels and the
+ * single trade-in call to action. The first group carries the heavier weight because
+ * it is where people actually go; the trust pages sit lighter beneath it.
+ */
+const menuGroups = [
+  {
+    label: 'Shop',
+    rowClass: 'h-13 text-[17px] font-semibold',
+    items: [
+      { href: '/#inventory', label: 'Listings' },
+      { href: '/sold', label: 'Sold' },
+      { href: '/favorites', label: 'Favourites' },
+    ],
+  },
+  {
+    label: 'Shop info',
+    rowClass: 'h-12 text-base font-normal',
+    items: [
+      { href: '/#about', label: 'About Luke' },
+      { href: '/shop-info?tab=return-policy', label: 'Shipping & returns' },
+      { href: '/shop-info?tab=reviews', label: 'Reviews' },
+      { href: '/contact', label: 'Contact' },
+    ],
+  },
+];
+
+const focusRing = 'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
+const rowFocusRing = `${focusRing} focus-visible:ring-inset`;
+
+/**
+ * The logo PNG is square with the lockup floating inside ~18% transparent padding, so
+ * `h-10 w-auto` would give 25px of artwork in a 40px box. This windows the ink instead:
+ * a 62×40 viewport over a 64px render, offset to the lockup.
+ */
+function MobileLogo() {
+  return (
+    <span className="relative block h-10 w-[62px] shrink-0 overflow-hidden">
+      <Image
+        src="/images/logo-transparent.png"
+        alt="Luke's Guitar Shop — Ohio"
+        width={256}
+        height={256}
+        // Not `priority`: the desktop logo below already preloads this exact file, and
+        // a second preload hint for the same URL buys nothing.
+        loading="eager"
+        className="absolute -top-[11px] -left-0.5 block h-16 w-16 max-w-none"
+      />
+    </span>
+  );
+}
+
 export default function Header() {
   const [cartCount, setCartCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isAdmin, isAuthenticated } = useAuth();
 
+  // localStorage is read after mount only — reading it during render would make the
+  // server and client markup disagree — and the same sync answers later cart updates.
   useEffect(() => {
-    // Initialize cart count
-    setCartCount(getCartCount());
-
-    // Listen for cart updates
-    const handleCartUpdate = () => {
-      setCartCount(getCartCount());
-    };
-
-    window.addEventListener('cartUpdated', handleCartUpdate);
-
-    return () => {
-      window.removeEventListener('cartUpdated', handleCartUpdate);
-    };
+    const sync = () => setCartCount(getCartCount());
+    sync();
+    window.addEventListener('cartUpdated', sync);
+    return () => window.removeEventListener('cartUpdated', sync);
   }, []);
 
   // Fetch pending cart items count for authenticated users
@@ -75,12 +122,27 @@ export default function Header() {
     };
   }, [isAuthenticated]);
 
-  // Close mobile menu when route changes
+  // The sheet is modal, so Radix locks body scroll and aria-hides the page behind it.
+  // A sheet left open across the md breakpoint (an iPad rotating from portrait to
+  // landscape) would keep both on a desktop layout that no longer shows it.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const desktop = window.matchMedia('(min-width: 768px)');
+    const closeOnDesktop = (e: MediaQueryListEvent) => {
+      if (e.matches) setMobileMenuOpen(false);
+    };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, [mobileMenuOpen]);
+
+  // Every link in the sheet closes it, so navigation never leaves it hanging open.
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
   const totalCartCount = cartCount + pendingCount;
-  const mobileLinkClass =
-    'font-nav bg-primary px-4 py-3 text-center text-primary-foreground transition-colors hover:bg-foreground cursor-pointer';
+  const cartLabel = `Cart, ${totalCartCount} items`;
+  const cartDisplay = totalCartCount > 99 ? '99+' : totalCartCount;
+  const mobileCartBase =
+    'flex h-12 w-12 flex-col items-center justify-center border-[1.5px] transition-colors cursor-pointer';
 
   return (
     <>
@@ -89,8 +151,54 @@ export default function Header() {
           Signed in as admin
         </div>
       )}
-      <header className="sticky top-0 z-50 border-b border-primary bg-background/95 backdrop-blur-sm">
-        <div className="mx-auto flex max-w-[1320px] flex-wrap items-center gap-5 px-5 py-2.5">
+      {/* The crimson rule is 2px on phones (the tab strip clears `--header-h` + 2px) and
+          stays the 1px it has always been from md up. */}
+      <header className="sticky top-0 z-50 border-b-2 border-primary bg-background/95 backdrop-blur-sm md:border-b">
+        {/* Mobile: one row, a fixed 56px, so it cannot wrap whatever is inside it. */}
+        <div className="grid h-14 grid-cols-[auto_1fr_auto] items-center px-5 md:hidden">
+          <Link
+            href="/"
+            aria-label="Luke's Guitar Shop — home"
+            className={cn('flex h-14 items-center cursor-pointer', focusRing)}
+          >
+            <MobileLogo />
+          </Link>
+          <div />
+          <div className="flex items-center gap-2">
+            <Link
+              href="/cart"
+              aria-label={cartLabel}
+              className={cn(
+                mobileCartBase,
+                focusRing,
+                totalCartCount > 0
+                  ? 'border-primary bg-primary/8 text-primary'
+                  : 'border-foreground text-foreground'
+              )}
+            >
+              <ShoppingCart className="h-[19px] w-[19px]" />
+              <span className="mt-0.5 font-mono text-[11px] leading-none tracking-[0.06em]">
+                {cartDisplay}
+              </span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              aria-label="Open menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-menu"
+              className={cn(
+                'flex h-12 w-12 items-center justify-center bg-foreground text-background transition-colors hover:bg-primary cursor-pointer',
+                focusRing
+              )}
+            >
+              <Menu className="h-6 w-6" />
+            </button>
+          </div>
+        </div>
+
+        {/* Desktop: unchanged */}
+        <div className="mx-auto hidden max-w-[1320px] flex-wrap items-center gap-5 px-5 py-2.5 md:flex">
           <Link href="/" className="mr-auto block leading-none cursor-pointer">
             <Image
               src="/images/logo-transparent.png"
@@ -152,77 +260,112 @@ export default function Header() {
           <nav className="hidden md:block">
             <ProfileButton />
           </nav>
-
-          {/* Mobile: admin shortcut or cart, then the menu toggle */}
-          <div className="flex items-center gap-2 md:hidden">
-            {isAdmin ? (
-              <Link
-                href="/admin"
-                className="flex min-h-[48px] min-w-[48px] items-center justify-center bg-primary text-primary-foreground transition-colors hover:bg-foreground cursor-pointer"
-                aria-label="Admin Portal"
-              >
-                <Shield className="h-5 w-5" />
-              </Link>
-            ) : (
-              <Link
-                href="/cart"
-                onClick={closeMobileMenu}
-                aria-label={`Cart, ${totalCartCount} items`}
-                className="flex min-h-[48px] items-center justify-center gap-2 bg-foreground px-3 text-background transition-colors hover:bg-primary cursor-pointer"
-              >
-                <ShoppingCart className="h-5 w-5" />
-                <span className="font-mono text-xs tracking-[0.1em]">
-                  {totalCartCount > 99 ? '99+' : totalCartCount}
-                </span>
-              </Link>
-            )}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="flex min-h-[48px] min-w-[48px] items-center justify-center bg-primary text-primary-foreground transition-colors hover:bg-foreground cursor-pointer"
-              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-            >
-              {mobileMenuOpen ? <X className="h-6 w-6" /> : isAdmin ? <Menu className="h-6 w-6" /> : <User className="h-5 w-5" />}
-            </button>
-          </div>
         </div>
       </header>
 
-      {/* Mobile Menu Full-Page Overlay */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 bg-background md:hidden">
-          <div className="flex items-center justify-between border-b border-primary bg-background p-4">
-            <span className="font-heading text-xl">Menu</span>
-            <button
-              onClick={closeMobileMenu}
-              className="flex min-h-[48px] min-w-[48px] items-center justify-center bg-primary text-primary-foreground transition-colors hover:bg-foreground cursor-pointer"
-              aria-label="Close menu"
-            >
-              <X className="h-6 w-6" />
-            </button>
-          </div>
+      {/* Mobile menu sheet. A Radix dialog rather than a hand-rolled overlay so focus is
+          trapped while it is open and handed back to the hamburger when it closes. */}
+      <DialogPrimitive.Root open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-[60] bg-foreground/50 md:hidden" />
+          <DialogPrimitive.Content
+            aria-describedby={undefined}
+            className="fixed inset-0 z-[60] flex flex-col bg-background md:hidden"
+          >
+            <DialogPrimitive.Title className="sr-only">Menu</DialogPrimitive.Title>
 
-          <nav className="overflow-y-auto bg-background p-4" style={{ height: 'calc(100vh - 81px)' }}>
-            <div className="flex flex-col gap-2">
-              {navLinks.map(link => (
+            {/* The sheet's own 56px bar mirrors the header so the page does not appear
+                to jump when it opens. */}
+            <div className="grid h-14 shrink-0 grid-cols-[auto_1fr_auto] items-center border-b-2 border-primary px-5">
+              <Link
+                href="/"
+                onClick={closeMobileMenu}
+                aria-label="Luke's Guitar Shop — home"
+                className={cn('flex h-14 items-center cursor-pointer', focusRing)}
+              >
+                <MobileLogo />
+              </Link>
+              <div />
+              <div className="flex items-center gap-2">
                 <Link
-                  key={link.href}
-                  href={link.href}
+                  href="/cart"
                   onClick={closeMobileMenu}
-                  className={mobileLinkClass}
+                  aria-label={cartLabel}
+                  className={cn(mobileCartBase, focusRing, 'border-foreground/30 text-foreground')}
                 >
-                  {link.label}
+                  <ShoppingCart className="h-[19px] w-[19px]" />
+                  <span className="mt-0.5 font-mono text-[11px] leading-none tracking-[0.06em]">
+                    {cartDisplay}
+                  </span>
                 </Link>
-              ))}
-              {!isAdmin && (
-                <Link href="/trade-in" onClick={closeMobileMenu} className={mobileLinkClass}>
-                  Trade-in
-                </Link>
-              )}
-              <MobileProfileButton onNavigate={closeMobileMenu} />
+                <DialogPrimitive.Close
+                  aria-label="Close menu"
+                  className={cn(
+                    'flex h-12 w-12 items-center justify-center bg-primary text-primary-foreground transition-colors hover:bg-foreground cursor-pointer',
+                    focusRing
+                  )}
+                >
+                  <X className="h-6 w-6" />
+                </DialogPrimitive.Close>
+              </div>
             </div>
-          </nav>
-        </div>
-      )}
+
+            <nav
+              id="mobile-menu"
+              className="flex-1 overflow-y-auto border-t border-foreground/10 pb-5"
+            >
+              {menuGroups.map((group, groupIndex) => (
+                <div key={group.label}>
+                  <div
+                    className={cn(
+                      'label-mono px-5 pb-2 text-primary',
+                      groupIndex === 0 ? 'pt-5' : 'pt-6'
+                    )}
+                  >
+                    {group.label}
+                  </div>
+                  {group.items.map(item => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={closeMobileMenu}
+                      className={cn(
+                        'flex items-center justify-between border-t border-foreground/10 px-5 text-foreground transition-colors hover:text-primary cursor-pointer',
+                        group.rowClass,
+                        rowFocusRing
+                      )}
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                </div>
+              ))}
+
+              {!isAdmin && (
+                <div className="px-5 pt-6 pb-5">
+                  <Link
+                    href="/trade-in"
+                    onClick={closeMobileMenu}
+                    className={cn(
+                      'font-btn flex h-13 items-center justify-center bg-primary text-[13px] text-primary-foreground transition-colors hover:bg-foreground cursor-pointer',
+                      focusRing
+                    )}
+                  >
+                    Send me a trade-in
+                  </Link>
+                  <p className="mt-2.5 text-center text-[13px] leading-[1.45] text-foreground/60">
+                    Cash or credit toward anything in stock.
+                  </p>
+                </div>
+              )}
+
+              <div className="border-t border-foreground/12 bg-muted-foreground/18">
+                <MobileProfileButton onNavigate={closeMobileMenu} />
+              </div>
+            </nav>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
     </>
   );
 }

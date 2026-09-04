@@ -108,3 +108,16 @@ keys.md
 # Playwright artifacts
 frontend/test-results/
 frontend/playwright-report/
+
+# Production data backups — never commit these
+prod-uploads-backup.tar.gz
+scripts/prod-uploads-backup.tar.gz
+
+# Design artifact bundles. The design *docs* live in docs/plans/; the multi-megabyte
+# prototypes, logos and saved HTML they were built from stay local.
+claude-design/
+design_handoff_mobile_revamp/
+docs/morphine-font/
+
+# Stray empty file from a redirect typo
+/net

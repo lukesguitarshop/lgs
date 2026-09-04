@@ -12,6 +12,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { StateBlock } from '@/components/ui/state-block';
 import { Eye, EyeOff, Mail } from 'lucide-react';
 
 export function RegisterModal() {
@@ -79,7 +80,7 @@ export function RegisterModal() {
       <Dialog open={showRegisterModal} onOpenChange={handleClose}>
         <DialogContent className="sm:max-w-[425px]">
           <div className="text-center space-y-4 py-4">
-            <Mail className="h-16 w-16 text-[#6E0114] mx-auto" />
+            <Mail className="h-16 w-16 text-primary mx-auto" />
             <h2 className="text-xl font-semibold">Check Your Email</h2>
             <p className="text-muted-foreground">
               We&apos;ve sent a verification link to <strong>{successEmail}</strong>. Please check your inbox and click the link to verify your account.
@@ -90,7 +91,7 @@ export function RegisterModal() {
             <div className="space-y-2 pt-2">
               <Button
                 onClick={switchToLogin}
-                className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
               >
                 Go to Sign In
               </Button>
@@ -118,11 +119,7 @@ export function RegisterModal() {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-4">
-          {error && (
-            <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
-              {error}
-            </div>
-          )}
+          {error && <StateBlock variant="error">{error}</StateBlock>}
           <div className="space-y-2">
             <Label htmlFor="fullName">Full Name</Label>
             <Input
@@ -160,12 +157,13 @@ export function RegisterModal() {
                 required
                 disabled={isLoading}
                 minLength={8}
-                className="pr-10"
+                className="pr-12 md:pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-foreground/60 hover:text-foreground"
                 tabIndex={-1}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -183,12 +181,13 @@ export function RegisterModal() {
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 required
                 disabled={isLoading}
-                className="pr-10"
+                className="pr-12 md:pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-foreground/60 hover:text-foreground"
                 tabIndex={-1}
               >
                 {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -197,7 +196,7 @@ export function RegisterModal() {
           </div>
           <Button
             type="submit"
-            className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+            className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
             disabled={isLoading}
           >
             {isLoading ? 'Creating account...' : 'Create Account'}
@@ -207,7 +206,7 @@ export function RegisterModal() {
             <button
               type="button"
               onClick={switchToLogin}
-              className="text-[#6E0114] hover:underline font-medium"
+              className="inline-flex min-h-11 items-center text-primary hover:underline font-medium md:min-h-0"
             >
               Sign in
             </button>

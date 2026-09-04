@@ -57,8 +57,8 @@ function DepositSuccessInner({ reservationId }: { reservationId: string }) {
   if (status === 'working') {
     return (
       <div className="flex min-h-[60vh] flex-col items-center justify-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-[#6E0114]" />
-        <p className="text-sm text-gray-600">Confirming your deposit…</p>
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <p className="text-sm text-foreground/70">Confirming your deposit…</p>
       </div>
     );
   }
@@ -66,13 +66,13 @@ function DepositSuccessInner({ reservationId }: { reservationId: string }) {
   if (status === 'error') {
     return (
       <div className="mx-auto max-w-md px-4 py-16 text-center">
-        <AlertTriangle className="mx-auto h-10 w-10 text-amber-500" />
-        <h1 className="mt-3 text-xl font-semibold">We couldn&apos;t confirm your deposit</h1>
-        <p className="mt-2 text-sm text-gray-600">{error}</p>
-        <p className="mt-2 text-sm text-gray-600">
+        <AlertTriangle className="mx-auto h-10 w-10 text-muted-foreground" />
+        <h1 className="mobile-h1 mt-3 text-xl font-semibold">We couldn&apos;t confirm your deposit</h1>
+        <p className="mt-2 text-sm text-foreground/70">{error}</p>
+        <p className="mt-2 text-sm text-foreground/70">
           If your card was charged, don&apos;t pay again — get in touch and we&apos;ll sort it out.
         </p>
-        <Link href="/contact" className="mt-4 inline-block text-[#6E0114] underline">
+        <Link href="/contact" className="mt-4 inline-block text-primary underline">
           Contact us
         </Link>
       </div>
@@ -81,19 +81,19 @@ function DepositSuccessInner({ reservationId }: { reservationId: string }) {
 
   return (
     <div className="mx-auto max-w-md px-4 py-16 text-center">
-      <CheckCircle2 className="mx-auto h-12 w-12 text-green-600" />
-      <h1 className="mt-4 text-2xl font-semibold text-[#020E1C]">Deposit received</h1>
-      <p className="mt-2 text-gray-600">
+      <CheckCircle2 className="mx-auto h-12 w-12 text-foreground" />
+      <h1 className="mobile-h1 mt-4 text-2xl font-semibold text-foreground">Deposit received</h1>
+      <p className="mt-2 text-foreground/70">
         This guitar is locked in for you. It&apos;s in your cart and can&apos;t be removed.
       </p>
 
       {result && (
-        <div className="mt-6 rounded-lg border border-gray-200 bg-[#FFFFF3] p-4 text-left text-sm">
-          <div className="flex justify-between text-gray-700">
+        <div className="mt-6 rounded-lg border border-foreground/15 bg-background p-4 text-left text-sm">
+          <div className="flex justify-between text-foreground/78">
             <span>Deposit paid</span>
             <span className="tabular-nums">{formatCurrency(result.deposit_paid)}</span>
           </div>
-          <div className="mt-1 flex justify-between border-t border-gray-100 pt-1 font-semibold text-gray-900">
+          <div className="mt-1 flex justify-between border-t border-foreground/10 pt-1 font-semibold text-foreground">
             <span>Balance due</span>
             <span className="tabular-nums">{formatCurrency(result.balance_due)}</span>
           </div>
@@ -104,7 +104,7 @@ function DepositSuccessInner({ reservationId }: { reservationId: string }) {
         <Link href="/cart">
           <Button className="w-full">Go to cart</Button>
         </Link>
-        <Link href="/" className="text-sm text-[#6E0114] underline">
+        <Link href="/" className="text-sm text-primary underline">
           Keep browsing
         </Link>
       </div>
@@ -123,7 +123,7 @@ export default function DepositSuccessPage({
     <Suspense
       fallback={
         <div className="flex min-h-[60vh] items-center justify-center">
-          <Loader2 className="h-8 w-8 animate-spin text-[#6E0114]" />
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       }
     >

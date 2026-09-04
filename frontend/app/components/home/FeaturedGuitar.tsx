@@ -21,7 +21,8 @@ interface FeaturedGuitarProps {
 /**
  * Sits directly under the record card in the hero's right column: same narrow width, same
  * paper treatment and same tilt, so the two read as one stack rather than two unrelated
- * cards. Deliberately unlabelled — the guitar carries itself.
+ * cards. Deliberately unlabelled — the guitar carries itself. On phones it follows the
+ * full-width record band and sits flat; a tilted card at the gutter clipped its corners.
  */
 export default function FeaturedGuitar({ listing }: FeaturedGuitarProps) {
   const isOnSale = Boolean(listing.original_price && listing.price < listing.original_price);
@@ -29,7 +30,7 @@ export default function FeaturedGuitar({ listing }: FeaturedGuitarProps) {
   return (
     <Link
       href={`/listing/${listing.id}`}
-      className="receipt group block -rotate-2 transition-colors hover:border-primary cursor-pointer"
+      className="receipt group block transition-colors hover:border-primary cursor-pointer md:-rotate-2"
     >
       <span className="receipt-rule block" />
 
@@ -39,7 +40,7 @@ export default function FeaturedGuitar({ listing }: FeaturedGuitarProps) {
             src={listing.images[0]}
             alt={listing.listing_title}
             fill
-            sizes="290px"
+            sizes="(max-width: 767px) calc(100vw - 40px), 290px"
             className="object-cover"
           />
         ) : (
@@ -49,7 +50,7 @@ export default function FeaturedGuitar({ listing }: FeaturedGuitarProps) {
         )}
 
         {listing.is_reserved ? (
-          <span className="absolute top-0 right-0 bg-yellow-400 px-2 py-1 font-heading text-[11px] leading-none text-yellow-900">
+          <span className="absolute top-0 right-0 bg-muted-foreground px-2 py-1 font-heading text-[11px] leading-none text-foreground">
             {listing.reservation_badge || 'On Hold'}
           </span>
         ) : (
@@ -73,7 +74,7 @@ export default function FeaturedGuitar({ listing }: FeaturedGuitarProps) {
             {formatPrice(listing.price, listing.currency)}
           </span>
           {isOnSale && (
-            <span className="text-xs text-foreground/50 line-through">
+            <span className="text-[13px] text-foreground/50 line-through md:text-xs">
               {formatPrice(listing.original_price!, listing.currency)}
             </span>
           )}

@@ -1,18 +1,22 @@
 'use client';
 
 import { useState, useMemo, useEffect } from 'react';
-import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Filter, X, ChevronLeft, ChevronRight, Heart } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
+import { Search, Filter, X, ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
-import { addToCart, isInCart } from '@/lib/cart';
-import { logAddToCart } from '@/lib/activity';
-import { trackAddToCart } from '@/lib/analytics';
-import { formatPrice } from '@/lib/format';
+import { ListingCard, type ListingCardData } from '@/components/listing/ListingCard';
+import {
+  FilterSheet,
+  filterBySearchAndPrice,
+  filterByCondition,
+  countByCondition,
+  guitarCount,
+  type FilterValue,
+  type PricePreset,
+} from '@/components/listing/FilterSheet';
 
 interface Listing {
   id: string;
@@ -50,6 +54,9 @@ interface SearchClientProps {
 
 const ITEMS_PER_PAGE = 25;
 
+/** How many cards the phone shows before "See all". */
+const COMPACT_COUNT = 2;
+
 type SortOption = 'newest' | 'oldest' | 'price-low' | 'price-high' | 'alpha';
 
 const sortOptions: { value: SortOption; label: string }[] = [
@@ -64,12 +71,37 @@ const sortOptions: { value: SortOption; label: string }[] = [
  * The design's quick price bands. They drive the same minPrice/maxPrice state the
  * numeric inputs below them do, so a chip and a typed range are interchangeable.
  */
-const pricePresets: { label: string; min: string; max: string }[] = [
+const pricePresets: PricePreset[] = [
   { label: 'All', min: '', max: '' },
   { label: 'Under $1.5k', min: '', max: '1500' },
   { label: '$1.5k–2k', min: '1500', max: '2000' },
   { label: '$2k+', min: '2000', max: '' },
 ];
+
+/** The API shape onto the shared card's camelCase one. */
+function toCardData(listing: Listing): ListingCardData {
+  return {
+    id: listing.id,
+    title: listing.listing_title,
+    condition: listing.condition,
+    images: listing.images,
+    price: listing.price,
+    originalPrice: listing.original_price,
+    currency: listing.currency,
+    isReserved: listing.is_reserved,
+    reservationBadge: listing.reservation_badge,
+    reservedForMe: listing.reserved_for_me,
+  };
+}
+
+/** The active price range as a chip label: the matching band, else the typed bounds. */
+function priceChipLabel(min: string, max: string): string {
+  const preset = pricePresets.find(p => (p.min || p.max) && p.min === min && p.max === max);
+  if (preset) return preset.label;
+  if (min && max) return `$${min}–$${max}`;
+  if (min) return `From $${min}`;
+  return `Up to $${max}`;
+}
 
 export default function SearchClient({ initialListings, initialFilters }: SearchClientProps) {
   const router = useRouter();
@@ -85,6 +117,9 @@ export default function SearchClient({ initialListings, initialFilters }: Search
   const [sortBy, setSortBy] = useState<SortOption>(initialFilters.sort);
   const [currentPage, setCurrentPage] = useState(initialFilters.page);
   const [favoriteIds, setFavoriteIds] = useState<Set<string>>(new Set());
+  // Phone-only: the list opens with two cards and "See all"; this is the "See all" tap.
+  const [expanded, setExpanded] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   // Fetch user's favorites when authenticated
   useEffect(() => {
@@ -136,7 +171,7 @@ export default function SearchClient({ initialListings, initialFilters }: Search
     }
   };
 
-  /** The current filter state as a query string, shared by the URL and the /filter link. */
+  /** The current filter state as a query string; the URL mirrors it. */
   const queryString = useMemo(() => {
     const params = new URLSearchParams();
     if (searchQuery) params.set('q', searchQuery);
@@ -165,50 +200,18 @@ export default function SearchClient({ initialListings, initialFilters }: Search
    * this set, so the numbers narrow with the search and price but a checked box never
    * zeroes out its own count.
    */
-  const listingsBeforeCondition = useMemo(() => {
-    let result = initialListings;
+  const listingsBeforeCondition = useMemo(
+    () => filterBySearchAndPrice(initialListings, { q: searchQuery, minPrice, maxPrice }),
+    [initialListings, searchQuery, minPrice, maxPrice]
+  );
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      result = result.filter(listing =>
-        listing.listing_title?.toLowerCase().includes(query) ||
-        listing.description?.toLowerCase().includes(query)
-      );
-    }
-
-    const min = parseFloat(minPrice);
-    const max = parseFloat(maxPrice);
-    if (!isNaN(min)) {
-      result = result.filter(listing => listing.price >= min);
-    }
-    if (!isNaN(max)) {
-      result = result.filter(listing => listing.price <= max);
-    }
-
-    return result;
-  }, [initialListings, searchQuery, minPrice, maxPrice]);
-
-  const conditionCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const listing of listingsBeforeCondition) {
-      if (listing.condition) {
-        counts.set(listing.condition, (counts.get(listing.condition) ?? 0) + 1);
-      }
-    }
-    return counts;
-  }, [listingsBeforeCondition]);
+  const conditionCounts = useMemo(() => countByCondition(listingsBeforeCondition), [listingsBeforeCondition]);
 
   const filteredListings = useMemo(() => {
-    let result = listingsBeforeCondition;
-
-    if (selectedConditions.length > 0) {
-      result = result.filter(listing =>
-        listing.condition && selectedConditions.includes(listing.condition)
-      );
-    }
+    const result = filterByCondition(listingsBeforeCondition, selectedConditions);
 
     // Sort
-    result = [...result].sort((a, b) => {
+    return [...result].sort((a, b) => {
       switch (sortBy) {
         case 'price-low':
           return a.price - b.price;
@@ -227,8 +230,6 @@ export default function SearchClient({ initialListings, initialFilters }: Search
           return bNewest - aNewest;
       }
     });
-
-    return result;
   }, [listingsBeforeCondition, selectedConditions, sortBy]);
 
   const totalPages = Math.ceil(filteredListings.length / ITEMS_PER_PAGE);
@@ -237,6 +238,16 @@ export default function SearchClient({ initialListings, initialFilters }: Search
   const hasActiveFilters = Boolean(
     searchQuery || selectedConditions.length > 0 || minPrice || maxPrice || sortBy !== 'newest'
   );
+  /** Filters that narrow the list. Sort only reorders it, so it does not count here. */
+  const hasListFilters = Boolean(searchQuery || selectedConditions.length > 0 || minPrice || maxPrice);
+  /** What the chips and the Filter badge show. Search is visible in its own input. */
+  const activeFilterCount = selectedConditions.length + (minPrice || maxPrice ? 1 : 0);
+
+  // The phone's compact list: two cards and "See all". Any narrowing filter, a deep-linked
+  // page, or a list too short to hide anything shows the full paginated list instead.
+  const compact =
+    !hasListFilters && !expanded && currentPage === 1 && filteredListings.length > COMPACT_COUNT;
+  const onLastPage = currentPage >= totalPages;
 
   const clearFilters = () => {
     setSearchQuery('');
@@ -260,6 +271,14 @@ export default function SearchClient({ initialListings, initialFilters }: Search
     setCurrentPage(1);
   };
 
+  const applySheet = (next: FilterValue) => {
+    setSearchQuery(next.q);
+    setSelectedConditions(next.conditions);
+    setMinPrice(next.minPrice);
+    setMaxPrice(next.maxPrice);
+    setCurrentPage(1);
+  };
+
   const goToPage = (page: number) => {
     setCurrentPage(page);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -267,10 +286,128 @@ export default function SearchClient({ initialListings, initialFilters }: Search
 
   const fieldClass =
     'w-full border border-foreground/35 bg-background px-3.5 py-3 text-[14.5px] text-foreground outline-none transition-colors placeholder:text-foreground/40 focus:border-primary';
+  const phoneFieldClass =
+    'h-12 w-full border border-foreground/35 bg-background px-3.5 text-base text-foreground outline-none placeholder:text-foreground/50 focus:border-primary';
+  const focusRing = 'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
+  const phonePageButtonClass = `flex h-12 items-center justify-center border border-foreground font-mono text-[11px] uppercase tracking-[0.12em] text-foreground disabled:cursor-not-allowed disabled:border-foreground/20 disabled:text-foreground/35 cursor-pointer ${focusRing}`;
 
   return (
-    <section id="inventory" className="mx-auto max-w-[1320px] px-5 pt-[clamp(48px,6vw,84px)] pb-[clamp(40px,5vw,64px)]">
-      <div className="mb-[clamp(26px,3vw,38px)] flex flex-wrap items-end justify-between gap-6">
+    <section
+      id="inventory"
+      className="order-2 mx-auto max-w-[1320px] px-5 pt-8 pb-8 md:order-none md:pt-[clamp(48px,6vw,84px)] md:pb-[clamp(40px,5vw,64px)]"
+    >
+      {/* Phone header and controls (handoff 1b §3 / 1d): heading, then search, then sort +
+          filter side by side. The full-width filter sheet does the rest. */}
+      <div className="md:hidden">
+        {compact ? (
+          <div className="flex items-baseline justify-between">
+            <h2 className="font-heading text-[26px] leading-none">In stock</h2>
+            <span className="label-mono text-primary">{guitarCount(filteredListings.length)}</span>
+          </div>
+        ) : (
+          <h2 className="font-heading text-[30px] leading-[0.98]">In stock now</h2>
+        )}
+
+        <input
+          type="search"
+          aria-label="Search listings"
+          placeholder="Search by make, model, year"
+          value={searchQuery}
+          onChange={e => {
+            setSearchQuery(e.target.value);
+            setCurrentPage(1);
+          }}
+          className={`${phoneFieldClass} mt-4`}
+        />
+
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <div className="relative">
+            <select
+              aria-label="Sort"
+              value={sortBy}
+              onChange={e => {
+                setSortBy(e.target.value as SortOption);
+                setCurrentPage(1);
+              }}
+              className="h-12 w-full appearance-none border border-foreground/35 bg-background px-3.5 pr-9 font-mono text-[11px] uppercase tracking-[0.12em] text-foreground outline-none focus:border-primary cursor-pointer"
+            >
+              {sortOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 right-3.5 h-4 w-4 -translate-y-1/2 text-primary"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setSheetOpen(true)}
+            aria-expanded={sheetOpen}
+            aria-haspopup="dialog"
+            className={`label-mono flex h-12 items-center justify-center gap-2 bg-foreground text-background cursor-pointer ${focusRing}`}
+          >
+            Filter
+            {activeFilterCount > 0 && (
+              <span className="bg-primary px-1.5 py-0.5 text-primary-foreground">{activeFilterCount}</span>
+            )}
+          </button>
+        </div>
+
+        {activeFilterCount > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {selectedConditions.map(condition => (
+              <span
+                key={condition}
+                className="label-mono flex h-11 items-center border border-primary bg-primary/8 pl-3 whitespace-nowrap text-primary"
+              >
+                {condition}
+                <button
+                  type="button"
+                  onClick={() => toggleCondition(condition)}
+                  aria-label={`Remove ${condition} filter`}
+                  className={`flex h-11 w-11 items-center justify-center cursor-pointer ${focusRing}`}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </span>
+            ))}
+            {(minPrice || maxPrice) && (
+              <span className="label-mono flex h-11 items-center border border-primary bg-primary/8 pl-3 whitespace-nowrap text-primary">
+                {priceChipLabel(minPrice, maxPrice)}
+                <button
+                  type="button"
+                  onClick={() => applyPricePreset('', '')}
+                  aria-label={`Remove ${priceChipLabel(minPrice, maxPrice)} filter`}
+                  className={`flex h-11 w-11 items-center justify-center cursor-pointer ${focusRing}`}
+                >
+                  <X className="h-4 w-4" aria-hidden />
+                </button>
+              </span>
+            )}
+          </div>
+        )}
+
+        {!compact && (
+          <p className="label-mono mt-4 text-foreground/55">
+            Showing {filteredListings.length} of {initialListings.length}
+          </p>
+        )}
+      </div>
+
+      <FilterSheet
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        listings={initialListings}
+        value={{ q: searchQuery, conditions: selectedConditions, minPrice, maxPrice }}
+        availableConditions={availableConditions}
+        presets={pricePresets}
+        onApply={applySheet}
+      />
+
+      <div className="mb-[clamp(26px,3vw,38px)] hidden flex-wrap items-end justify-between gap-6 md:flex">
         <div className="max-w-[60ch]">
           <h2 className="font-heading text-[clamp(30px,4.6vw,54px)]">
             {filteredListings.length} in stock right now
@@ -300,8 +437,9 @@ export default function SearchClient({ initialListings, initialFilters }: Search
         </label>
       </div>
 
-      {/* Mobile search + link through to the full filter screen */}
-      <div className="mb-6 flex gap-2 lg:hidden">
+      {/* Tablet search + filter, between md and the sidebar breakpoint. The filter button
+          opens the same sheet the phone uses. */}
+      <div className="mb-6 hidden gap-2 md:flex lg:hidden">
         <div className="relative flex-1">
           <Search className="absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2 text-foreground/40" />
           <input
@@ -315,13 +453,16 @@ export default function SearchClient({ initialListings, initialFilters }: Search
             className={`${fieldClass} pl-10`}
           />
         </div>
-        <Link
-          href={`/filter${queryString ? `?${queryString}` : ''}`}
-          className="flex min-h-[46px] items-center justify-center border border-foreground/35 px-4 text-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer"
+        <button
+          type="button"
+          onClick={() => setSheetOpen(true)}
           aria-label="Filters"
+          aria-expanded={sheetOpen}
+          aria-haspopup="dialog"
+          className="flex min-h-[46px] items-center justify-center border border-foreground/35 px-4 text-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer"
         >
           <Filter className="h-4 w-4" />
-        </Link>
+        </button>
       </div>
 
       <div className="flex flex-wrap items-start gap-[clamp(24px,3vw,44px)]">
@@ -444,7 +585,7 @@ export default function SearchClient({ initialListings, initialFilters }: Search
 
         <div className="min-w-0 flex-[999_1_480px]">
           {filteredListings.length === 0 ? (
-            <div className="border border-foreground/14 px-6 py-16 text-center">
+            <div className="hidden border border-foreground/14 px-6 py-16 text-center md:block">
               <h3 className="font-heading text-2xl">Nothing matches that</h3>
               <p className="mt-3 text-[15px] text-foreground/68">
                 Try a wider price range, or clear the filters and start again.
@@ -461,20 +602,67 @@ export default function SearchClient({ initialListings, initialFilters }: Search
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(268px,1fr))] gap-[clamp(20px,2.4vw,32px)]">
+              {/* One grid for every width rather than a phone list beside a hidden desktop
+                  copy: a second grid would double the DOM and its images, the defect
+                  b5d778b removed from /sold. In the compact state the cards past the first
+                  two are display:none below md instead. Their eager images still preload
+                  there, but that is four photos at most, and the nineteen lazy ones behind
+                  them never load. */}
+              <div
+                className={`grid grid-cols-1 gap-8 md:mt-0 md:grid-cols-[repeat(auto-fill,minmax(268px,1fr))] md:gap-[clamp(20px,2.4vw,32px)] ${
+                  compact ? 'mt-6' : 'mt-5'
+                }`}
+              >
                 {paginatedListings.map((listing, index) => (
                   <ListingCard
                     key={listing.id}
-                    listing={listing}
+                    listing={toCardData(listing)}
                     isFavorite={favoriteIds.has(listing.id)}
                     onToggleFavorite={handleToggleFavorite}
                     priority={index < 6}
+                    className={compact && index >= COMPACT_COUNT ? 'hidden md:block' : undefined}
                   />
                 ))}
               </div>
 
+              {compact && (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(true)}
+                  className={`font-btn mt-8 flex h-13 w-full items-center justify-center border border-foreground text-[13px] text-foreground md:hidden cursor-pointer ${focusRing}`}
+                >
+                  See all {guitarCount(filteredListings.length)} →
+                </button>
+              )}
+
+              {!compact && totalPages > 1 && (
+                <div className="mt-8 md:hidden">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                      className={phonePageButtonClass}
+                    >
+                      ← Previous
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                      className={phonePageButtonClass}
+                    >
+                      Next →
+                    </button>
+                  </div>
+                  <p className="label-mono mt-3.5 text-center text-foreground/55">
+                    Page {currentPage} of {totalPages}
+                  </p>
+                </div>
+              )}
+
               {totalPages > 1 && (
-                <div className="mt-12 flex items-center justify-between border-t border-foreground/14 pt-6">
+                <div className="mt-12 hidden items-center justify-between border-t border-foreground/14 pt-6 md:flex">
                   <div className="label-mono-sm text-foreground/62">
                     Page {currentPage} of {totalPages}
                   </div>
@@ -502,154 +690,30 @@ export default function SearchClient({ initialListings, initialFilters }: Search
               )}
             </>
           )}
+
+          {/* Thin inventory (handoff 1d). The phone list never looks broken — it just ends
+              here, whether the filters left nothing or the visitor reached the last page. */}
+          {!compact && onLastPage && (
+            <div className="mt-8 border-[1.5px] border-foreground/20 p-5 md:hidden">
+              <p className="label-mono text-primary">Thin inventory</p>
+              <p className="mt-2 text-[17px] leading-[1.3] font-semibold text-foreground">
+                {hasListFilters
+                  ? "That's everything matching those filters."
+                  : "That's everything in stock right now."}
+              </p>
+              <p className="mt-2 text-[15px] leading-[1.5] text-foreground/70">
+                Not seeing it? Tell me what you&apos;re hunting for and I&apos;ll watch for it.
+              </p>
+              <Link
+                href="/contact"
+                className={`font-btn mt-4 flex h-12 items-center justify-center border border-foreground text-[13px] text-foreground cursor-pointer ${focusRing}`}
+              >
+                Tell me what to look for
+              </Link>
+            </div>
+          )}
         </div>
       </div>
     </section>
-  );
-}
-
-interface ListingCardProps {
-  listing: Listing;
-  isFavorite: boolean;
-  onToggleFavorite: (listingId: string, e: React.MouseEvent) => void;
-  priority?: boolean;
-}
-
-function ListingCard({ listing, isFavorite, onToggleFavorite, priority = false }: ListingCardProps) {
-  const isOnSale = Boolean(listing.original_price && listing.price < listing.original_price);
-  const isReserved = Boolean(listing.is_reserved);
-  const [inCart, setInCart] = useState(false);
-
-  // localStorage is read after mount only: reading it during render would make the
-  // server and client markup disagree.
-  useEffect(() => {
-    const sync = () => setInCart(isInCart(listing.id));
-    sync();
-    window.addEventListener('cartUpdated', sync);
-    return () => window.removeEventListener('cartUpdated', sync);
-  }, [listing.id]);
-
-  const handleAddToCart = (e: React.MouseEvent) => {
-    // The whole card is a link; keep the click from navigating.
-    e.preventDefault();
-    e.stopPropagation();
-    if (isReserved || inCart) return;
-
-    addToCart({
-      id: listing.id,
-      title: listing.listing_title,
-      price: listing.price,
-      currency: listing.currency,
-      image: listing.images?.[0] || '',
-    });
-    logAddToCart(listing.id, listing.listing_title);
-    trackAddToCart({
-      id: listing.id,
-      name: listing.listing_title,
-      price: listing.price,
-      currency: listing.currency,
-    });
-    setInCart(true);
-  };
-
-  const actionClass =
-    'flex min-h-[42px] items-center justify-center border border-foreground bg-background px-3 text-center text-xs font-bold tracking-wider uppercase text-foreground transition-colors';
-
-  return (
-    <Link href={`/listing/${listing.id}`} className="block h-full">
-      <Card className="flex h-full cursor-pointer flex-col overflow-hidden transition-shadow hover:shadow-lg">
-        <div className="relative aspect-square w-full bg-gradient-to-br from-muted to-muted/50">
-          {listing.images && listing.images.length > 0 ? (
-            <Image src={listing.images[0]} alt={listing.listing_title} fill sizes="(max-width: 768px) 100vw, (max-width: 1280px) 50vw, 33vw" className="object-cover" priority={priority} />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-              <span className="text-6xl">🎸</span>
-            </div>
-          )}
-          {listing.images && listing.images.length > 1 && (
-            <div className="absolute right-2 bottom-2 rounded bg-[#020E1C]/70 px-2 py-1 text-xs text-[#FFFFF3]">
-              {listing.images.length} photos
-            </div>
-          )}
-          {/* ON SALE badge */}
-          {isOnSale && !isReserved && (
-            <div className="absolute top-2 left-2 rounded bg-[#6E0114] px-2 py-1 text-xs font-bold text-[#FFFFF3]">
-              ON SALE
-            </div>
-          )}
-          {/* Reservation badge. Reserved guitars stay browsable — the badge creates
-              urgency — but never reveal who they're held for. */}
-          {isReserved && (
-            <div
-              className={`absolute top-2 left-2 rounded px-2 py-1 text-xs font-bold uppercase ${
-                listing.reserved_for_me
-                  ? 'bg-green-500 text-white'
-                  : 'bg-yellow-400 text-yellow-900'
-              }`}
-            >
-              {listing.reserved_for_me
-                ? 'On hold for you'
-                : listing.reservation_badge || 'On Hold'}
-            </div>
-          )}
-          {/* Favorite button */}
-          <button
-            onClick={(e) => onToggleFavorite(listing.id, e)}
-            className={`absolute top-2 right-2 cursor-pointer rounded-full p-2 transition-all ${
-              isFavorite
-                ? 'bg-[#FFFFF3] text-red-500'
-                : 'bg-[#FFFFF3]/80 text-gray-400 hover:text-red-500'
-            }`}
-            title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-            aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-          >
-            <Heart className={`h-5 w-5 ${isFavorite ? 'fill-current' : ''}`} />
-          </button>
-        </div>
-        <CardContent className="flex flex-1 flex-col p-4">
-          {listing.condition && (
-            <p className="font-body mb-1 text-sm text-[#B8B0A4]">Used - {listing.condition}</p>
-          )}
-          <h3 className="font-body mb-2 line-clamp-2 text-lg font-semibold text-[#020E1C]">{listing.listing_title}</h3>
-          <div className="mb-1">
-            {isOnSale ? (
-              <div className="flex items-center gap-2">
-                <p className="text-2xl font-bold text-[#6E0114]">
-                  {formatPrice(listing.price, listing.currency)}
-                </p>
-                <p className="text-lg text-gray-400 line-through">
-                  {formatPrice(listing.original_price!, listing.currency)}
-                </p>
-              </div>
-            ) : (
-              <p className="text-2xl font-bold text-foreground">
-                {formatPrice(listing.price, listing.currency)}
-              </p>
-            )}
-          </div>
-          <p className="mb-3 text-sm text-green-600">+ Free Shipping</p>
-
-          {/* Two halves. "View details" is a plain span, not a link: the whole card
-              already navigates there, and nesting an anchor inside one is invalid. */}
-          <div className="mt-auto grid grid-cols-2 gap-2">
-            <button
-              type="button"
-              onClick={handleAddToCart}
-              disabled={isReserved || inCart}
-              className={`${actionClass} ${
-                isReserved || inCart
-                  ? 'cursor-not-allowed border-foreground/30 text-foreground/40'
-                  : 'cursor-pointer hover:bg-foreground hover:text-background'
-              }`}
-            >
-              {isReserved ? 'Reserved' : inCart ? 'In cart' : 'Add to Cart'}
-            </button>
-            <span className={`${actionClass} hover:bg-foreground hover:text-background`}>
-              View Details
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-    </Link>
   );
 }

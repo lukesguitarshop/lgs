@@ -132,14 +132,14 @@ export default function ProfilePage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
-        <h1 className="font-heading text-5xl mb-8 text-[#6E0114]">My Profile</h1>
+        <h1 className="font-heading text-5xl mb-8 text-primary">My Profile</h1>
 
         {/* User Information */}
         <Card className="mb-6">
           <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-full bg-[#020E1C] flex items-center justify-center">
-                <User className="h-8 w-8 text-[#FFFFF3]" />
+              <div className="w-16 h-16 rounded-full bg-foreground flex items-center justify-center">
+                <User className="h-8 w-8 text-primary-foreground" />
               </div>
               <div>
                 <CardTitle className="text-2xl">{user.fullName}</CardTitle>
@@ -191,7 +191,7 @@ export default function ProfilePage() {
                     variant="outline"
                     size="sm"
                     onClick={() => setShowDeleteConfirm(true)}
-                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                    className="text-primary hover:bg-primary hover:text-primary-foreground"
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -201,8 +201,8 @@ export default function ProfilePage() {
             <CardContent>
               {/* Delete confirmation */}
               {showDeleteConfirm && (
-                <div className="mb-4 p-3 border border-red-200 bg-red-50 rounded-lg">
-                  <p className="text-sm font-medium text-red-800 mb-2">
+                <div className="mb-4 border border-primary/30 bg-primary/8 p-3">
+                  <p className="mb-2 text-sm font-medium text-primary">
                     Are you sure you want to delete your shipping address?
                   </p>
                   <div className="flex gap-2">
@@ -253,10 +253,10 @@ export default function ProfilePage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
             {quickLinks.map((link) => (
               <Link key={link.href} href={link.href}>
-                <Card className="h-full hover:border-[#020E1C] transition-colors cursor-pointer">
+                <Card className="h-full hover:border-foreground transition-colors cursor-pointer">
                   <CardContent className="p-4 flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-lg bg-[#020E1C]/10 flex items-center justify-center">
-                      <link.icon className="h-6 w-6 text-[#020E1C]" />
+                    <div className="w-12 h-12 rounded-lg bg-foreground/10 flex items-center justify-center">
+                      <link.icon className="h-6 w-6 text-foreground" />
                     </div>
                     <div className="flex-1">
                       <h3 className="font-medium">{link.title}</h3>
@@ -297,7 +297,7 @@ export default function ProfilePage() {
                   {orders.map((order) => (
                     <div
                       key={order.id}
-                      className="group relative border rounded-lg p-4 hover:border-[#020E1C] hover:bg-gray-50 transition-colors"
+                      className="group relative border rounded-lg p-4 hover:border-foreground hover:bg-muted/50 transition-colors"
                     >
                       {/* The whole card opens the order. It sits behind the tracking link
                           rather than wrapping it, because anchors cannot nest. */}
@@ -319,16 +319,16 @@ export default function ProfilePage() {
                           <p className="font-semibold text-lg">
                             {formatCurrency(order.totalAmount, order.currency)}
                           </p>
-                          <span className="inline-block px-2 py-1 text-xs rounded-full bg-green-100 text-green-800">
+                          <span className="label-mono-sm inline-block bg-foreground px-2 py-1 text-background">
                             {getStatusDisplay(order.status)}
                           </span>
                         </div>
                       </div>
                       {/* Tracking Information */}
                       {order.trackingNumber && order.trackingCarrier && (
-                        <div className="relative flex items-center gap-2 mb-2 p-2 bg-[#020E1C]/10 rounded-md w-fit">
-                          <Truck className="h-4 w-4 text-[#020E1C]" />
-                          <span className="text-sm font-medium text-[#020E1C]">
+                        <div className="relative flex items-center gap-2 mb-2 p-2 bg-foreground/10 rounded-md w-fit">
+                          <Truck className="h-4 w-4 text-foreground" />
+                          <span className="text-sm font-medium text-foreground">
                             {order.trackingCarrier}:
                           </span>
                           {getTrackingUrl(order.trackingCarrier, order.trackingNumber) ? (
@@ -336,13 +336,13 @@ export default function ProfilePage() {
                               href={getTrackingUrl(order.trackingCarrier, order.trackingNumber)!}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-sm text-[#020E1C] hover:underline font-mono inline-flex items-center gap-1"
+                              className="text-sm text-foreground hover:underline font-mono inline-flex items-center gap-1"
                             >
                               {order.trackingNumber}
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           ) : (
-                            <span className="text-sm text-[#020E1C] font-mono">
+                            <span className="text-sm text-foreground font-mono">
                               {order.trackingNumber}
                             </span>
                           )}
@@ -360,7 +360,7 @@ export default function ProfilePage() {
                           </p>
                         )}
                       </div>
-                      <p className="mt-3 flex items-center gap-1 text-sm font-medium text-[#6E0114]">
+                      <p className="mt-3 flex items-center gap-1 text-sm font-medium text-primary">
                         View order details
                         <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                       </p>

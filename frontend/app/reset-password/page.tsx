@@ -80,14 +80,14 @@ function ResetPasswordContent() {
             <Card>
               <CardContent className="pt-6">
                 <div className="text-center space-y-4">
-                  <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+                  <CheckCircle className="mx-auto h-16 w-16 text-foreground" />
                   <h2 className="text-xl font-semibold">Password Reset Successful</h2>
                   <p className="text-muted-foreground">
                     Your password has been reset successfully. You can now sign in with your new password.
                   </p>
                   <Button
                     onClick={() => router.push('/')}
-                    className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                   >
                     Go to Home
                   </Button>
@@ -120,7 +120,7 @@ function ResetPasswordContent() {
             <CardContent>
               <form onSubmit={handleResetPassword} className="space-y-4">
                 {error && (
-                  <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                  <div className="bg-primary p-3 text-sm text-primary-foreground">
                     {error}
                   </div>
                 )}
@@ -141,7 +141,7 @@ function ResetPasswordContent() {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/60 hover:text-foreground/78"
                       tabIndex={-1}
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -165,7 +165,7 @@ function ResetPasswordContent() {
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/60 hover:text-foreground/78"
                       tabIndex={-1}
                     >
                       {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -175,7 +175,7 @@ function ResetPasswordContent() {
 
                 <Button
                   type="submit"
-                  className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                   disabled={isLoading}
                 >
                   {isLoading ? (
@@ -203,7 +203,7 @@ function ResetPasswordContent() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center space-y-4">
-                <CheckCircle className="h-16 w-16 text-green-500 mx-auto" />
+                <CheckCircle className="mx-auto h-16 w-16 text-foreground" />
                 <h2 className="text-xl font-semibold">Check Your Email</h2>
                 <p className="text-muted-foreground">
                   If an account exists with <strong>{email}</strong>, we&apos;ve sent a password reset link. Please check your inbox and spam folder.
@@ -255,7 +255,7 @@ function ResetPasswordContent() {
           <CardContent>
             <form onSubmit={handleRequestReset} className="space-y-4">
               {error && (
-                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                <div className="bg-primary p-3 text-sm text-primary-foreground">
                   {error}
                 </div>
               )}
@@ -275,7 +275,7 @@ function ResetPasswordContent() {
 
               <Button
                 type="submit"
-                className="w-full bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
                 disabled={isLoading}
               >
                 {isLoading ? (
