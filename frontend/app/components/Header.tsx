@@ -144,8 +144,10 @@ export default function Header() {
   }, [mobileMenuOpen]);
 
   // The counts beside the sheet's shop links are worth a request only once someone has
-  // actually opened the sheet, and only once per visit — they are decoration on a menu,
-  // not live figures. Each settles on its own; a missing one just renders no count.
+  // actually opened the sheet — they are decoration on a menu, not live figures. Each
+  // settles on its own; a missing one just renders no count. Deliberately keyed on the
+  // sheet and the viewer only: keying it on the counts too would let each result that
+  // landed re-run the effect and cancel the requests still in flight.
   useEffect(() => {
     if (!mobileMenuOpen) return;
 
@@ -153,19 +155,15 @@ export default function Header() {
     const set = (key: keyof MenuCounts, value: number) =>
       setMenuCounts(prev => (cancelled ? prev : { ...prev, [key]: value }));
 
-    if (menuCounts.listings === null) {
-      api
-        .get<unknown[]>('/listings')
-        .then(rows => set('listings', rows.length))
-        .catch(() => {});
-    }
-    if (menuCounts.sold === null) {
-      api
-        .get<unknown[]>('/listings/sold')
-        .then(rows => set('sold', rows.length))
-        .catch(() => {});
-    }
-    if (menuCounts.favourites === null && isAuthenticated) {
+    api
+      .get<unknown[]>('/listings')
+      .then(rows => set('listings', rows.length))
+      .catch(() => {});
+    api
+      .get<unknown[]>('/listings/sold')
+      .then(rows => set('sold', rows.length))
+      .catch(() => {});
+    if (isAuthenticated) {
       api
         .authGet<unknown[]>('/favorites')
         .then(rows => set('favourites', rows.length))
@@ -175,7 +173,7 @@ export default function Header() {
     return () => {
       cancelled = true;
     };
-  }, [mobileMenuOpen, isAuthenticated, menuCounts.listings, menuCounts.sold, menuCounts.favourites]);
+  }, [mobileMenuOpen, isAuthenticated]);
 
   // Every link in the sheet closes it, so navigation never leaves it hanging open.
   const closeMobileMenu = () => setMobileMenuOpen(false);
@@ -212,6 +210,30 @@ export default function Header() {
     </Link>
   );
 
+  /**
+   * The same control in the page bar and in the sheet's bar: opening the menu must not
+   * reshape the cart under the thumb, so there is one definition of it, not two.
+   */
+  const mobileCartLink = (onClick?: () => void) => (
+    <Link
+      href="/cart"
+      onClick={onClick}
+      aria-label={cartLabel}
+      className={cn(
+        mobileCartBase,
+        focusRing,
+        totalCartCount > 0
+          ? 'border-primary bg-primary/8 text-primary'
+          : 'border-foreground text-foreground'
+      )}
+    >
+      <ShoppingCart className="h-[19px] w-[19px]" />
+      <span className="mt-0.5 font-mono text-[11px] leading-none tracking-[0.06em]">
+        {cartDisplay}
+      </span>
+    </Link>
+  );
+
   return (
     <>
       {isAdmin && (
@@ -233,26 +255,7 @@ export default function Header() {
           </Link>
           <div />
           <div className="flex items-center gap-2">
-            {isAdmin ? (
-              mobileAdminLink()
-            ) : (
-              <Link
-                href="/cart"
-                aria-label={cartLabel}
-                className={cn(
-                  mobileCartBase,
-                  focusRing,
-                  totalCartCount > 0
-                    ? 'border-primary bg-primary/8 text-primary'
-                    : 'border-foreground text-foreground'
-                )}
-              >
-                <ShoppingCart className="h-[19px] w-[19px]" />
-                <span className="mt-0.5 font-mono text-[11px] leading-none tracking-[0.06em]">
-                  {cartDisplay}
-                </span>
-              </Link>
-            )}
+            {isAdmin ? mobileAdminLink() : mobileCartLink()}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
@@ -358,39 +361,18 @@ export default function Header() {
                 <MobileLogo />
               </Link>
               <div />
-              <div className="flex items-center gap-2.5">
+              <div className="flex items-center gap-2">
                 {/* No admin shortcut here: the owner's account block already ends the
                     sheet with the portal, and two of them in one sheet is one too many. */}
-                {!isAdmin && (
-                  <Link
-                    href="/cart"
-                    onClick={closeMobileMenu}
-                    aria-label={cartLabel}
-                    className={cn(
-                      'flex h-[42px] items-center gap-[7px] rounded-full border border-foreground/16 bg-background px-3.5 transition-colors hover:border-primary cursor-pointer',
-                      focusRing,
-                      totalCartCount > 0 ? 'text-primary' : 'text-foreground'
-                    )}
-                  >
-                    <ShoppingCart className="h-[17px] w-[17px]" />
-                    <span
-                      className={cn(
-                        'font-mono text-xs leading-none',
-                        totalCartCount > 0 && 'font-bold'
-                      )}
-                    >
-                      {cartDisplay}
-                    </span>
-                  </Link>
-                )}
+                {!isAdmin && mobileCartLink(closeMobileMenu)}
                 <DialogPrimitive.Close
                   aria-label="Close menu"
                   className={cn(
-                    'flex h-[42px] w-[42px] items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-foreground cursor-pointer',
+                    'flex h-12 w-12 items-center justify-center bg-primary text-primary-foreground transition-colors hover:bg-foreground cursor-pointer',
                     focusRing
                   )}
                 >
-                  <X className="h-[15px] w-[15px]" />
+                  <X className="h-6 w-6" />
                 </DialogPrimitive.Close>
               </div>
             </div>
@@ -416,7 +398,8 @@ export default function Header() {
               <div className="px-[18px] pt-[22px]">
                 <div className="label-mono pb-2.5 text-primary">Shop</div>
                 {shopLinks.map(link => {
-                  const count = menuCounts[link.count];
+                  // A bare "0" beside a nav row reads as a failure, not as "none yet".
+                  const count = menuCounts[link.count] || null;
                   const live = link.count === 'favourites' && !!count;
                   return (
                     <Link
