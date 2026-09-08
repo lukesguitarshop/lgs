@@ -3,7 +3,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
-import { User, LogOut, Heart, Tag, MessageSquare, Shield, Bell, Guitar } from 'lucide-react';
+import {
+  User,
+  LogOut,
+  Heart,
+  Tag,
+  MessageSquare,
+  Shield,
+  Bell,
+  Guitar,
+  ArrowRight,
+} from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -177,19 +188,32 @@ interface MobileProfileButtonProps {
   onNavigate?: () => void;
 }
 
-/** One 48px row of the menu sheet's account block; hairlines between rows, none above the first. */
-const mobileRowClass =
-  'flex h-12 w-full items-center justify-between border-t border-foreground/10 px-5 text-left text-[15px] text-foreground transition-colors hover:text-primary cursor-pointer first:border-t-0 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring';
+/** A tile in the account block's grid: a hairline box on the sheet's own cream. */
+const accountTile =
+  'flex h-11 items-center justify-between gap-2 rounded-[10px] border border-foreground/12 bg-background px-[13px] text-sm text-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
 
-const mobileCountClass = 'font-mono text-[11px] text-muted-foreground';
+/** "Luke Walden" -> "LW"; a signed-in user always has at least one word. */
+function initials(name: string | undefined) {
+  const words = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (words.length === 0) return '?';
+  return (words[0][0] + (words.length > 1 ? words[words.length - 1][0] : '')).toUpperCase();
+}
 
 /**
- * The account block at the foot of the phone menu sheet. Plain 48px rows in the sheet's
- * own weight — no filled slabs, no coloured pills — so the trade-in CTA above it stays
- * the sheet's one call to action.
+ * The account block anchored to the foot of the phone menu sheet. It is the one part of
+ * the sheet that changes shape with who is looking: signed out gets the two ways in, a
+ * buyer gets their four account destinations, and the owner gets the portal.
  */
 export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
-  const { user, isAuthenticated, isAdmin, isLoading, setShowLoginModal, logout } = useAuth();
+  const {
+    user,
+    isAuthenticated,
+    isAdmin,
+    isLoading,
+    setShowLoginModal,
+    setShowRegisterModal,
+    logout,
+  } = useAuth();
   const [counts, setCounts] = useState<NotificationCounts>({ offers: 0, messages: 0, total: 0 });
 
   const loadNotifications = useCallback(async () => {
@@ -223,61 +247,124 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
 
   if (!isAuthenticated) {
     return (
-      <button
-        type="button"
-        onClick={() => {
-          setShowLoginModal(true);
-          onNavigate?.();
-        }}
-        className={mobileRowClass}
-      >
-        Sign in
-      </button>
+      <div className="flex flex-col gap-2.5 border-t border-foreground/12 bg-muted-foreground/18 p-[18px]">
+        <div className="flex gap-2.5">
+          <button
+            type="button"
+            onClick={() => {
+              setShowLoginModal(true);
+              onNavigate?.();
+            }}
+            className="flex h-[50px] flex-1 items-center justify-center rounded-xl bg-foreground text-[15px] font-semibold text-background transition-colors hover:bg-primary cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            Sign in
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setShowRegisterModal(true);
+              onNavigate?.();
+            }}
+            className="flex h-[50px] flex-1 items-center justify-center rounded-xl border border-foreground/22 text-[15px] font-semibold text-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            Create account
+          </button>
+        </div>
+        <p className="text-center text-[12.5px] text-foreground/60">
+          Sign in to make offers and track trade-ins.
+        </p>
+      </div>
     );
   }
 
   return (
-    <>
-      <p className="label-mono-sm px-5 pt-4 pb-2 text-foreground/55">
-        Signed in as {user?.fullName}
-      </p>
-      <Link href="/profile" onClick={onNavigate} className={mobileRowClass}>
-        Profile
-      </Link>
-      {!isAdmin && (
+    <div className="flex flex-col gap-3 border-t border-foreground/12 bg-muted-foreground/18 px-[18px] pt-3.5 pb-[18px]">
+      <div className="flex items-center gap-[11px]">
+        <span
+          aria-hidden
+          className={cn(
+            'flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full text-sm font-semibold text-background',
+            isAdmin ? 'bg-primary' : 'bg-foreground'
+          )}
+        >
+          {initials(user?.fullName)}
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="truncate text-[15px] font-semibold text-foreground">
+            {user?.fullName}
+          </span>
+          {isAdmin ? (
+            <span className="label-mono-sm self-start rounded border border-primary/35 px-1.5 py-0.5 text-[9.5px] text-primary">
+              Owner
+            </span>
+          ) : (
+            <span className="label-mono-sm text-[10px] text-foreground/55">Signed in</span>
+          )}
+        </span>
+        <button
+          type="button"
+          onClick={() => {
+            logout();
+            onNavigate?.();
+          }}
+          className="text-[13.5px] font-semibold text-primary transition-colors hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+        >
+          Sign out
+        </button>
+      </div>
+
+      {isAdmin ? (
         <>
-          <Link href="/messages" onClick={onNavigate} className={mobileRowClass}>
+          <Link
+            href="/admin"
+            onClick={onNavigate}
+            className="flex h-13 items-center justify-between rounded-xl bg-foreground px-4 text-[15px] font-semibold text-background transition-colors hover:bg-primary cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            Admin portal
+            <span className="flex items-center gap-2.5">
+              {counts.offers > 0 && (
+                <span className="label-mono-sm text-[10.5px] text-background/70">
+                  {counts.offers} new {counts.offers === 1 ? 'offer' : 'offers'}
+                </span>
+              )}
+              <ArrowRight className="h-[18px] w-[18px]" />
+            </span>
+          </Link>
+          <div className="grid grid-cols-2 gap-2">
+            <Link href="/profile" onClick={onNavigate} className={accountTile}>
+              Profile
+            </Link>
+            <Link href="/admin/trade-ins" onClick={onNavigate} className={accountTile}>
+              Trade-in inbox
+            </Link>
+          </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <Link href="/profile" onClick={onNavigate} className={accountTile}>
+            Profile
+          </Link>
+          <Link href="/messages" onClick={onNavigate} className={accountTile}>
             Messages
             {counts.messages > 0 && (
-              <span className={mobileCountClass}>{counts.messages} unread</span>
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[10.5px] text-primary-foreground">
+                {counts.messages > 99 ? '99+' : counts.messages}
+              </span>
             )}
           </Link>
-          <Link href="/messages?filter=offers" onClick={onNavigate} className={mobileRowClass}>
+          <Link href="/messages?filter=offers" onClick={onNavigate} className={accountTile}>
             My offers
             {counts.offers > 0 && (
-              <span className={mobileCountClass}>{counts.offers} pending</span>
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 font-mono text-[10.5px] text-primary-foreground">
+                {counts.offers}
+              </span>
             )}
           </Link>
-          <Link href="/account/trade-ins" onClick={onNavigate} className={mobileRowClass}>
+          <Link href="/account/trade-ins" onClick={onNavigate} className={accountTile}>
             My trade-ins
           </Link>
-        </>
+        </div>
       )}
-      {isAdmin && (
-        <Link href="/admin" onClick={onNavigate} className={mobileRowClass}>
-          Admin portal
-        </Link>
-      )}
-      <button
-        type="button"
-        onClick={() => {
-          logout();
-          onNavigate?.();
-        }}
-        className={mobileRowClass}
-      >
-        Sign out
-      </button>
-    </>
+    </div>
   );
 }

@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { ShoppingCart, Menu, X, Shield } from 'lucide-react';
+import { ShoppingCart, Menu, X, Shield, Search, ArrowRight } from 'lucide-react';
 import { getCartCount } from '@/lib/cart';
 import { ProfileButton, MobileProfileButton } from '@/components/auth/ProfileButton';
 import { useAuth } from '@/contexts/AuthContext';
@@ -24,27 +25,21 @@ const navLinks = [
  * single trade-in call to action. The first group carries the heavier weight because
  * it is where people actually go; the trust pages sit lighter beneath it.
  */
-const menuGroups = [
-  {
-    label: 'Shop',
-    rowClass: 'h-13 text-[17px] font-semibold',
-    items: [
-      { href: '/#inventory', label: 'Listings' },
-      { href: '/sold', label: 'Sold' },
-      { href: '/favorites', label: 'Favourites' },
-    ],
-  },
-  {
-    label: 'Shop info',
-    rowClass: 'h-12 text-base font-normal',
-    items: [
-      { href: '/#about', label: 'About Luke' },
-      { href: '/shop-info?tab=return-policy', label: 'Shipping & returns' },
-      { href: '/shop-info?tab=reviews', label: 'Reviews' },
-      { href: '/contact', label: 'Contact' },
-    ],
-  },
+/** The sheet's headline group: where people actually go, with the size to match. */
+const shopLinks = [
+  { href: '/#inventory', label: 'Listings', count: 'listings' as const },
+  { href: '/sold', label: 'Sold', count: 'sold' as const },
+  { href: '/favorites', label: 'Favourites', count: 'favourites' as const },
 ];
+
+/** The trust pages, paired off into tiles so four of them cost four rows, not eight. */
+const infoLinks = [
+  { href: '/#about', label: 'About Luke' },
+  { href: '/shop-info?tab=return-policy', label: 'Shipping & returns' },
+  { href: '/shop-info?tab=reviews', label: 'Reviews' },
+  { href: '/contact', label: 'Contact' },
+];
+
 
 const focusRing = 'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
 const rowFocusRing = `${focusRing} focus-visible:ring-inset`;
@@ -71,7 +66,20 @@ function MobileLogo() {
   );
 }
 
+interface MenuCounts {
+  listings: number | null;
+  sold: number | null;
+  favourites: number | null;
+}
+
 export default function Header() {
+  const router = useRouter();
+  const [menuQuery, setMenuQuery] = useState('');
+  const [menuCounts, setMenuCounts] = useState<MenuCounts>({
+    listings: null,
+    sold: null,
+    favourites: null,
+  });
   const [cartCount, setCartCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -135,14 +143,74 @@ export default function Header() {
     return () => desktop.removeEventListener('change', closeOnDesktop);
   }, [mobileMenuOpen]);
 
+  // The counts beside the sheet's shop links are worth a request only once someone has
+  // actually opened the sheet, and only once per visit — they are decoration on a menu,
+  // not live figures. Each settles on its own; a missing one just renders no count.
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    let cancelled = false;
+    const set = (key: keyof MenuCounts, value: number) =>
+      setMenuCounts(prev => (cancelled ? prev : { ...prev, [key]: value }));
+
+    if (menuCounts.listings === null) {
+      api
+        .get<unknown[]>('/listings')
+        .then(rows => set('listings', rows.length))
+        .catch(() => {});
+    }
+    if (menuCounts.sold === null) {
+      api
+        .get<unknown[]>('/listings/sold')
+        .then(rows => set('sold', rows.length))
+        .catch(() => {});
+    }
+    if (menuCounts.favourites === null && isAuthenticated) {
+      api
+        .authGet<unknown[]>('/favorites')
+        .then(rows => set('favourites', rows.length))
+        .catch(() => {});
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [mobileMenuOpen, isAuthenticated, menuCounts.listings, menuCounts.sold, menuCounts.favourites]);
+
   // Every link in the sheet closes it, so navigation never leaves it hanging open.
   const closeMobileMenu = () => setMobileMenuOpen(false);
+
+  // Search from the sheet hands the term to the home page's own filter state, which
+  // reads it straight back out of the query string, and jumps to the grid.
+  const submitMenuSearch = (event: React.FormEvent) => {
+    event.preventDefault();
+    const q = menuQuery.trim();
+    router.push(q ? `/?q=${encodeURIComponent(q)}#inventory` : '/#inventory');
+    setMenuQuery('');
+    closeMobileMenu();
+  };
 
   const totalCartCount = cartCount + pendingCount;
   const cartLabel = `Cart, ${totalCartCount} items`;
   const cartDisplay = totalCartCount > 99 ? '99+' : totalCartCount;
   const mobileCartBase =
     'flex h-12 w-12 flex-col items-center justify-center border-[1.5px] transition-colors cursor-pointer';
+
+  /**
+   * Admins never shop, so the phone bar spends that slot the way the desktop bar does:
+   * the cart becomes the way into the portal. Bordered rather than solid, because the
+   * hamburger beside it is already a filled block.
+   */
+  const mobileAdminLink = () => (
+    <Link
+      href="/admin"
+      aria-label="Admin portal"
+      className={cn(mobileCartBase, focusRing, 'border-primary bg-primary/8 text-primary')}
+    >
+      <Shield className="h-[19px] w-[19px]" />
+      <span className="mt-0.5 font-mono text-[9px] leading-none tracking-[0.08em]">ADMIN</span>
+    </Link>
+  );
 
   return (
     <>
@@ -154,33 +222,37 @@ export default function Header() {
       {/* The crimson rule is 2px on phones (the tab strip clears `--header-h` + 2px) and
           stays the 1px it has always been from md up. */}
       <header className="sticky top-0 z-50 border-b-2 border-primary bg-background/95 backdrop-blur-sm md:border-b">
-        {/* Mobile: one row, a fixed 56px, so it cannot wrap whatever is inside it. */}
-        <div className="grid h-14 grid-cols-[auto_1fr_auto] items-center px-5 md:hidden">
+        {/* Mobile: one row, a fixed 84px, so it cannot wrap whatever is inside it. */}
+        <div className="grid h-21 grid-cols-[auto_1fr_auto] items-center px-5 md:hidden">
           <Link
             href="/"
             aria-label="Luke's Guitar Shop — home"
-            className={cn('flex h-14 items-center cursor-pointer', focusRing)}
+            className={cn('flex h-21 items-center cursor-pointer', focusRing)}
           >
             <MobileLogo />
           </Link>
           <div />
           <div className="flex items-center gap-2">
-            <Link
-              href="/cart"
-              aria-label={cartLabel}
-              className={cn(
-                mobileCartBase,
-                focusRing,
-                totalCartCount > 0
-                  ? 'border-primary bg-primary/8 text-primary'
-                  : 'border-foreground text-foreground'
-              )}
-            >
-              <ShoppingCart className="h-[19px] w-[19px]" />
-              <span className="mt-0.5 font-mono text-[11px] leading-none tracking-[0.06em]">
-                {cartDisplay}
-              </span>
-            </Link>
+            {isAdmin ? (
+              mobileAdminLink()
+            ) : (
+              <Link
+                href="/cart"
+                aria-label={cartLabel}
+                className={cn(
+                  mobileCartBase,
+                  focusRing,
+                  totalCartCount > 0
+                    ? 'border-primary bg-primary/8 text-primary'
+                    : 'border-foreground text-foreground'
+                )}
+              >
+                <ShoppingCart className="h-[19px] w-[19px]" />
+                <span className="mt-0.5 font-mono text-[11px] leading-none tracking-[0.06em]">
+                  {cartDisplay}
+                </span>
+              </Link>
+            )}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
@@ -276,90 +348,148 @@ export default function Header() {
 
             {/* The sheet's own 56px bar mirrors the header so the page does not appear
                 to jump when it opens. */}
-            <div className="grid h-14 shrink-0 grid-cols-[auto_1fr_auto] items-center border-b-2 border-primary px-5">
+            <div className="grid h-21 shrink-0 grid-cols-[auto_1fr_auto] items-center border-b-2 border-primary px-5">
               <Link
                 href="/"
                 onClick={closeMobileMenu}
                 aria-label="Luke's Guitar Shop — home"
-                className={cn('flex h-14 items-center cursor-pointer', focusRing)}
+                className={cn('flex h-21 items-center cursor-pointer', focusRing)}
               >
                 <MobileLogo />
               </Link>
               <div />
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/cart"
-                  onClick={closeMobileMenu}
-                  aria-label={cartLabel}
-                  className={cn(mobileCartBase, focusRing, 'border-foreground/30 text-foreground')}
-                >
-                  <ShoppingCart className="h-[19px] w-[19px]" />
-                  <span className="mt-0.5 font-mono text-[11px] leading-none tracking-[0.06em]">
-                    {cartDisplay}
-                  </span>
-                </Link>
+              <div className="flex items-center gap-2.5">
+                {/* No admin shortcut here: the owner's account block already ends the
+                    sheet with the portal, and two of them in one sheet is one too many. */}
+                {!isAdmin && (
+                  <Link
+                    href="/cart"
+                    onClick={closeMobileMenu}
+                    aria-label={cartLabel}
+                    className={cn(
+                      'flex h-[42px] items-center gap-[7px] rounded-full border border-foreground/16 bg-background px-3.5 transition-colors hover:border-primary cursor-pointer',
+                      focusRing,
+                      totalCartCount > 0 ? 'text-primary' : 'text-foreground'
+                    )}
+                  >
+                    <ShoppingCart className="h-[17px] w-[17px]" />
+                    <span
+                      className={cn(
+                        'font-mono text-xs leading-none',
+                        totalCartCount > 0 && 'font-bold'
+                      )}
+                    >
+                      {cartDisplay}
+                    </span>
+                  </Link>
+                )}
                 <DialogPrimitive.Close
                   aria-label="Close menu"
                   className={cn(
-                    'flex h-12 w-12 items-center justify-center bg-primary text-primary-foreground transition-colors hover:bg-foreground cursor-pointer',
+                    'flex h-[42px] w-[42px] items-center justify-center rounded-full bg-primary text-primary-foreground transition-colors hover:bg-foreground cursor-pointer',
                     focusRing
                   )}
                 >
-                  <X className="h-6 w-6" />
+                  <X className="h-[15px] w-[15px]" />
                 </DialogPrimitive.Close>
               </div>
             </div>
 
-            <nav
-              id="mobile-menu"
-              className="flex-1 overflow-y-auto border-t border-foreground/10 pb-5"
-            >
-              {menuGroups.map((group, groupIndex) => (
-                <div key={group.label}>
-                  <div
-                    className={cn(
-                      'label-mono px-5 pb-2 text-primary',
-                      groupIndex === 0 ? 'pt-5' : 'pt-6'
-                    )}
-                  >
-                    {group.label}
-                  </div>
-                  {group.items.map(item => (
+            <nav id="mobile-menu" className="flex flex-1 flex-col overflow-y-auto">
+              <form onSubmit={submitMenuSearch} className="px-[18px] pt-4">
+                <label htmlFor="menu-search" className="sr-only">
+                  Search the shop
+                </label>
+                <div className="flex h-[46px] items-center gap-2.5 rounded-xl border border-foreground/10 bg-muted-foreground/18 px-3.5 focus-within:border-primary">
+                  <Search className="h-4 w-4 shrink-0 text-foreground/45" />
+                  <input
+                    id="menu-search"
+                    type="search"
+                    value={menuQuery}
+                    onChange={e => setMenuQuery(e.target.value)}
+                    placeholder="Search guitars, pedals, amps"
+                    className="w-full bg-transparent text-sm text-foreground placeholder:text-foreground/45 focus:outline-none"
+                  />
+                </div>
+              </form>
+
+              <div className="px-[18px] pt-[22px]">
+                <div className="label-mono pb-2.5 text-primary">Shop</div>
+                {shopLinks.map(link => {
+                  const count = menuCounts[link.count];
+                  const live = link.count === 'favourites' && !!count;
+                  return (
                     <Link
-                      key={item.href}
-                      href={item.href}
+                      key={link.href}
+                      href={link.href}
                       onClick={closeMobileMenu}
                       className={cn(
-                        'flex items-center justify-between border-t border-foreground/10 px-5 text-foreground transition-colors hover:text-primary cursor-pointer',
-                        group.rowClass,
+                        'flex h-13 items-center justify-between text-foreground transition-colors hover:text-primary cursor-pointer',
                         rowFocusRing
                       )}
                     >
-                      {item.label}
+                      <span className="text-[26px] font-semibold tracking-[-0.02em]">
+                        {link.label}
+                      </span>
+                      {count !== null && (
+                        <span
+                          className={cn(
+                            'font-mono text-[11px]',
+                            live ? 'font-bold text-primary' : 'text-foreground/50'
+                          )}
+                        >
+                          {count}
+                        </span>
+                      )}
                     </Link>
-                  ))}
-                </div>
-              ))}
+                  );
+                })}
+              </div>
 
               {!isAdmin && (
-                <div className="px-5 pt-6 pb-5">
+                <div className="px-[18px] pt-[18px]">
                   <Link
                     href="/trade-in"
                     onClick={closeMobileMenu}
                     className={cn(
-                      'font-btn flex h-13 items-center justify-center bg-primary text-[13px] text-primary-foreground transition-colors hover:bg-foreground cursor-pointer',
+                      'flex items-center justify-between gap-3 rounded-[14px] bg-primary p-[18px] text-primary-foreground transition-colors hover:bg-foreground cursor-pointer',
                       focusRing
                     )}
                   >
-                    Send me a trade-in
+                    <span className="flex flex-col gap-[5px]">
+                      <span className="text-[17px] font-bold tracking-[-0.01em]">
+                        Send me a trade-in
+                      </span>
+                      <span className="text-[12.5px] text-primary-foreground/75">
+                        Cash or credit toward anything in stock.
+                      </span>
+                    </span>
+                    <ArrowRight className="h-5 w-5 shrink-0" />
                   </Link>
-                  <p className="mt-2.5 text-center text-[13px] leading-[1.45] text-foreground/60">
-                    Cash or credit toward anything in stock.
-                  </p>
                 </div>
               )}
 
-              <div className="border-t border-foreground/12 bg-muted-foreground/18">
+              <div className="px-[18px] pt-[22px] pb-5">
+                <div className="label-mono pb-2.5 text-primary">Shop info</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {infoLinks.map(link => (
+                    <Link
+                      key={link.href}
+                      href={link.href}
+                      onClick={closeMobileMenu}
+                      className={cn(
+                        'flex h-[46px] items-center rounded-[10px] border border-foreground/12 px-[13px] text-[14.5px] text-foreground transition-colors hover:border-primary hover:text-primary cursor-pointer',
+                        focusRing
+                      )}
+                    >
+                      {link.label}
+                    </Link>
+                  ))}
+                </div>
+              </div>
+
+              {/* Pushed to the foot, so a short sheet never trails off into empty cream. */}
+              <div className="mt-auto">
                 <MobileProfileButton onNavigate={closeMobileMenu} />
               </div>
             </nav>

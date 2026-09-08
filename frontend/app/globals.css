@@ -75,11 +75,11 @@
 }
 
 @layer base {
-  /* The header owns its own height. The mobile bar is a fixed h-14; above md the
+  /* The header owns its own height. The mobile bar is a fixed h-21; above md the
      desktop composition takes over, so the value tracks the logo clamp plus its
      py-2.5. Anything that needs to clear the header reads this, never a literal. */
   :root {
-    --header-h: 56px;
+    --header-h: 84px;
   }
   @media (min-width: 768px) {
     :root {
