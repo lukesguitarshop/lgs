@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Mail;
+using System.Text.RegularExpressions;
 
 namespace GuitarDb.API.Services;
 
@@ -16,6 +17,35 @@ public class EmailService
     private readonly string? _sellerEmail;
     private readonly string? _frontendUrl;
     private readonly bool _isEnabled;
+
+    // Brand palette and type, mirrored from frontend/app/globals.css. Mail clients can't
+    // read CSS variables and many strip <style>, so every value is inlined as a literal.
+    private const string Oxblood = "#6E0114";
+    private const string Cream = "#FFFFF3";
+    private const string Ink = "#020E1C";
+    private const string Paper = "#f2f0e3";
+    private const string Rule = "#E4E4D7";
+    private const string MutedColor = "#5A5F66";
+    // Web fonts load in Apple Mail/iOS; Gmail and Outlook fall back to the stack.
+    private const string HeadingFont = "Anton, Impact, 'Arial Narrow Bold', sans-serif";
+    private const string BodyFont = "Archivo, Arial, Helvetica, sans-serif";
+    private const string MonoFont = "'JetBrains Mono', Consolas, 'Courier New', monospace";
+
+    // Square oxblood button in the site's .btn-mono style.
+    private const string ButtonStyle = $"display: inline-block; background-color: {Oxblood}; color: {Cream}; padding: 14px 26px; text-decoration: none; font-family: {MonoFont}; font-size: 13px; letter-spacing: 0.14em; text-transform: uppercase;";
+    private const string QuoteStyle = $"background-color: {Paper}; border-left: 3px solid {Oxblood}; padding: 15px;";
+
+    // Templates are written as bare tags; the layout inlines the brand styles onto them.
+    private static readonly (string Tag, string Styled)[] TagStyles =
+    {
+        ("<h2>", $"<h2 style=\"margin: 0 0 16px; font-family: {HeadingFont}; font-weight: 400; font-size: 30px; line-height: 1.05; text-transform: uppercase; color: {Ink};\">"),
+        ("<h3>", $"<h3 style=\"margin: 24px 0 8px; font-family: {MonoFont}; font-weight: 500; font-size: 12px; letter-spacing: 0.14em; text-transform: uppercase; color: {Oxblood};\">"),
+        ("<p>", "<p style=\"margin: 0 0 16px;\">"),
+        ("<ul>", "<ul style=\"margin: 0 0 16px; padding-left: 20px;\">"),
+        ("<ol>", "<ol style=\"margin: 0 0 16px; padding-left: 20px;\">"),
+        ("<li>", "<li style=\"margin: 0 0 6px;\">"),
+    };
+    private static readonly Regex PlainLink = new("<a href=\"([^\"]*)\">", RegexOptions.Compiled);
 
     public EmailService(IConfiguration configuration, ILogger<EmailService> logger)
     {
@@ -83,8 +113,6 @@ public class EmailService
 
 <p>Log in to your admin panel to respond to this offer.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(_sellerEmail, subject, body);
@@ -125,8 +153,6 @@ public class EmailService
 
 <p>Log in to your account to accept or decline this counter offer.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(buyerEmail, subject, body);
@@ -161,8 +187,6 @@ public class EmailService
 
 <p>Please proceed to checkout to complete your purchase.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 "
             : $@"
 <h2>Offer Accepted</h2>
@@ -176,8 +200,6 @@ public class EmailService
 
 <p>The buyer has been notified to complete their purchase.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(recipientEmail, subject, body);
@@ -211,8 +233,6 @@ public class EmailService
 
 <p>The buyer should proceed to checkout shortly.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(_sellerEmail, subject, body);
@@ -251,8 +271,6 @@ public class EmailService
 
 <p>You may submit a new offer if you're still interested.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(buyerEmail, subject, body);
@@ -275,10 +293,10 @@ public class EmailService
         var reviewLink = string.IsNullOrEmpty(_frontendUrl) ? null : $"{_frontendUrl}/review";
         var button = reviewLink == null
             ? ""
-            : $@"<p><a href=""{reviewLink}"" style=""display: inline-block; background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"">Leave a Review</a></p>
+            : $@"<p><a href=""{reviewLink}"" style=""{ButtonStyle}"">Leave a Review</a></p>
 
 <p>Or copy and paste this link into your browser:</p>
-<p style=""word-break: break-all; color: #666;"">{reviewLink}</p>";
+<p style=""word-break: break-all; color: {MutedColor};"">{reviewLink}</p>";
 
         var subject = "How did we do? Leave a review - Luke's Guitar Shop";
         var body = $@"
@@ -288,7 +306,7 @@ public class EmailService
 
 {(string.IsNullOrEmpty(personalNote) ? "" : $@"
 <h3>A note from Luke</h3>
-<p style=""background-color: #f5f5f5; padding: 15px; border-radius: 5px;"">{personalNote}</p>
+<p style=""{QuoteStyle}"">{personalNote}</p>
 ")}
 
 <p>It's a star rating and a comment — takes less than a minute.</p>
@@ -297,8 +315,6 @@ public class EmailService
 
 <p>Thanks,<br>Luke</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(recipientEmail, subject, body);
@@ -322,17 +338,15 @@ public class EmailService
 <h2>Password Reset Request</h2>
 <p>We received a request to reset your password. Click the link below to create a new password:</p>
 
-<p><a href=""{resetLink}"" style=""display: inline-block; padding: 12px 24px; background-color: #df5e15; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;"">Reset Password</a></p>
+<p><a href=""{resetLink}"" style=""{ButtonStyle}"">Reset Password</a></p>
 
 <p>Or copy and paste this link into your browser:</p>
-<p style=""word-break: break-all; color: #666;"">{resetLink}</p>
+<p style=""word-break: break-all; color: {MutedColor};"">{resetLink}</p>
 
 <p><strong>This link will expire in 1 hour.</strong></p>
 
 <p>If you didn't request a password reset, you can safely ignore this email. Your password will not be changed.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(recipientEmail, subject, body);
@@ -356,17 +370,15 @@ public class EmailService
 <h2>Welcome to Luke's Guitar Shop!</h2>
 <p>Thank you for creating an account. Please verify your email address by clicking the link below:</p>
 
-<p><a href=""{verificationLink}"" style=""display: inline-block; padding: 12px 24px; background-color: #df5e15; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;"">Verify Email</a></p>
+<p><a href=""{verificationLink}"" style=""{ButtonStyle}"">Verify Email</a></p>
 
 <p>Or copy and paste this link into your browser:</p>
-<p style=""word-break: break-all; color: #666;"">{verificationLink}</p>
+<p style=""word-break: break-all; color: {MutedColor};"">{verificationLink}</p>
 
 <p><strong>This link will expire in 24 hours.</strong></p>
 
 <p>If you didn't create an account, you can safely ignore this email.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         return await SendEmailAsync(recipientEmail, subject, body);
@@ -393,7 +405,7 @@ public class EmailService
             : $"New Message from {senderName}";
 
         var conversationLink = !string.IsNullOrEmpty(conversationId) && !string.IsNullOrEmpty(_frontendUrl)
-            ? $@"<p><a href=""{ConversationUrl(conversationId)}"" style=""display: inline-block; background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 5px; font-weight: bold;"">View Conversation</a></p>"
+            ? $@"<p><a href=""{ConversationUrl(conversationId)}"" style=""{ButtonStyle}"">View Conversation</a></p>"
             : "";
 
         var body = $@"
@@ -405,14 +417,12 @@ public class EmailService
 ")}
 
 <h3>Message Preview</h3>
-<p style=""background-color: #f5f5f5; padding: 15px; border-radius: 5px;"">{messagePreview}</p>
+<p style=""{QuoteStyle}"">{messagePreview}</p>
 
 {conversationLink}
 
 <p>Log in to your account to view the full conversation and reply.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(recipientEmail, subject, body);
@@ -450,13 +460,11 @@ public class EmailService
 </ul>
 
 <p style=""margin: 24px 0;"">
-    <a href=""{conversationUrl}"" style=""background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View Conversation</a>
+    <a href=""{conversationUrl}"" style=""{ButtonStyle}"">View Conversation</a>
 </p>
 
 <p>This offer expires in 48 hours. Please respond before it expires.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(recipientEmail, subject, body);
@@ -491,8 +499,6 @@ public class EmailService
 
 <p><a href=""{conversationUrl}"">View Conversation</a></p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(recipientEmail, subject, body);
@@ -521,8 +527,6 @@ public class EmailService
 
 <p><a href=""{conversationUrl}"">View Conversation</a></p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(recipientEmail, subject, body);
@@ -560,15 +564,13 @@ public class EmailService
 </ul>
 
 <p style=""margin: 24px 0;"">
-    <a href=""{cartUrl}"" style=""background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Complete Purchase</a>
+    <a href=""{cartUrl}"" style=""{ButtonStyle}"">Complete Purchase</a>
 </p>
 
 <p><strong>Important:</strong> Please complete your purchase within 72 hours to secure this item at the agreed price.</p>
 
 <p><a href=""{conversationUrl}"">View Conversation</a></p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 "
             : $@"
 <h2>You Accepted an Offer</h2>
@@ -584,8 +586,6 @@ public class EmailService
 
 <p><a href=""{conversationUrl}"">View Conversation</a></p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(recipientEmail, subject, body);
@@ -614,7 +614,7 @@ public class EmailService
 
         var trackingLink = !string.IsNullOrEmpty(trackingUrl)
             ? $@"<p style=""margin: 24px 0;"">
-                <a href=""{trackingUrl}"" style=""background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Track Your Package</a>
+                <a href=""{trackingUrl}"" style=""{ButtonStyle}"">Track Your Package</a>
             </p>"
             : "";
 
@@ -637,8 +637,6 @@ public class EmailService
 
 <p>Order Reference: #{orderId[^8..].ToUpper()}</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(recipientEmail, subject, body);
@@ -690,8 +688,6 @@ public class EmailService
 
 <p>If you have any questions about your order, please don't hesitate to contact us.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(buyerEmail, subject, body);
@@ -736,8 +732,6 @@ public class EmailService
 
 <p>If you have any questions, please don't hesitate to contact us.</p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(buyerEmail, subject, body);
@@ -788,11 +782,9 @@ public class EmailService
 </p>
 
 <p style=""margin: 24px 0;"">
-    <a href=""{_frontendUrl}/admin"" style=""background-color: #df5e15; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View in Admin Portal</a>
+    <a href=""{_frontendUrl}/admin"" style=""{ButtonStyle}"">View in Admin Portal</a>
 </p>
 
-<hr>
-<p style=""color: #666; font-size: 12px;"">This is an automated message from Luke's Guitar Shop.</p>
 ";
 
         await SendEmailAsync(_sellerEmail, subject, body);
@@ -806,9 +798,7 @@ public class EmailService
 <h2>Thanks for submitting!</h2>
 <p>We received your trade-in request for your <strong>{brand} {model}</strong>.</p>
 <p>We'll review your photos and get back to you within 24 hours with two offers — a cash offer and a higher store-credit offer.</p>
-<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View your request</a></p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""{ButtonStyle}"">View your request</a></p>";
         await SendEmailAsync(toEmail, subject, body);
     }
 
@@ -824,10 +814,8 @@ public class EmailService
     <li><strong>Store credit:</strong> ${creditOffer:N2} (higher value!)</li>
 </ul>
 <p>This offer expires on <strong>{expiresAt:MMMM d, yyyy}</strong>.</p>
-<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Review your offer</a></p>
-<p style=""color: #666; font-size: 12px;"">Final offer subject to inspection. If condition differs, offer may be adjusted.</p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""{ButtonStyle}"">Review your offer</a></p>
+<p style=""color: {MutedColor}; font-size: 12px;"">Final offer subject to inspection. If condition differs, offer may be adjusted.</p>";
         await SendEmailAsync(toEmail, subject, body);
     }
 
@@ -843,9 +831,7 @@ public class EmailService
     <li>Pack your <strong>{brand} {model}</strong> securely (case + box, plenty of padding).</li>
     <li>Drop it off at the carrier indicated on the label.</li>
 </ol>
-<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View shipping page</a></p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""{ButtonStyle}"">View shipping page</a></p>";
         await SendEmailAsync(toEmail, subject, body);
     }
 
@@ -856,9 +842,7 @@ public class EmailService
         var body = $@"
 <h2>Offer Declined</h2>
 <p>The user <strong>{userEmail}</strong> declined the offer for their <strong>{brand} {model}</strong>.</p>
-<p>You can send a new offer if you want to try again.</p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p>You can send a new offer if you want to try again.</p>";
         await SendEmailAsync(_sellerEmail, subject, body);
     }
 
@@ -873,9 +857,7 @@ public class EmailService
 <h2>We're unable to make an offer</h2>
 <p>Thanks for submitting your <strong>{brand} {model}</strong> for trade-in. After reviewing the details, we're not able to make an offer at this time.</p>
 {reasonBlock}
-<p>You're welcome to submit other guitars in the future. Thanks for thinking of us!</p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p>You're welcome to submit other guitars in the future. Thanks for thinking of us!</p>";
         await SendEmailAsync(toEmail, subject, body);
     }
 
@@ -886,9 +868,7 @@ public class EmailService
         var body = $@"
 <h2>Your guitar arrived</h2>
 <p>We received your <strong>{brand} {model}</strong> and are inspecting it now. We'll send you another update within 1–2 business days.</p>
-<p><a href=""{_frontendUrl}/trade-in/{requestId}"">View your trade-in</a></p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"">View your trade-in</a></p>";
         await SendEmailAsync(toEmail, subject, body);
     }
 
@@ -903,9 +883,7 @@ public class EmailService
 <h2>Payment Sent</h2>
 <p>We've sent <strong>${amount:N2}</strong> via PayPal for your <strong>{brand} {model}</strong>.</p>
 {txnLine}
-<p>Thanks for trading with us!</p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p>Thanks for trading with us!</p>";
         await SendEmailAsync(toEmail, subject, body);
     }
 
@@ -917,9 +895,7 @@ public class EmailService
 <h2>Store Credit Available</h2>
 <p>We've added <strong>${amount:N2}</strong> in store credit for your <strong>{brand} {model}</strong>. Your new balance is <strong>${newBalance:N2}</strong>.</p>
 <p>Apply it at checkout next time you shop.</p>
-<p><a href=""{_frontendUrl}/account/credit"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View credit balance</a></p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}/account/credit"" style=""{ButtonStyle}"">View credit balance</a></p>";
         await SendEmailAsync(toEmail, subject, body);
     }
 
@@ -953,9 +929,9 @@ public class EmailService
 
         var subject = $"On hold for you: {listingTitle}";
         var payButton = depositRequired
-            ? $@"<p><a href=""{_frontendUrl}/deposit/{reservationId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Pay deposit — ${depositAmount:N2}</a></p>
-<p style=""color: #666; font-size: 13px;"">This deposit is <strong>{(depositRefundable ? "refundable" : "non-refundable")}</strong>.</p>"
-            : $@"<p><a href=""{_frontendUrl}/listing/{listingId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">View your hold</a></p>";
+            ? $@"<p><a href=""{_frontendUrl}/deposit/{reservationId}"" style=""{ButtonStyle}"">Pay deposit — ${depositAmount:N2}</a></p>
+<p style=""color: {MutedColor}; font-size: 13px;"">This deposit is <strong>{(depositRefundable ? "refundable" : "non-refundable")}</strong>.</p>"
+            : $@"<p><a href=""{_frontendUrl}/listing/{listingId}"" style=""{ButtonStyle}"">View your hold</a></p>";
 
         var body = $@"
 <h2>We're holding this for you</h2>
@@ -972,9 +948,7 @@ public class EmailService
 <p>{ExpiryLine(expiresAt)}</p>
 
 {payButton}
-
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+";
 
         await SendEmailAsync(toEmail, subject, body);
     }
@@ -1002,12 +976,10 @@ public class EmailService
 </ul>
 
 <p>{ExpiryLine(expiresAt)}</p>
-<p style=""color: #666; font-size: 13px;"">This deposit is <strong>{(depositRefundable ? "refundable" : "non-refundable")}</strong>.</p>
+<p style=""color: {MutedColor}; font-size: 13px;"">This deposit is <strong>{(depositRefundable ? "refundable" : "non-refundable")}</strong>.</p>
 
-<p><a href=""{_frontendUrl}/cart"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Complete your purchase</a></p>
-
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}/cart"" style=""{ButtonStyle}"">Complete your purchase</a></p>
+";
 
         await SendEmailAsync(toEmail, subject, body);
     }
@@ -1026,17 +998,15 @@ public class EmailService
 
         var subject = $"Your hold expires soon — {listingTitle}";
         var cta = depositUnpaid
-            ? $@"<p><a href=""{_frontendUrl}/deposit/{reservationId}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Pay deposit — ${depositAmount:N2}</a></p>"
-            : $@"<p><a href=""{_frontendUrl}/cart"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Complete purchase — ${balanceDue:N2}</a></p>";
+            ? $@"<p><a href=""{_frontendUrl}/deposit/{reservationId}"" style=""{ButtonStyle}"">Pay deposit — ${depositAmount:N2}</a></p>"
+            : $@"<p><a href=""{_frontendUrl}/cart"" style=""{ButtonStyle}"">Complete purchase — ${balanceDue:N2}</a></p>";
 
         var body = $@"
 <h2>Your hold expires soon</h2>
 <p><strong>{listingTitle}</strong> is still reserved for you, but not for much longer.</p>
 <p>{ExpiryLine(expiresAt)}</p>
 {cta}
-<p>If you need more time, just reply to this email and we'll sort it out.</p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p>If you need more time, just reply to this email and we'll sort it out.</p>";
 
         await SendEmailAsync(toEmail, subject, body);
     }
@@ -1051,9 +1021,7 @@ public class EmailService
 <h2>Your hold has expired</h2>
 <p>The hold on <strong>{listingTitle}</strong> has run out, and it's back available to everyone.</p>
 <p>If you're still interested, get in touch and we'll see what we can do.</p>
-<p><a href=""{_frontendUrl}"" style=""background-color: #6E0114; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;"">Browse the shop</a></p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}"" style=""{ButtonStyle}"">Browse the shop</a></p>";
 
         await SendEmailAsync(toEmail, subject, body);
     }
@@ -1067,9 +1035,7 @@ public class EmailService
         var body = $@"
 <h2>Your hold has been cancelled</h2>
 <p>The hold on <strong>{listingTitle}</strong> has been cancelled.</p>
-<p>If you have questions, just reply to this email and we'll help.</p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p>If you have questions, just reply to this email and we'll help.</p>";
 
         await SendEmailAsync(toEmail, subject, body);
     }
@@ -1094,9 +1060,7 @@ public class EmailService
     <li><strong>Deposit:</strong> ${depositPaid:N2} via {paymentMethod}</li>
     <li><strong>Balance due:</strong> ${balanceDue:N2}</li>
 </ul>
-<p><a href=""{_frontendUrl}/admin/reservations"">Open reservations</a></p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}/admin/reservations"">Open reservations</a></p>";
 
         await SendEmailAsync(_sellerEmail, subject, body);
     }
@@ -1113,9 +1077,7 @@ public class EmailService
         var body = $@"
 <h2>Holds expiring within 48 hours</h2>
 <ul>{listItems}</ul>
-<p><a href=""{_frontendUrl}/admin/reservations"">Open reservations</a></p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}/admin/reservations"">Open reservations</a></p>";
 
         await SendEmailAsync(_sellerEmail, subject, body);
     }
@@ -1137,9 +1099,7 @@ public class EmailService
     <li><strong>Reason:</strong> {reason}</li>
 </ul>
 <p>Extend it, refund the deposit, or keep it — your call.</p>
-<p><a href=""{_frontendUrl}/admin/reservations"">Open reservations</a></p>
-<hr>
-<p style=""color: #666; font-size: 12px;"">Luke's Guitar Shop</p>";
+<p><a href=""{_frontendUrl}/admin/reservations"">Open reservations</a></p>";
 
         await SendEmailAsync(_sellerEmail, subject, body);
     }
@@ -1153,6 +1113,47 @@ public class EmailService
             "FEDEX" => $"https://www.fedex.com/fedextrack/?trknbr={trackingNumber}",
             _ => null
         };
+    }
+
+    /// <summary>
+    /// Wraps a template body in the branded shell: logo header, cream card, oxblood top
+    /// rule, and the shared footer. Table layout because Outlook ignores div widths.
+    /// </summary>
+    private string Layout(string subject, string content)
+    {
+        foreach (var (tag, styled) in TagStyles)
+            content = content.Replace(tag, styled);
+        content = PlainLink.Replace(content, $"<a href=\"$1\" style=\"color: {Oxblood}; font-weight: 600;\">");
+
+        var header = string.IsNullOrEmpty(_frontendUrl)
+            ? $@"<span style=""font-family: {HeadingFont}; font-size: 24px; text-transform: uppercase; color: {Oxblood};"">Luke's Guitar Shop</span>"
+            : $@"<a href=""{_frontendUrl}"" style=""text-decoration: none;""><img src=""{_frontendUrl}/images/logo-transparent.png"" width=""180"" alt=""Luke's Guitar Shop"" style=""display: block; width: 180px; max-width: 100%; height: auto; border: 0; font-family: {HeadingFont}; font-size: 24px; text-transform: uppercase; color: {Oxblood};""></a>";
+
+        return $@"<!DOCTYPE html>
+<html>
+<head>
+<meta charset=""utf-8"">
+<meta name=""viewport"" content=""width=device-width, initial-scale=1"">
+<title>{WebUtility.HtmlEncode(subject)}</title>
+<link href=""https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap"" rel=""stylesheet"">
+</head>
+<body style=""margin: 0; padding: 0; background-color: {Paper};"">
+<table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""background-color: {Paper};"">
+<tr><td align=""center"" style=""padding: 24px 12px;"">
+<table role=""presentation"" width=""100%"" cellpadding=""0"" cellspacing=""0"" border=""0"" style=""max-width: 600px; background-color: {Cream}; border: 1px solid {Rule}; border-top: 4px solid {Oxblood};"">
+<tr><td style=""padding: 24px 32px; border-bottom: 1px solid {Rule};"">{header}</td></tr>
+<tr><td style=""padding: 32px; font-family: {BodyFont}; font-size: 15px; line-height: 1.55; color: {Ink};"">
+{content}
+</td></tr>
+<tr><td style=""padding: 20px 32px; border-top: 1px solid {Rule}; font-family: {BodyFont}; font-size: 12px; line-height: 1.5; color: {MutedColor};"">
+<span style=""font-family: {MonoFont}; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;"">Luke's Guitar Shop</span><br>
+This is an automated message from Luke's Guitar Shop.
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>";
     }
 
     /// <summary>
@@ -1177,7 +1178,7 @@ public class EmailService
             {
                 From = new MailAddress(_fromEmail!, _fromName),
                 Subject = subject,
-                Body = htmlBody,
+                Body = Layout(subject, htmlBody),
                 IsBodyHtml = true
             };
             message.To.Add(toEmail);
