@@ -38,6 +38,9 @@ public class CheckoutController : ControllerBase
         _depositService = depositService;
     }
 
+    private string FrontendUrl() =>
+        (_configuration["FrontendUrl"] ?? "http://localhost:3000").TrimEnd('/');
+
     /// <summary>
     /// Reservation gate. Called at ALL THREE enforcement points — cart/session creation,
     /// payment-order creation, and again immediately before the order is written at
@@ -254,8 +257,10 @@ public class CheckoutController : ControllerBase
             PaymentMethodTypes = new List<string> { "card" },
             LineItems = lineItems,
             Mode = "payment",
-            SuccessUrl = (_configuration["Stripe:SuccessUrl"] ?? "http://localhost:3000/checkout/success") + "?session_id={CHECKOUT_SESSION_ID}",
-            CancelUrl = _configuration["Stripe:CancelUrl"] ?? "http://localhost:3000/checkout/cancel",
+            // Same origin the buyer signed in on: the JWT lives in that origin's localStorage,
+            // so sending Stripe back anywhere else looks like a logout.
+            SuccessUrl = $"{FrontendUrl()}/checkout/success?session_id={{CHECKOUT_SESSION_ID}}",
+            CancelUrl = $"{FrontendUrl()}/checkout/cancel",
             ShippingOptions = new List<SessionShippingOptionOptions>
             {
                 new SessionShippingOptionOptions

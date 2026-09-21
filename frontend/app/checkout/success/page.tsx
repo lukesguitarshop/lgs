@@ -1,23 +1,17 @@
 'use client';
 
 import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { clearCart, refreshPendingCart } from '@/lib/cart';
 import { useAuth } from '@/contexts/AuthContext';
-import { getToken } from '@/lib/auth';
 import { trackPurchase } from '@/lib/analytics';
-import { Button } from '@/components/ui/button';
 import { StateBlock } from '@/components/ui/state-block';
-import { UserPlus } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const { isGuest, isLoading: authLoading, setShowRegisterModal, setOnRegisterSuccess } = useAuth();
-  const [showCreateAccount, setShowCreateAccount] = useState(false);
+  const { isLoading: authLoading } = useAuth();
   const [hasCompleted, setHasCompleted] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
@@ -31,11 +25,8 @@ function CheckoutSuccessContent() {
       const sessionId = searchParams.get('session_id');
       const paypalOrderId = searchParams.get('paypal_order_id');
 
-      // Check token directly since isAuthenticated may not be accurate yet
-      const token = getToken();
-
       if (sessionId) {
-        // Stripe checkout - complete the order (requires authentication)
+        // Stripe checkout - complete the order
         try {
           await api.authPost('/checkout/complete', { sessionId });
         } catch (err: unknown) {
@@ -67,27 +58,14 @@ function CheckoutSuccessContent() {
       // Also refresh pending cart items (from accepted offers) in header
       refreshPendingCart();
       setHasCompleted(true);
-
-      // Check if we should show the create account prompt
-      // Only show for guests (no token) or guest users
-      // Use token check since it's more reliable than isAuthenticated state
-      if (!token || isGuest) {
-        setShowCreateAccount(true);
-      }
     };
 
     completeCheckout();
-  }, [searchParams, isGuest, hasCompleted, authLoading]);
+  }, [searchParams, hasCompleted, authLoading]);
 
-  const handleCreateAccount = () => {
-    // Set callback to redirect to profile after successful registration
-    // Wrap in extra function to prevent React from calling it as a state updater
-    setOnRegisterSuccess(() => () => {
-      router.push('/profile');
-    });
-    setShowRegisterModal(true);
-  };
-
+  // Checkout requires a signed-in account, so everyone who lands here already has one.
+  // No "create an account" prompt: the only way to see one was being bounced to a
+  // different origin where the session token was not visible.
   return (
     <div className="mx-auto max-w-2xl md:px-4 md:py-16 md:text-center">
       <svg
@@ -128,39 +106,20 @@ function CheckoutSuccessContent() {
         </p>
       )}
 
-      {/* Create Account Prompt for Guests — a prompt, not a state, so a plain bordered
-          block rather than a StateBlock. It takes the solid button; "Continue Shopping"
-          steps down to outline so the page keeps one primary action. */}
-      {showCreateAccount && (
-        <div className="mt-6 border border-foreground/20 p-5 text-left md:text-center">
-          <div className="flex items-center gap-2 md:justify-center">
-            <UserPlus className="h-5 w-5 shrink-0 text-primary" aria-hidden />
-            <h2 className="text-[18px] font-semibold leading-[1.25] text-foreground">Create an Account</h2>
-          </div>
-          <p className="mt-2 text-base leading-[1.5] text-foreground/65">
-            Create an account to track your order, save your address for faster checkout,
-            and get access to exclusive features like favorites and offers.
-          </p>
-          <Button
-            onClick={handleCreateAccount}
-            className="mt-4 h-12 w-full bg-primary px-6 text-[13px] text-primary-foreground hover:bg-primary/90 md:h-12 md:w-auto"
-          >
-            Create Account
-          </Button>
-        </div>
-      )}
-
-      <Link
-        href="/"
-        className={cn(
-          'font-btn mt-6 flex h-12 w-full items-center justify-center px-8 text-[13px] transition-colors md:inline-flex md:w-auto',
-          showCreateAccount
-            ? 'border border-foreground text-foreground hover:bg-foreground hover:text-background'
-            : 'bg-primary text-primary-foreground hover:bg-primary/90'
-        )}
-      >
-        Continue Shopping
-      </Link>
+      <div className="mt-6 grid gap-2 md:flex md:justify-center md:gap-4">
+        <Link
+          href="/profile"
+          className="font-btn flex h-12 w-full items-center justify-center bg-primary px-8 text-[13px] text-primary-foreground transition-colors hover:bg-primary/90 md:inline-flex md:w-auto"
+        >
+          View My Orders
+        </Link>
+        <Link
+          href="/"
+          className="font-btn flex h-12 w-full items-center justify-center border border-foreground px-8 text-[13px] text-foreground transition-colors hover:bg-foreground hover:text-background md:inline-flex md:w-auto"
+        >
+          Continue Shopping
+        </Link>
+      </div>
     </div>
   );
 }

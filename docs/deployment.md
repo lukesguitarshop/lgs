@@ -201,7 +201,7 @@ fly deploy --app guitar-price-api-dev  # Development
 
 | Location | Secrets Stored |
 |----------|---------------|
-| **Fly.io** | `MongoDb__ConnectionString`, `Stripe__SecretKey`, `Stripe__SuccessUrl`, `Stripe__CancelUrl` |
+| **Fly.io** | `MongoDb__ConnectionString`, `Stripe__SecretKey`, `Stripe__WebhookSecret`, `FrontendUrl` (Stripe success/cancel redirects are built from this) |
 | **GitHub Actions** | `MONGODB_CONNECTION_STRING`, `REVERB_API_KEY` |
 | **Vercel** | `NEXT_PUBLIC_API_BASE_URL` (in .env.production) |
 
