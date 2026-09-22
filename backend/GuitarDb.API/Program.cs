@@ -58,6 +58,10 @@ builder.Services.AddSingleton<ReservationService>();
 // controller and the Stripe webhook fallback so both settle a deposit identically.
 builder.Services.AddSingleton<DepositService>();
 
+// In-person sales rung up from the admin's phone. Shared by the admin controller, the
+// public complete endpoint and the Stripe webhook so every path records the sale alike.
+builder.Services.AddSingleton<InPersonCheckoutService>();
+
 // Register Deal Finder services
 builder.Services.AddHttpClient<ReverbDealFinderClient>(client =>
 {

@@ -118,12 +118,74 @@ public class Order
     [BsonElement("reservation_ids")]
     [BsonIgnoreIfNull]
     public List<string>? ReservationIds { get; set; }
+
+    /// <summary>
+    /// Where the sale happened: "web" for a shopper checking out on the site, "in_person"
+    /// for a sale the admin rang up from the In-Person Sale tool. Orders written before
+    /// the field existed deserialize as "web".
+    /// </summary>
+    [BsonElement("source")]
+    public string Source { get; set; } = OrderSource.Web;
+
+    /// <summary>
+    /// "ship" when the guitar goes out by carrier, "handed_over" when the buyer walked out
+    /// with it. Handed-over orders carry no address and no tracking, and are written as
+    /// delivered from the start.
+    /// </summary>
+    [BsonElement("fulfillment")]
+    public string Fulfillment { get; set; } = OrderFulfillment.Ship;
+
+    /// <summary>
+    /// The buyer's name on an order that has no account behind it. Filled from Stripe's
+    /// customer details when it captured one, otherwise typed in by the admin later.
+    /// Account-backed orders leave this null and read the name from the user.
+    /// </summary>
+    [BsonElement("buyer_name")]
+    [BsonIgnoreIfNull]
+    public string? BuyerName { get; set; }
+
+    [BsonElement("buyer_phone")]
+    [BsonIgnoreIfNull]
+    public string? BuyerPhone { get; set; }
+
+    /// <summary>Free text for the admin: how the buyer was met, what was agreed, and so on.</summary>
+    [BsonElement("admin_notes")]
+    [BsonIgnoreIfNull]
+    public string? AdminNotes { get; set; }
+
+    /// <summary>
+    /// True until the admin has confirmed the buyer's details on an account-less order.
+    /// Set on every in-person sale so the Orders tab keeps asking until it is done.
+    /// </summary>
+    [BsonElement("needs_details")]
+    [BsonIgnoreIfDefault]
+    public bool NeedsDetails { get; set; }
+
+    /// <summary>The admin who ran an in-person sale.</summary>
+    [BsonElement("created_by_admin_id")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    [BsonIgnoreIfNull]
+    public string? CreatedByAdminId { get; set; }
 }
 
 public static class OrderType
 {
     public const string Sale = "sale";
     public const string Deposit = "deposit";
+}
+
+public static class OrderSource
+{
+    public const string Web = "web";
+    public const string InPerson = "in_person";
+}
+
+public static class OrderFulfillment
+{
+    public const string Ship = "ship";
+    public const string HandedOver = "handed_over";
+
+    public static bool IsValid(string? value) => value == Ship || value == HandedOver;
 }
 
 public class OrderItem

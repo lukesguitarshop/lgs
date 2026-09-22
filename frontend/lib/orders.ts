@@ -151,3 +151,47 @@ export function formatOrderCurrency(amount: number, currency: string = 'USD'): s
     currency: currency || 'USD',
   }).format(amount);
 }
+
+/** The two facts about an order that decide how its payment and buyer read. */
+export interface OrderProvenance {
+  paymentMethod: string;
+  /** "web" (default) or "in_person". Older orders may omit it. */
+  source?: string | null;
+  /** "ship" (default) or "handed_over". Older orders may omit it. */
+  fulfillment?: string | null;
+}
+
+export function isInPersonOrder(order: OrderProvenance): boolean {
+  return order.source === 'in_person';
+}
+
+/** True when the buyer walked out with the guitar — nothing ships, nothing tracks. */
+export function isHandedOver(order: OrderProvenance): boolean {
+  return order.fulfillment === 'handed_over';
+}
+
+/**
+ * How the payment column names the method. An in-person sale still went through Stripe,
+ * but "Stripe" alone would hide the one thing that matters about it.
+ */
+export function paymentLabel(order: OrderProvenance): string {
+  if (isInPersonOrder(order)) return 'In person';
+  switch (order.paymentMethod.toLowerCase()) {
+    case 'stripe':
+      return 'Stripe';
+    case 'paypal':
+      return 'PayPal';
+    default:
+      return order.paymentMethod;
+  }
+}
+
+/**
+ * The name to print for a buyer. Account orders always have one; an in-person order may
+ * not until the admin fills it in, and "Guest" would be the wrong word for a walk-in.
+ */
+export function buyerDisplayName(buyerName: string | null | undefined, order: OrderProvenance): string {
+  const name = buyerName?.trim();
+  if (name) return name;
+  return isInPersonOrder(order) ? 'Walk-in buyer' : 'Guest';
+}

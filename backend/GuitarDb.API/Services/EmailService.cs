@@ -694,6 +694,67 @@ public class EmailService
     }
 
     /// <summary>
+    /// Receipt for a guitar bought in person through the admin's phone. The buyer has no
+    /// account, so this is the only record they get from us. The closing line depends on
+    /// whether they walked out with the guitar or it is being shipped.
+    /// </summary>
+    public async Task SendInPersonReceiptToBuyerAsync(
+        string buyerEmail,
+        string orderId,
+        List<(string Title, decimal Price, string Currency)> items,
+        decimal totalAmount,
+        bool handedOver,
+        string buyerName,
+        string shippingAddress)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(buyerEmail))
+        {
+            _logger.LogDebug("Skipping in-person receipt - email not configured");
+            return;
+        }
+
+        var subject = "Your Receipt - Luke's Guitar Shop";
+
+        var itemsList = string.Join("", items.Select(i =>
+            $"<li><strong>{i.Title}</strong> - ${i.Price:N2} {i.Currency}</li>"));
+
+        var fulfillmentSection = handedOver
+            ? @"
+<h3>Delivery</h3>
+<p>You took the guitar with you today, so there is nothing left to ship. Enjoy it.</p>
+"
+            : $@"
+<h3>Shipping To</h3>
+<p>
+{buyerName}<br>
+{shippingAddress.Replace("\n", "<br>")}
+</p>
+
+<p>We'll send you another email with tracking information once your guitar ships.</p>
+";
+
+        var body = $@"
+<h2>Thanks for Your Purchase!</h2>
+<p>{(string.IsNullOrWhiteSpace(buyerName) ? "Here is" : $"{buyerName}, here is")} your receipt for today's purchase at Luke's Guitar Shop.</p>
+
+<h3>Order Details</h3>
+<p><strong>Order Reference:</strong> #{orderId[^8..].ToUpper()}</p>
+
+<h3>Items</h3>
+<ul>
+{itemsList}
+</ul>
+
+<p><strong>Total paid:</strong> ${totalAmount:N2}</p>
+{fulfillmentSection}
+<p>If you have any questions about your purchase, just reply to this email.</p>
+
+";
+
+        await SendEmailAsync(buyerEmail, subject, body);
+    }
+
+    /// <summary>
     /// Send cancellation email to buyer
     /// </summary>
     public async Task SendOrderCancellationEmailAsync(

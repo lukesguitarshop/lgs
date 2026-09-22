@@ -751,17 +751,26 @@ public class AdminController : ControllerBase
                 buyerName = user?.FullName ?? "";
                 buyerEmail = user?.Email ?? "";
             }
-            else if (!string.IsNullOrEmpty(order.GuestEmail))
+            else
             {
-                // Guest checkout
-                buyerEmail = order.GuestEmail;
-                buyerName = order.ShippingAddress?.FullName ?? "Guest";
+                // No account behind the order (guest checkout, in-person sale): the order
+                // itself is the only record of who bought it.
+                buyerEmail = order.GuestEmail ?? "";
+                buyerName = order.BuyerName ?? order.ShippingAddress.FullName;
             }
 
             result.Add(new AdminOrderDto
             {
                 Id = order.Id!,
                 PaymentMethod = order.PaymentMethod,
+                OrderType = order.OrderType,
+                Source = order.Source,
+                Fulfillment = order.Fulfillment,
+                NeedsDetails = order.NeedsDetails,
+                HasAccount = !string.IsNullOrEmpty(order.UserId),
+                BuyerPhone = order.BuyerPhone,
+                AdminNotes = order.AdminNotes,
+                DeliveredAt = order.DeliveredAt,
                 Items = order.Items.Select(i => new AdminOrderItemDto
                 {
                     ListingId = i.ListingId,
@@ -911,6 +920,78 @@ public class AdminController : ControllerBase
         return Ok(new { success = true });
     }
 
+    /// <summary>
+    /// Fills in who bought an account-less order (guest or in-person). Account-backed
+    /// orders refuse name and email changes — the account is the source of truth there —
+    /// but accept notes. Saving clears the "needs details" flag.
+    /// </summary>
+    [HttpPatch("orders/{id}/details")]
+    public async Task<IActionResult> UpdateOrderDetails(string id, [FromBody] UpdateOrderDetailsRequest request)
+    {
+        var order = await _mongoDbService.GetOrderByIdAsync(id);
+        if (order == null)
+        {
+            return NotFound(new { error = "Order not found" });
+        }
+
+        var hasAccount = !string.IsNullOrEmpty(order.UserId);
+        var wantsIdentityChange =
+            request.BuyerName != null || request.BuyerEmail != null || request.BuyerPhone != null;
+        if (hasAccount && wantsIdentityChange)
+        {
+            return BadRequest(new { error = "This order belongs to an account; edit the buyer from their profile instead." });
+        }
+
+        var email = Trim(request.BuyerEmail);
+        if (email != null && !Regex.IsMatch(email, @"^[^@\s]+@[^@\s]+\.[^@\s]+$"))
+        {
+            return BadRequest(new { error = "That email address doesn't look right." });
+        }
+
+        OrderShippingAddress? address = null;
+        if (request.ShippingAddress != null)
+        {
+            var a = request.ShippingAddress;
+            address = new OrderShippingAddress
+            {
+                FullName = Trim(a.FullName) ?? Trim(request.BuyerName) ?? order.BuyerName ?? "",
+                Line1 = Trim(a.Line1) ?? "",
+                Line2 = Trim(a.Line2),
+                City = Trim(a.City) ?? "",
+                State = Trim(a.State) ?? "",
+                PostalCode = Trim(a.PostalCode) ?? "",
+                Country = Trim(a.Country) ?? ""
+            };
+        }
+
+        var updated = await _mongoDbService.UpdateOrderDetailsAsync(
+            id,
+            buyerName: hasAccount ? null : Trim(request.BuyerName),
+            buyerEmail: hasAccount ? null : email,
+            buyerPhone: hasAccount ? null : Trim(request.BuyerPhone),
+            adminNotes: request.AdminNotes == null ? null : request.AdminNotes.Trim(),
+            shippingAddress: address,
+            clearNeedsDetails: true);
+
+        if (!updated)
+        {
+            return NotFound(new { error = "Order not found" });
+        }
+
+        return Ok(new { success = true });
+    }
+
+    private static string? Trim(string? value) => string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    public class UpdateOrderDetailsRequest
+    {
+        public string? BuyerName { get; set; }
+        public string? BuyerEmail { get; set; }
+        public string? BuyerPhone { get; set; }
+        public string? AdminNotes { get; set; }
+        public AdminOrderShippingAddressDto? ShippingAddress { get; set; }
+    }
+
     public class UpdateOrderStatusRequest
     {
         public string Status { get; set; } = string.Empty;
@@ -920,6 +1001,18 @@ public class AdminController : ControllerBase
     {
         public string Id { get; set; } = string.Empty;
         public string PaymentMethod { get; set; } = string.Empty;
+        public string OrderType { get; set; } = Models.OrderType.Sale;
+        /// <summary>"web" or "in_person".</summary>
+        public string Source { get; set; } = OrderSource.Web;
+        /// <summary>"ship" or "handed_over".</summary>
+        public string Fulfillment { get; set; } = OrderFulfillment.Ship;
+        /// <summary>True while an account-less order is still missing the buyer's details.</summary>
+        public bool NeedsDetails { get; set; }
+        /// <summary>False for guest and in-person orders, whose buyer lives on the order itself.</summary>
+        public bool HasAccount { get; set; }
+        public string? BuyerPhone { get; set; }
+        public string? AdminNotes { get; set; }
+        public DateTime? DeliveredAt { get; set; }
         public List<AdminOrderItemDto> Items { get; set; } = new();
         public AdminOrderShippingAddressDto ShippingAddress { get; set; } = new();
         public decimal TotalAmount { get; set; }

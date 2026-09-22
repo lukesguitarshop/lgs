@@ -21,6 +21,7 @@ public class CheckoutController : ControllerBase
     private readonly EmailService _emailService;
     private readonly ReservationService _reservationService;
     private readonly DepositService _depositService;
+    private readonly InPersonCheckoutService _inPersonCheckout;
 
     public CheckoutController(
         MongoDbService mongoDbService,
@@ -28,7 +29,8 @@ public class CheckoutController : ControllerBase
         ILogger<CheckoutController> logger,
         EmailService emailService,
         ReservationService reservationService,
-        DepositService depositService)
+        DepositService depositService,
+        InPersonCheckoutService inPersonCheckout)
     {
         _mongoDbService = mongoDbService;
         _configuration = configuration;
@@ -36,6 +38,7 @@ public class CheckoutController : ControllerBase
         _emailService = emailService;
         _reservationService = reservationService;
         _depositService = depositService;
+        _inPersonCheckout = inPersonCheckout;
     }
 
     private string FrontendUrl() =>
@@ -339,6 +342,17 @@ public class CheckoutController : ControllerBase
             if (session.PaymentStatus != "paid")
             {
                 return BadRequest(new { error = "Payment not completed" });
+            }
+
+            // An in-person sale has its own settlement: no account, no cart, its own
+            // status rules. Handled here too so the admin's success page is not the only
+            // thing standing between a captured payment and a recorded order.
+            if (InPersonCheckoutService.IsInPersonSession(session))
+            {
+                var inPersonOrder = await _inPersonCheckout.SettleSessionAsync(session);
+                return inPersonOrder == null
+                    ? BadRequest(new { error = "Could not record this sale." })
+                    : Ok(new { success = true, message = "In-person sale recorded", orderId = inPersonOrder.Id });
             }
 
             if (!session.Metadata.TryGetValue("listing_ids", out var listingIdsString))
@@ -1117,6 +1131,14 @@ public class CheckoutController : ControllerBase
             if (expandedSession.PaymentStatus != "paid")
             {
                 _logger.LogWarning("Webhook: Payment not completed for session {SessionId}", session.Id);
+                return Ok();
+            }
+
+            // In-person sales settle through their own service (idempotent, so racing the
+            // admin's success page is harmless).
+            if (InPersonCheckoutService.IsInPersonSession(expandedSession))
+            {
+                await _inPersonCheckout.SettleSessionAsync(expandedSession);
                 return Ok();
             }
 

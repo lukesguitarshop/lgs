@@ -12,9 +12,10 @@ import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
 import {
   ArrowLeft, Clipboard, Copy, Check, Play, Loader2, CheckCircle, XCircle, Star,
   Activity, LogIn, ShoppingCart, Heart, HeartOff, Receipt, ChevronLeft, ChevronRight, X,
-  Bookmark,
+  Bookmark, CreditCard,
 } from 'lucide-react';
 import { ReservationsTab } from '@/components/admin/ReservationsTab';
+import { InPersonSaleTab } from '@/components/admin/InPersonSaleTab';
 
 interface ScraperResponse {
   success: boolean;
@@ -124,7 +125,10 @@ function OtherToolsContent() {
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const [activeTab, setActiveTab] = useState(
-    requestedTab === 'activity' || requestedTab === 'reservations' || requestedTab === 'review-scraper'
+    requestedTab === 'activity' ||
+    requestedTab === 'reservations' ||
+    requestedTab === 'review-scraper' ||
+    requestedTab === 'in-person'
       ? requestedTab
       : 'snippets'
   );
@@ -219,7 +223,11 @@ function OtherToolsContent() {
       <AdminTabsNav />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6">
+          <TabsTrigger value="in-person" className="flex items-center gap-2">
+            <CreditCard className="h-4 w-4" />
+            <span className="hidden sm:inline">In-Person Sale</span>
+          </TabsTrigger>
           <TabsTrigger value="snippets" className="flex items-center gap-2">
             <Clipboard className="h-4 w-4" />
             <span className="hidden sm:inline">Snippets</span>
@@ -237,6 +245,13 @@ function OtherToolsContent() {
             <span className="hidden sm:inline">Activity Logs</span>
           </TabsTrigger>
         </TabsList>
+
+        {/* In-Person Sale Tab */}
+        <TabsContent value="in-person">
+          <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-4 md:p-6">
+            <InPersonSaleTab />
+          </div>
+        </TabsContent>
 
         {/* Reservations Tab */}
         <TabsContent value="reservations">

@@ -7,6 +7,9 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/components/ui/toast';
+import { Input } from '@/components/ui/input';
+import { StateBlock } from '@/components/ui/state-block';
 import {
   ArrowLeft,
   Loader2,
@@ -22,13 +25,21 @@ import {
   Mail,
   CheckCircle,
   FileDown,
+  Handshake,
+  Pencil,
+  Phone,
+  StickyNote,
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
+  buyerDisplayName,
   formatOrderCurrency as formatCurrency,
   getStatusDisplay,
   getTrackingUrl,
+  isHandedOver,
+  isInPersonOrder,
   orderNumber,
+  paymentLabel,
 } from '@/lib/orders';
 
 interface OrderItem {
@@ -52,6 +63,16 @@ interface ShippingAddress {
 interface Order {
   id: string;
   paymentMethod: string;
+  orderType?: string;
+  /** "web" or "in_person". */
+  source?: string;
+  /** "ship" or "handed_over". */
+  fulfillment?: string;
+  needsDetails?: boolean;
+  hasAccount?: boolean;
+  buyerPhone?: string | null;
+  adminNotes?: string | null;
+  deliveredAt?: string | null;
   items: OrderItem[];
   shippingAddress: ShippingAddress;
   totalAmount: number;
@@ -148,14 +169,16 @@ function generateOrderPdf(order: Order): void {
   // Order summary
   sectionTitle('Order Summary');
   field('Status', getStatusDisplay(order.status));
-  field('Payment Method', order.paymentMethod === 'stripe' ? 'Stripe' : 'PayPal');
+  field('Payment Method', isInPersonOrder(order) ? 'In person (Stripe)' : paymentLabel(order));
   field('Order Date', formatDate(order.createdAt));
   y += 6;
 
   // Buyer information
   sectionTitle('Buyer Information');
-  field('Name', order.buyerName || 'Guest');
-  field('Email', order.buyerEmail);
+  field('Name', buyerDisplayName(order.buyerName, order));
+  field('Email', order.buyerEmail || '—');
+  if (order.buyerPhone) field('Phone', order.buyerPhone);
+  if (order.adminNotes) field('Notes', order.adminNotes);
   y += 6;
 
   // Shipping address
@@ -169,19 +192,25 @@ function generateOrderPdf(order: Order): void {
   ]
     .filter(Boolean)
     .join('\n');
-  sectionTitle('Shipping Address');
-  field('Ship To', addressLines);
-  y += 6;
-
-  // Tracking
-  sectionTitle('Tracking Information');
-  if (order.trackingCarrier && order.trackingNumber) {
-    field('Carrier', order.trackingCarrier);
-    field('Tracking Number', order.trackingNumber);
+  if (isHandedOver(order)) {
+    sectionTitle('Delivery');
+    field('Handed over in person', formatDate(order.deliveredAt || order.createdAt));
+    y += 6;
   } else {
-    field('Status', 'No tracking information added yet');
+    sectionTitle('Shipping Address');
+    field('Ship To', addressLines);
+    y += 6;
+
+    // Tracking
+    sectionTitle('Tracking Information');
+    if (order.trackingCarrier && order.trackingNumber) {
+      field('Carrier', order.trackingCarrier);
+      field('Tracking Number', order.trackingNumber);
+    } else {
+      field('Status', 'No tracking information added yet');
+    }
+    y += 6;
   }
-  y += 6;
 
   // Order items
   sectionTitle('Order Items');
@@ -257,6 +286,7 @@ export default function OrderDetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { isAdmin, isLoading: authLoading } = useAuth();
+  const { showToast } = useToast();
   const orderId = params.id as string;
 
   // Determine back URL based on where user came from
@@ -280,6 +310,12 @@ export default function OrderDetailPage() {
   // Copy state
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
+  // Buyer details (account-less orders only: guest checkout, in-person sales)
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [detailsForm, setDetailsForm] = useState({ buyerName: '', buyerEmail: '', buyerPhone: '', adminNotes: '' });
+  const [savingDetails, setSavingDetails] = useState(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!authLoading && !isAdmin) {
       router.push('/');
@@ -297,6 +333,15 @@ export default function OrderDetailPage() {
         const found = orders.find(o => o.id === orderId);
         if (found) {
           setOrder(found);
+          if (found.needsDetails) {
+            setDetailsForm({
+              buyerName: found.buyerName || '',
+              buyerEmail: found.buyerEmail || '',
+              buyerPhone: found.buyerPhone || '',
+              adminNotes: found.adminNotes || '',
+            });
+            setEditingDetails(true);
+          }
         } else {
           setError('Order not found');
         }
@@ -368,6 +413,50 @@ export default function OrderDetailPage() {
     }
   };
 
+  const startEditDetails = () => {
+    if (!order) return;
+    setDetailsForm({
+      buyerName: order.buyerName || '',
+      buyerEmail: order.buyerEmail || '',
+      buyerPhone: order.buyerPhone || '',
+      adminNotes: order.adminNotes || '',
+    });
+    setDetailsError(null);
+    setEditingDetails(true);
+  };
+
+  const saveDetails = async () => {
+    if (!order) return;
+    setSavingDetails(true);
+    setDetailsError(null);
+    try {
+      await api.authPatch(`/admin/orders/${order.id}/details`, {
+        buyerName: order.hasAccount ? null : detailsForm.buyerName.trim() || null,
+        buyerEmail: order.hasAccount ? null : detailsForm.buyerEmail.trim() || null,
+        buyerPhone: order.hasAccount ? null : detailsForm.buyerPhone.trim() || null,
+        adminNotes: detailsForm.adminNotes,
+      });
+      setOrder({
+        ...order,
+        buyerName: order.hasAccount ? order.buyerName : detailsForm.buyerName.trim() || order.buyerName,
+        buyerEmail: order.hasAccount ? order.buyerEmail : detailsForm.buyerEmail.trim() || order.buyerEmail,
+        buyerPhone: order.hasAccount ? order.buyerPhone : detailsForm.buyerPhone.trim() || null,
+        adminNotes: detailsForm.adminNotes.trim() || null,
+        needsDetails: false,
+      });
+      setEditingDetails(false);
+      showToast('Buyer details saved', 'success', 2500);
+    } catch (err) {
+      setDetailsError(
+        err && typeof err === 'object' && 'message' in err
+          ? String((err as { message: unknown }).message)
+          : 'Could not save the details.'
+      );
+    } finally {
+      setSavingDetails(false);
+    }
+  };
+
   const markAsDelivered = async () => {
     if (!order) return;
     setUpdatingStatus(true);
@@ -425,7 +514,7 @@ export default function OrderDetailPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <Link href={backUrl}>
             <Button variant="ghost">
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -464,9 +553,9 @@ export default function OrderDetailPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                 <span
-                  className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium ${
+                  className={`inline-flex items-center whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium ${
                     order.status === 'pending'
                       ? 'bg-muted-foreground text-foreground'
                       : 'bg-foreground text-background'
@@ -475,14 +564,17 @@ export default function OrderDetailPage() {
                   {getStatusDisplay(order.status)}
                 </span>
                 <span
-                  className={`inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium ${
-                    order.paymentMethod === 'stripe'
-                      ? 'bg-muted text-foreground/78'
-                      : 'bg-muted text-foreground/78'
+                  className={`inline-flex items-center whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium ${
+                    isInPersonOrder(order) ? 'bg-primary/10 text-primary' : 'bg-muted text-foreground/78'
                   }`}
                 >
-                  {order.paymentMethod === 'stripe' ? 'Stripe' : 'PayPal'}
+                  {isInPersonOrder(order) ? 'In person · Stripe' : paymentLabel(order)}
                 </span>
+                {order.needsDetails && (
+                  <span className="inline-flex items-center whitespace-nowrap px-3 py-1.5 rounded-full text-sm font-medium bg-amber-100 text-amber-800">
+                    Needs details
+                  </span>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -494,22 +586,114 @@ export default function OrderDetailPage() {
           </CardContent>
         </Card>
 
+        {order.needsDetails && (
+          <StateBlock variant="warning" label={isInPersonOrder(order) ? 'In-person sale' : 'Guest order'} className="mb-6">
+            {isInPersonOrder(order)
+              ? 'This guitar was sold in person. Stripe captured what it could about the buyer; fill in the rest below and save to clear this flag.'
+              : 'This order has no account behind it. Confirm the buyer details below and save to clear this flag.'}
+          </StateBlock>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* Buyer Information */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2">
-                <User className="h-5 w-5" />
-                Buyer Information
-              </CardTitle>
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Buyer Information
+                </CardTitle>
+                {!editingDetails && (
+                  <Button variant="outline" size="sm" onClick={startEditDetails}>
+                    <Pencil className="h-3.5 w-3.5 mr-1.5" />
+                    {order.hasAccount ? 'Notes' : 'Edit'}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
+            {editingDetails ? (
+              <CardContent className="space-y-4">
+                {!order.hasAccount && (
+                  <>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-foreground/78" htmlFor="buyer-name">Name</label>
+                      <Input
+                        id="buyer-name"
+                        value={detailsForm.buyerName}
+                        onChange={(e) => setDetailsForm({ ...detailsForm, buyerName: e.target.value })}
+                        placeholder="Who bought it"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-foreground/78" htmlFor="buyer-email">Email</label>
+                      <Input
+                        id="buyer-email"
+                        type="email"
+                        inputMode="email"
+                        value={detailsForm.buyerEmail}
+                        onChange={(e) => setDetailsForm({ ...detailsForm, buyerEmail: e.target.value })}
+                        placeholder="For the receipt and any tracking email"
+                        autoComplete="off"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-foreground/78" htmlFor="buyer-phone">Phone</label>
+                      <Input
+                        id="buyer-phone"
+                        type="tel"
+                        inputMode="tel"
+                        value={detailsForm.buyerPhone}
+                        onChange={(e) => setDetailsForm({ ...detailsForm, buyerPhone: e.target.value })}
+                        placeholder="Optional"
+                        autoComplete="off"
+                      />
+                    </div>
+                  </>
+                )}
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-foreground/78" htmlFor="admin-notes">Notes</label>
+                  <textarea
+                    id="admin-notes"
+                    value={detailsForm.adminNotes}
+                    onChange={(e) => setDetailsForm({ ...detailsForm, adminNotes: e.target.value })}
+                    rows={3}
+                    placeholder="Anything worth remembering about this sale"
+                    className="w-full border border-foreground/35 bg-transparent px-3.5 py-2.5 text-base placeholder:text-foreground/45 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring md:border-input md:px-3 md:text-sm"
+                  />
+                </div>
+                {detailsError && (
+                  <StateBlock variant="error">{detailsError}</StateBlock>
+                )}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={saveDetails}
+                    disabled={savingDetails}
+                    className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                  >
+                    {savingDetails ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Saving...
+                      </>
+                    ) : (
+                      'Save Details'
+                    )}
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditingDetails(false)} disabled={savingDetails}>
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            ) : (
             <CardContent className="space-y-4">
               <div>
                 <p className="text-sm text-foreground/60">Name</p>
-                <p className="font-medium text-lg">{order.buyerName || 'Guest'}</p>
+                <p className="font-medium text-lg">{buyerDisplayName(order.buyerName, order)}</p>
               </div>
               <div>
                 <p className="text-sm text-foreground/60">Email</p>
+                {order.buyerEmail ? (
                 <div className="flex items-center gap-2">
                   <p className="font-medium">{order.buyerEmail}</p>
                   <button
@@ -531,11 +715,53 @@ export default function OrderDetailPage() {
                     <Mail className="h-4 w-4" />
                   </a>
                 </div>
+                ) : (
+                  <p className="italic text-foreground/50">Not recorded</p>
+                )}
               </div>
+              {(order.buyerPhone || !order.hasAccount) && (
+                <div>
+                  <p className="text-sm text-foreground/60">Phone</p>
+                  {order.buyerPhone ? (
+                    <a href={`tel:${order.buyerPhone}`} className="inline-flex items-center gap-2 font-medium text-foreground hover:text-primary">
+                      <Phone className="h-4 w-4 text-foreground/50" />
+                      {order.buyerPhone}
+                    </a>
+                  ) : (
+                    <p className="italic text-foreground/50">Not recorded</p>
+                  )}
+                </div>
+              )}
+              {order.adminNotes && (
+                <div>
+                  <p className="text-sm text-foreground/60 flex items-center gap-1.5">
+                    <StickyNote className="h-3.5 w-3.5" />
+                    Notes
+                  </p>
+                  <p className="whitespace-pre-wrap text-[15px] leading-[1.5]">{order.adminNotes}</p>
+                </div>
+              )}
             </CardContent>
+            )}
           </Card>
 
-          {/* Shipping Address */}
+          {/* Shipping Address / in-person hand-over */}
+          {isHandedOver(order) ? (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Handshake className="h-5 w-5" />
+                Delivery
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="font-medium text-lg">Handed over in person</p>
+              <p className="text-foreground/70 mt-1">
+                The buyer left with the guitar on {formatDate(order.deliveredAt || order.createdAt)}. Nothing ships and there is no tracking.
+              </p>
+            </CardContent>
+          </Card>
+          ) : (
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
@@ -576,9 +802,11 @@ export default function OrderDetailPage() {
               </Button>
             </CardContent>
           </Card>
+          )}
         </div>
 
-        {/* Tracking Information */}
+        {/* Tracking Information — not for a guitar that left with the buyer */}
+        {!isHandedOver(order) && (
         <Card className="mb-6">
           <CardHeader>
             <CardTitle className="text-lg flex items-center gap-2">
@@ -718,6 +946,7 @@ export default function OrderDetailPage() {
             )}
           </CardContent>
         </Card>
+        )}
 
         {/* Order Items */}
         <Card className="mb-6">

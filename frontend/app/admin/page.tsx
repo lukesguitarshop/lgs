@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
@@ -23,6 +23,7 @@ import { NewMessageModal } from '@/components/admin/NewMessageModal';
 import { SweetwaterExportModal } from '@/components/admin/SweetwaterExportModal';
 import { EbayExportModal } from '@/components/admin/EbayExportModal';
 import { htmlToPlainText, getFullQualityUrl } from '@/lib/html-text';
+import { buyerDisplayName, isHandedOver, isInPersonOrder, paymentLabel } from '@/lib/orders';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
@@ -109,6 +110,12 @@ interface AdminOrderShippingAddress {
 interface AdminOrder {
   id: string;
   paymentMethod: string;
+  orderType?: string;
+  source?: string;
+  fulfillment?: string;
+  needsDetails?: boolean;
+  hasAccount?: boolean;
+  buyerPhone?: string | null;
   items: AdminOrderItem[];
   shippingAddress: AdminOrderShippingAddress;
   totalAmount: number;
@@ -1848,8 +1855,18 @@ export default function AdminPage() {
                         </td>
                         <td className="py-3 px-2">
                           <div>
-                            <p className="font-medium text-[#020E1C] text-sm">{order.buyerName || 'Guest'}</p>
+                            <p className="font-medium text-[#020E1C] text-sm">{buyerDisplayName(order.buyerName, order)}</p>
                             <p className="text-xs text-gray-500">{order.buyerEmail}</p>
+                            {order.needsDetails && (
+                              <Link
+                                href={`/order/${order.id}`}
+                                className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200"
+                                title="Fill in who bought this"
+                              >
+                                <ClipboardList className="h-3 w-3" />
+                                Needs details
+                              </Link>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-2">
@@ -1902,12 +1919,14 @@ export default function AdminPage() {
                           <span className="text-gray-500 text-xs ml-1">{order.currency}</span>
                         </td>
                         <td className="py-3 px-2">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            order.paymentMethod === 'stripe'
+                          <span className={`inline-flex items-center whitespace-nowrap px-2 py-1 rounded-full text-xs font-medium ${
+                            isInPersonOrder(order)
+                              ? 'bg-[#6E0114]/10 text-[#6E0114]'
+                              : order.paymentMethod === 'stripe'
                               ? 'bg-purple-100 text-purple-700'
                               : 'bg-blue-100 text-blue-700'
                           }`}>
-                            {order.paymentMethod === 'stripe' ? 'Stripe' : 'PayPal'}
+                            {paymentLabel(order)}
                           </span>
                         </td>
                         <td className="py-3 px-2">
@@ -1972,6 +1991,8 @@ export default function AdminPage() {
                                 Edit
                               </button>
                             </div>
+                          ) : isHandedOver(order) ? (
+                            <span className="text-xs text-gray-500">Handed over in person</span>
                           ) : (
                             <button
                               onClick={() => startEditTracking(order)}
@@ -1982,6 +2003,10 @@ export default function AdminPage() {
                           )}
                         </td>
                         <td className="py-3 px-2">
+                          {isHandedOver(order) && !order.shippingAddress.line1 ? (
+                            <span className="text-xs text-gray-500">None (in person)</span>
+                          ) : (
+                          <>
                           <button
                             onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
                             className="flex items-center gap-1 text-xs text-gray-600 hover:text-[#020E1C]"
@@ -2008,6 +2033,8 @@ export default function AdminPage() {
                               </p>
                               <p>{order.shippingAddress.country}</p>
                             </div>
+                          )}
+                          </>
                           )}
                         </td>
                         <td className="py-3 px-2">

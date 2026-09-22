@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
+  buyerDisplayName,
   currentStage,
   getStatusDisplay,
   getTrackingUrl,
+  isHandedOver,
+  isInPersonOrder,
   orderNumber,
   orderTimeline,
+  paymentLabel,
 } from './orders';
 
 describe('orderNumber', () => {
@@ -109,5 +113,45 @@ describe('orderTimeline', () => {
     });
     expect(steps.find(s => s.stage === 'shipped')!.date).toBeNull();
     expect(steps.find(s => s.stage === 'placed')!.date).toBe('March 1, 2026');
+  });
+});
+
+describe('paymentLabel', () => {
+  it('names the processor for web orders', () => {
+    expect(paymentLabel({ paymentMethod: 'stripe' })).toBe('Stripe');
+    expect(paymentLabel({ paymentMethod: 'paypal', source: 'web' })).toBe('PayPal');
+  });
+
+  it('calls out an in-person sale even though Stripe took the card', () => {
+    expect(paymentLabel({ paymentMethod: 'stripe', source: 'in_person' })).toBe('In person');
+  });
+
+  it('passes an unknown method straight through', () => {
+    expect(paymentLabel({ paymentMethod: 'zelle' })).toBe('zelle');
+  });
+});
+
+describe('buyerDisplayName', () => {
+  it('prefers the recorded name', () => {
+    expect(buyerDisplayName('  Ada Lovelace ', { paymentMethod: 'stripe', source: 'in_person' })).toBe(
+      'Ada Lovelace'
+    );
+  });
+
+  it('says walk-in for a nameless in-person order and guest otherwise', () => {
+    expect(buyerDisplayName('', { paymentMethod: 'stripe', source: 'in_person' })).toBe('Walk-in buyer');
+    expect(buyerDisplayName(null, { paymentMethod: 'stripe' })).toBe('Guest');
+  });
+});
+
+describe('isHandedOver / isInPersonOrder', () => {
+  it('treats missing fields as a normal shipped web order', () => {
+    expect(isInPersonOrder({ paymentMethod: 'stripe' })).toBe(false);
+    expect(isHandedOver({ paymentMethod: 'stripe' })).toBe(false);
+  });
+
+  it('recognises a guitar that left with the buyer', () => {
+    expect(isHandedOver({ paymentMethod: 'stripe', source: 'in_person', fulfillment: 'handed_over' })).toBe(true);
+    expect(isHandedOver({ paymentMethod: 'stripe', source: 'in_person', fulfillment: 'ship' })).toBe(false);
   });
 });

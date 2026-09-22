@@ -638,6 +638,41 @@ public class MongoDbService
         return result.ModifiedCount > 0;
     }
 
+    /// <summary>
+    /// Writes whatever buyer details the admin supplied on an account-less order. Null
+    /// arguments leave the existing value alone, so a partial edit never blanks a field.
+    /// </summary>
+    public async Task<bool> UpdateOrderDetailsAsync(
+        string orderId,
+        string? buyerName,
+        string? buyerEmail,
+        string? buyerPhone,
+        string? adminNotes,
+        OrderShippingAddress? shippingAddress,
+        bool clearNeedsDetails)
+    {
+        var filter = Builders<Order>.Filter.Eq(o => o.Id, orderId);
+        var updates = new List<UpdateDefinition<Order>>();
+
+        if (buyerName != null) updates.Add(Builders<Order>.Update.Set(o => o.BuyerName, buyerName));
+        if (buyerEmail != null) updates.Add(Builders<Order>.Update.Set(o => o.GuestEmail, buyerEmail));
+        if (buyerPhone != null) updates.Add(Builders<Order>.Update.Set(o => o.BuyerPhone, buyerPhone));
+        if (adminNotes != null)
+        {
+            // An emptied notes box means "remove the note", not "keep the old one".
+            updates.Add(adminNotes.Length == 0
+                ? Builders<Order>.Update.Unset(o => o.AdminNotes)
+                : Builders<Order>.Update.Set(o => o.AdminNotes, adminNotes));
+        }
+        if (shippingAddress != null) updates.Add(Builders<Order>.Update.Set(o => o.ShippingAddress, shippingAddress));
+        if (clearNeedsDetails) updates.Add(Builders<Order>.Update.Unset(o => o.NeedsDetails));
+
+        if (updates.Count == 0) return await _ordersCollection.Find(filter).AnyAsync();
+
+        var result = await _ordersCollection.UpdateOneAsync(filter, Builders<Order>.Update.Combine(updates));
+        return result.MatchedCount > 0;
+    }
+
     /// <summary>Sets shipped_at to now, but only on an order that has no ship date yet.</summary>
     private async Task StampShippedAtAsync(string orderId)
     {
