@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Loader2, ExternalLink, X, Check, TrendingDown, RefreshCw, Play, ChevronLeft, ChevronRight, Trash2, Search } from 'lucide-react';
-import { getPotentialBuys, getPotentialBuyStats, dismissPotentialBuy, dismissPotentialBuysBulk, dismissAllPotentialBuys, deleteAllPotentialBuys, markPotentialBuyPurchased, runDealFinder, getDealFinderStatus } from '@/lib/api';
+import { getPotentialBuys, getPotentialBuyStats, dismissPotentialBuy, dismissPotentialBuysBulk, dismissAllPotentialBuys, deleteAllPotentialBuys, markPotentialBuyPurchased, runDealFinder, getDealFinderStatus, quickCheckDealFinder } from '@/lib/api';
 import type { PotentialBuy, PotentialBuyStats } from '@/lib/types/potential-buy';
 
 export function DealFinderTab() {
@@ -19,6 +19,8 @@ export function DealFinderTab() {
   const [appliedFilters, setAppliedFilters] = useState<{ search: string; minPrice?: number; maxPrice?: number }>({ search: '' });
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [scraperRunning, setScraperRunning] = useState(false);
+  const [quickChecking, setQuickChecking] = useState(false);
+  const [lastQuickCheckAt, setLastQuickCheckAt] = useState<string | null>(null);
   const [scraperResult, setScraperResult] = useState<{ success: boolean; message: string } | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [bulkDismissing, setBulkDismissing] = useState<'page' | 'all' | null>(null);
@@ -52,6 +54,11 @@ export function DealFinderTab() {
     }
   };
 
+  // The quick check below finishes after the first render; this keeps its refetch on
+  // whatever filters are applied by then rather than the ones from mount.
+  const fetchDealsRef = useRef(fetchDeals);
+  fetchDealsRef.current = fetchDeals;
+
   useEffect(() => {
     setCurrentPage(1);
     fetchDeals(1);
@@ -82,11 +89,34 @@ export function DealFinderTab() {
       try {
         const status = await getDealFinderStatus();
         setScraperRunning(status.isRunning);
+        setLastQuickCheckAt(status.lastQuickCheckAt ?? null);
       } catch (err) {
         console.error('Failed to check scraper status:', err);
       }
     };
     checkStatus();
+  }, []);
+
+  // Pick up anything published since the last scheduled quick check
+  useEffect(() => {
+    let cancelled = false;
+    const quickCheck = async () => {
+      setQuickChecking(true);
+      try {
+        const result = await quickCheckDealFinder();
+        if (cancelled) return;
+        setLastQuickCheckAt(result.lastQuickCheckAt ?? null);
+        if (result.ran) {
+          await fetchDealsRef.current();
+        }
+      } catch (err) {
+        console.error('Deal finder quick check failed:', err);
+      } finally {
+        if (!cancelled) setQuickChecking(false);
+      }
+    };
+    quickCheck();
+    return () => { cancelled = true; };
   }, []);
 
   const handleRunScraper = async () => {
@@ -210,6 +240,12 @@ export function DealFinderTab() {
     }).format(price);
   };
 
+  // Latest of the last full sweep and the last quick check - a quick check that finds
+  // nothing new writes no records, so stats.lastRunAt alone would look stale.
+  const lastScan = [stats?.lastRunAt, lastQuickCheckAt]
+    .filter((d): d is string => !!d)
+    .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
+
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
@@ -288,8 +324,11 @@ export function DealFinderTab() {
             <p className="text-sm text-gray-600">Total Scanned</p>
           </div>
           <div className="bg-[#FFFFF3] border border-[#020E1C] rounded-lg p-3">
-            <p className="text-sm font-medium text-[#020E1C]">
-              {stats.lastRunAt ? formatDate(stats.lastRunAt) : 'Never'}
+            <p className="text-sm font-medium text-[#020E1C] flex items-center gap-1.5">
+              {quickChecking && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+              {quickChecking
+                ? 'Checking now...'
+                : lastScan ? formatDate(lastScan) : 'Never'}
             </p>
             <p className="text-sm text-gray-600">Last Scan</p>
           </div>

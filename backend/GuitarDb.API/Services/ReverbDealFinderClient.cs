@@ -38,7 +38,9 @@ public class ReverbDealFinderClient
         string? category = null,
         string? productType = null,
         string? shipFromCountryCode = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        DateTime? stopAtPublishedBefore = null,
+        int? maxPages = null)
     {
         var allListings = new List<ReverbListing>();
         var allowedMakes = new HashSet<string>(makes, StringComparer.OrdinalIgnoreCase);
@@ -59,7 +61,7 @@ public class ReverbDealFinderClient
 
         try
         {
-            while (!string.IsNullOrEmpty(nextUrl) && allListings.Count < maxListings)
+            while (!string.IsNullOrEmpty(nextUrl) && allListings.Count < maxListings && (maxPages is null || page <= maxPages))
             {
                 _logger.LogInformation("Fetching page {Page}", page);
 
@@ -74,7 +76,14 @@ public class ReverbDealFinderClient
                     break;
                 }
 
+                // "created_at-desc" actually orders by published_at, so once a page reaches
+                // the cutoff everything after it is older too. Checked against the raw page,
+                // before filtering, so filtered-out listings still advance the scan.
+                var reachedCutoff = stopAtPublishedBefore.HasValue &&
+                    listingsResponse.Listings.Any(l => l.PublishedAt.HasValue && l.PublishedAt.Value.ToUniversalTime() < stopAtPublishedBefore.Value);
+
                 var liveListings = listingsResponse.Listings
+                    .Where(l => !stopAtPublishedBefore.HasValue || l.PublishedAt is null || l.PublishedAt.Value.ToUniversalTime() >= stopAtPublishedBefore.Value)
                     .Where(l => l.State.Slug.Equals("live", StringComparison.OrdinalIgnoreCase))
                     .Where(l => l.OffersEnabled)
                     .Where(l => allowedMakes.Contains(l.Make))
@@ -86,6 +95,12 @@ public class ReverbDealFinderClient
                 if (allListings.Count >= maxListings)
                 {
                     allListings = allListings.Take(maxListings).ToList();
+                    break;
+                }
+
+                if (reachedCutoff)
+                {
+                    _logger.LogInformation("Page {Page} reached listings published before {Cutoff:u} - stopping", page, stopAtPublishedBefore);
                     break;
                 }
 

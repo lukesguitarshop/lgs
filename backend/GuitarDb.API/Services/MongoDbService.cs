@@ -2244,6 +2244,38 @@ public class MongoDbService
     }
 
     /// <summary>
+    /// Newest Reverb publish time across all potential buys - the incremental deal
+    /// finder's watermark. Null when the collection is empty.
+    /// </summary>
+    public async Task<DateTime?> GetLatestPotentialBuyPublishedAtAsync(CancellationToken ct = default)
+    {
+        var latest = await _potentialBuysCollection
+            .Find(x => x.ListingCreatedAt != null)
+            .SortByDescending(x => x.ListingCreatedAt)
+            .Limit(1)
+            .FirstOrDefaultAsync(ct);
+
+        return latest?.ListingCreatedAt;
+    }
+
+    /// <summary>
+    /// Which of the given Reverb listing IDs already have a potential buy record.
+    /// </summary>
+    public async Task<HashSet<long>> GetExistingReverbListingIdsAsync(IEnumerable<long> reverbListingIds, CancellationToken ct = default)
+    {
+        var ids = reverbListingIds.Distinct().ToList();
+        if (ids.Count == 0)
+            return new HashSet<long>();
+
+        var existing = await _potentialBuysCollection
+            .Find(Builders<PotentialBuy>.Filter.In(x => x.ReverbListingId, ids))
+            .Project(x => x.ReverbListingId)
+            .ToListAsync(ct);
+
+        return existing.ToHashSet();
+    }
+
+    /// <summary>
     /// Delete listings that weren't seen in the current scrape run (no longer on Reverb).
     /// </summary>
     public async Task<long> DeleteStalePotentialBuysAsync(DateTime scraperRunStartTime, CancellationToken ct = default)

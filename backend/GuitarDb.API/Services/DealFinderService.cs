@@ -13,6 +13,12 @@ public class DealFinderService
     private static bool _isRunning = false;
     private static readonly object _lock = new();
 
+    // Only one run of either kind touches Reverb and the potential_buys collection at a
+    // time. A full sweep waits for a quick check (seconds) to finish; a quick check skips
+    // its turn while a full sweep is running, since the sweep covers it.
+    private static readonly SemaphoreSlim _runGate = new(1, 1);
+    private static DateTime? _lastQuickCheckAt;
+
     public DealFinderService(
         ReverbDealFinderClient apiClient,
         PriceGuideCache priceGuideCache,
@@ -29,6 +35,8 @@ public class DealFinderService
 
     public bool IsRunning => _isRunning;
 
+    public DateTime? LastQuickCheckAt => _lastQuickCheckAt;
+
     public async Task<DealFinderResult> RunAsync(CancellationToken cancellationToken = default)
     {
         lock (_lock)
@@ -44,6 +52,16 @@ public class DealFinderService
             _isRunning = true;
         }
 
+        try
+        {
+            await _runGate.WaitAsync(cancellationToken);
+        }
+        catch
+        {
+            lock (_lock) { _isRunning = false; }
+            throw;
+        }
+
         var startTime = DateTime.UtcNow;
         var result = new DealFinderResult();
 
@@ -55,28 +73,7 @@ public class DealFinderService
             var removeStaleListings = _configuration.GetValue<bool>("DealFinder:Cleanup:RemoveStaleListings", true);
             var keepResolvedDays = _configuration.GetValue<int>("DealFinder:Cleanup:KeepResolvedDays", 30);
 
-            // Get search filter sets (supports multiple categories like electric + acoustic)
-            var filterSets = _configuration.GetSection("DealFinder:SearchFilterSets").Get<List<SearchFilterSet>>();
-
-            // Fallback to legacy single SearchFilters config if SearchFilterSets not defined
-            if (filterSets == null || filterSets.Count == 0)
-            {
-                filterSets = new List<SearchFilterSet>
-                {
-                    new SearchFilterSet
-                    {
-                        Name = "Default",
-                        Makes = _configuration.GetSection("DealFinder:SearchFilters:Makes").Get<List<string>>() ?? new List<string> { "Fender", "Gibson", "PRS", "Schecter" },
-                        PriceMax = _configuration.GetValue<decimal>("DealFinder:SearchFilters:PriceMax", 3500),
-                        AcceptsOffers = _configuration.GetValue<bool>("DealFinder:SearchFilters:AcceptsOffers", true),
-                        PerPage = _configuration.GetValue<int>("DealFinder:SearchFilters:PerPage", 50),
-                        MaxListings = _configuration.GetValue<int>("DealFinder:SearchFilters:MaxListings", 500),
-                        Category = _configuration["DealFinder:SearchFilters:Category"] ?? "solid-body",
-                        ProductType = _configuration["DealFinder:SearchFilters:ProductType"] ?? "electric-guitars",
-                        ShipFromCountryCode = _configuration["DealFinder:SearchFilters:ShipFromCountryCode"] ?? "US"
-                    }
-                };
-            }
+            var filterSets = GetFilterSets();
 
             var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 100);
             int totalWithPriceGuide = 0, totalWithoutPriceGuide = 0, totalDealsFound = 0, totalErrors = 0, totalLookupErrors = 0;
@@ -202,11 +199,153 @@ public class DealFinderService
         }
         finally
         {
+            _runGate.Release();
             lock (_lock)
             {
                 _isRunning = false;
             }
         }
+    }
+
+    /// <summary>
+    /// A small, frequent check for listings published since the newest one already
+    /// stored. Reads only the first few newest-first pages per filter set, prices only
+    /// listings not seen before, and never removes anything - stale cleanup and
+    /// re-pricing stay with the full sweep in <see cref="RunAsync"/>.
+    /// </summary>
+    /// <param name="waitForQuickCheck">
+    /// If another quick check holds the gate, wait for it (they take seconds) instead of
+    /// skipping, so a caller that opened the deals page still gets fresh results.
+    /// Never waits behind a full sweep.
+    /// </param>
+    public async Task<DealFinderResult> RunIncrementalAsync(CancellationToken cancellationToken = default, bool waitForQuickCheck = false)
+    {
+        var acquired = await _runGate.WaitAsync(0, cancellationToken);
+        if (!acquired && waitForQuickCheck && !_isRunning)
+            acquired = await _runGate.WaitAsync(TimeSpan.FromSeconds(90), cancellationToken);
+
+        if (!acquired)
+        {
+            return new DealFinderResult
+            {
+                Success = false,
+                Message = "Deal finder is already running"
+            };
+        }
+
+        var startTime = DateTime.UtcNow;
+        var result = new DealFinderResult();
+
+        try
+        {
+            var maxPages = _configuration.GetValue<int>("DealFinder:Incremental:MaxPagesPerSet", 3);
+            var overlapMinutes = _configuration.GetValue<int>("DealFinder:Incremental:OverlapMinutes", 10);
+            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 100);
+
+            // Overlap re-reads a few minutes of already-seen listings so clock skew or a
+            // listing published mid-run can't slip between two checks. Already-seen
+            // listings are skipped below, so the overlap costs one page read at most.
+            var latestPublished = await _mongoDbService.GetLatestPotentialBuyPublishedAtAsync(cancellationToken);
+            DateTime? cutoff = latestPublished?.AddMinutes(-overlapMinutes);
+
+            int newListings = 0, withPriceData = 0, lookupErrors = 0;
+
+            foreach (var filterSet in GetFilterSets())
+            {
+                var listings = await _apiClient.FetchPublicListingsAsync(
+                    filterSet.Makes,
+                    filterSet.PriceMax,
+                    filterSet.AcceptsOffers,
+                    filterSet.PerPage,
+                    filterSet.MaxListings,
+                    filterSet.Category,
+                    filterSet.ProductType,
+                    filterSet.ShipFromCountryCode,
+                    cancellationToken,
+                    stopAtPublishedBefore: cutoff,
+                    maxPages: maxPages);
+
+                result.ListingsChecked += listings.Count;
+
+                var known = await _mongoDbService.GetExistingReverbListingIdsAsync(listings.Select(l => l.Id), cancellationToken);
+
+                foreach (var listing in listings.Where(l => !known.Contains(l.Id)))
+                {
+                    try
+                    {
+                        var (potentialBuy, priceResult) = await ProcessListingAsync(listing, dealThresholdPercent, cancellationToken);
+                        await _mongoDbService.UpsertPotentialBuyAsync(potentialBuy, cancellationToken);
+
+                        newListings++;
+                        if (priceResult.LookupError) lookupErrors++;
+                        if (potentialBuy.HasPriceGuide) withPriceData++;
+                        if (potentialBuy.IsDeal) result.DealsFound++;
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        _logger.LogWarning(ex, "Quick check failed to process listing {Id}", listing.Id);
+                    }
+
+                    await Task.Delay(200, cancellationToken); // Rate limiting
+                }
+            }
+
+            _lastQuickCheckAt = startTime;
+
+            result.NewListings = newListings;
+            result.WithPriceData = withPriceData;
+            result.LookupErrors = lookupErrors;
+            result.Duration = DateTime.UtcNow - startTime;
+            result.Success = true;
+            result.Message = $"Quick check: {newListings} new listings, {result.DealsFound} deals";
+
+            _logger.LogInformation(
+                "Deal finder quick check: {Checked} recent listings read, {New} new, {Deals} deals, since {Cutoff:u}, took {Duration}",
+                result.ListingsChecked, newListings, result.DealsFound, cutoff, result.Duration);
+
+            return result;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Deal finder quick check failed");
+            result.Success = false;
+            result.Message = "Deal finder quick check failed";
+            result.Error = ex.Message;
+            result.Duration = DateTime.UtcNow - startTime;
+            return result;
+        }
+        finally
+        {
+            _runGate.Release();
+        }
+    }
+
+    private List<SearchFilterSet> GetFilterSets()
+    {
+        // Search filter sets (supports multiple categories like electric + acoustic)
+        var filterSets = _configuration.GetSection("DealFinder:SearchFilterSets").Get<List<SearchFilterSet>>();
+
+        // Fallback to legacy single SearchFilters config if SearchFilterSets not defined
+        if (filterSets == null || filterSets.Count == 0)
+        {
+            filterSets = new List<SearchFilterSet>
+            {
+                new SearchFilterSet
+                {
+                    Name = "Default",
+                    Makes = _configuration.GetSection("DealFinder:SearchFilters:Makes").Get<List<string>>() ?? new List<string> { "Fender", "Gibson", "PRS", "Schecter" },
+                    PriceMax = _configuration.GetValue<decimal>("DealFinder:SearchFilters:PriceMax", 3500),
+                    AcceptsOffers = _configuration.GetValue<bool>("DealFinder:SearchFilters:AcceptsOffers", true),
+                    PerPage = _configuration.GetValue<int>("DealFinder:SearchFilters:PerPage", 50),
+                    MaxListings = _configuration.GetValue<int>("DealFinder:SearchFilters:MaxListings", 500),
+                    Category = _configuration["DealFinder:SearchFilters:Category"] ?? "solid-body",
+                    ProductType = _configuration["DealFinder:SearchFilters:ProductType"] ?? "electric-guitars",
+                    ShipFromCountryCode = _configuration["DealFinder:SearchFilters:ShipFromCountryCode"] ?? "US"
+                }
+            };
+        }
+
+        return filterSets;
     }
 
     private async Task<(PotentialBuy Buy, CspPriceResult PriceResult)> ProcessListingAsync(
@@ -267,6 +406,7 @@ public class DealFinderResult
     public string? Error { get; set; }
     public int ListingsChecked { get; set; }
     public int DealsFound { get; set; }
+    public int NewListings { get; set; }
     public int WithPriceData { get; set; }
     public int LookupErrors { get; set; }
     public TimeSpan Duration { get; set; }

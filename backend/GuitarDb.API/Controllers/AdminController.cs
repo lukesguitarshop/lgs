@@ -1307,7 +1307,37 @@ public class AdminController : ControllerBase
     [HttpGet("deal-finder/status")]
     public IActionResult GetDealFinderStatus()
     {
-        return Ok(new { isRunning = _dealFinderService.IsRunning });
+        return Ok(new
+        {
+            isRunning = _dealFinderService.IsRunning,
+            lastQuickCheckAt = _dealFinderService.LastQuickCheckAt
+        });
+    }
+
+    /// <summary>
+    /// Quick check for newly published Reverb listings, called when the deals page opens.
+    /// Does nothing if a quick check ran within DealFinder:Incremental:OnOpenMaxAgeMinutes,
+    /// so reopening the page doesn't hit Reverb again.
+    /// </summary>
+    [HttpPost("deal-finder/quick-check")]
+    public async Task<IActionResult> QuickCheckDealFinder(CancellationToken ct = default)
+    {
+        var maxAge = TimeSpan.FromMinutes(_configuration.GetValue<int>("DealFinder:Incremental:OnOpenMaxAgeMinutes", 5));
+        var last = _dealFinderService.LastQuickCheckAt;
+
+        if (last is not null && DateTime.UtcNow - last.Value < maxAge)
+            return Ok(new { ran = false, lastQuickCheckAt = last });
+
+        var result = await _dealFinderService.RunIncrementalAsync(ct, waitForQuickCheck: true);
+
+        return Ok(new
+        {
+            ran = result.Success,
+            message = result.Message,
+            newListings = result.NewListings,
+            dealsFound = result.DealsFound,
+            lastQuickCheckAt = _dealFinderService.LastQuickCheckAt
+        });
     }
 
     /// <summary>

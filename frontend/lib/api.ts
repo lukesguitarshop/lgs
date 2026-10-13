@@ -235,6 +235,15 @@ export interface DealFinderResult {
 
 export interface DealFinderStatus {
   isRunning: boolean;
+  lastQuickCheckAt?: string | null;
+}
+
+export interface DealFinderQuickCheckResult {
+  ran: boolean;
+  message?: string;
+  newListings?: number;
+  dealsFound?: number;
+  lastQuickCheckAt?: string | null;
 }
 
 export async function runDealFinder(): Promise<DealFinderResult> {
@@ -243,6 +252,12 @@ export async function runDealFinder(): Promise<DealFinderResult> {
 
 export async function getDealFinderStatus(): Promise<DealFinderStatus> {
   return api.authGet<DealFinderStatus>('/admin/deal-finder/status');
+}
+
+// Checks Reverb for listings published since the last check. The server skips it if
+// one ran in the last few minutes, so it is safe to call every time the page opens.
+export async function quickCheckDealFinder(): Promise<DealFinderQuickCheckResult> {
+  return api.authPost<DealFinderQuickCheckResult>('/admin/deal-finder/quick-check');
 }
 
 // Sweetwater Deal Finder API
