@@ -2046,7 +2046,10 @@ public class MongoDbService
                     Builders<PotentialBuy>.Filter.Eq(x => x.Purchased, false));
                 break;
             case "no-price-guide":
-                filter = Builders<PotentialBuy>.Filter.Eq(x => x.HasPriceGuide, false);
+                filter = Builders<PotentialBuy>.Filter.And(
+                    Builders<PotentialBuy>.Filter.Eq(x => x.HasPriceGuide, false),
+                    Builders<PotentialBuy>.Filter.Eq(x => x.Dismissed, false),
+                    Builders<PotentialBuy>.Filter.Eq(x => x.Purchased, false));
                 break;
             case "dismissed":
                 filter = Builders<PotentialBuy>.Filter.Eq(x => x.Dismissed, true);
@@ -2321,7 +2324,10 @@ public class MongoDbService
                     Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, false));
                 break;
             case "no-price-guide":
-                filter = Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.HasPriceGuide, false);
+                filter = Builders<SweetwaterPotentialBuy>.Filter.And(
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.HasPriceGuide, false),
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, false),
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, false));
                 break;
             case "dismissed":
                 filter = Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, true);

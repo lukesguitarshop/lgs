@@ -149,7 +149,7 @@ export function DealFinderTab() {
     try {
       await dismissPotentialBuy(id);
       setDeals(prev => prev.filter(d => d.id !== id));
-      if (stats) {
+      if (stats && statusFilter === 'deals') {
         setStats({ ...stats, deals: stats.deals - 1 });
       }
     } catch (err) {
@@ -164,7 +164,7 @@ export function DealFinderTab() {
     try {
       await markPotentialBuyPurchased(id);
       setDeals(prev => prev.filter(d => d.id !== id));
-      if (stats) {
+      if (stats && statusFilter === 'deals') {
         setStats({ ...stats, deals: stats.deals - 1 });
       }
     } catch (err) {
@@ -176,14 +176,14 @@ export function DealFinderTab() {
 
   const handleDismissPage = async () => {
     if (deals.length === 0) return;
-    if (!confirm(`Dismiss all ${deals.length} deals on this page?`)) return;
+    if (!confirm(`Dismiss all ${deals.length} listings on this page?`)) return;
 
     setBulkDismissing('page');
     try {
       const ids = deals.map(d => d.id);
       const result = await dismissPotentialBuysBulk(ids);
       setDeals([]);
-      if (stats) {
+      if (stats && statusFilter === 'deals') {
         setStats({ ...stats, deals: Math.max(0, stats.deals - result.dismissed) });
       }
       // Refresh to get next page of results
@@ -423,8 +423,8 @@ export function DealFinderTab() {
           </div>
         </div>
 
-        {/* Bulk Action Buttons - only show on deals filter */}
-        {statusFilter === 'deals' && deals.length > 0 && (
+        {/* Bulk Action Buttons - deals and no-price-guide lists (Dismiss All is deals-only) */}
+        {(statusFilter === 'deals' || statusFilter === 'no-price-guide') && deals.length > 0 && (
           <div className="flex flex-wrap gap-2">
             <Button
               onClick={() => {
@@ -453,20 +453,22 @@ export function DealFinderTab() {
               )}
               Dismiss Page ({deals.length})
             </Button>
-            <Button
-              onClick={handleDismissAll}
-              disabled={bulkDismissing !== null || loading || !stats?.deals}
-              variant="outline"
-              size="sm"
-              className="text-xs text-red-600 hover:text-red-800 hover:bg-red-50"
-            >
-              {bulkDismissing === 'all' ? (
-                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-              ) : (
-                <X className="h-3 w-3 mr-1" />
-              )}
-              Dismiss All ({stats?.deals ?? 0})
-            </Button>
+            {statusFilter === 'deals' && (
+              <Button
+                onClick={handleDismissAll}
+                disabled={bulkDismissing !== null || loading || !stats?.deals}
+                variant="outline"
+                size="sm"
+                className="text-xs text-red-600 hover:text-red-800 hover:bg-red-50"
+              >
+                {bulkDismissing === 'all' ? (
+                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                ) : (
+                  <X className="h-3 w-3 mr-1" />
+                )}
+                Dismiss All ({stats?.deals ?? 0})
+              </Button>
+            )}
           </div>
         )}
       </div>
