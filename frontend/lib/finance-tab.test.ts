@@ -6,6 +6,10 @@ describe('resolveFinanceTab', () => {
     expect(resolveFinanceTab('?editTxn=abc123', 'monthly')).toBe('transactions');
   });
 
+  it('sends a ?txn deep link (from a listing row) to Transactions too', () => {
+    expect(resolveFinanceTab('?txn=abc123', 'dashboard')).toBe('transactions');
+  });
+
   it('restores the last-used tab when there is no deep link', () => {
     expect(resolveFinanceTab('', 'monthly')).toBe('monthly');
     expect(resolveFinanceTab('?foo=bar', 'flip-calc')).toBe('flip-calc');

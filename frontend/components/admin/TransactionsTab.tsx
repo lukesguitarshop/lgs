@@ -115,12 +115,13 @@ function parseCSV(text: string): string[][] {
   return rows;
 }
 
-// Drop ?editTxn=<id> from the URL so a refresh doesn't reopen the edit modal.
+// Drop ?editTxn=<id> / ?txn=<id> from the URL so a refresh doesn't reopen the edit modal.
 function stripEditTxnParam() {
   if (typeof window === 'undefined') return;
   const params = new URLSearchParams(window.location.search);
-  if (!params.has('editTxn')) return;
+  if (!params.has('editTxn') && !params.has('txn')) return;
   params.delete('editTxn');
+  params.delete('txn');
   const qs = params.toString();
   window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
 }
@@ -138,6 +139,7 @@ export default function TransactionsTab() {
 
   // Deep-link (?editTxn=<id>) and "action needed" toast
   const [pendingEditTxnId, setPendingEditTxnId] = useState<string | null>(null);
+  const [pendingPresetSold, setPendingPresetSold] = useState(true);
   const initialToastShown = useRef(false);
 
   // Import dialog
@@ -258,24 +260,34 @@ export default function TransactionsTab() {
   // transactions finish loading -- doesn't swallow the deep link.
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const editId = new URLSearchParams(window.location.search).get('editTxn');
-    if (editId) setPendingEditTxnId(editId);
+    const params = new URLSearchParams(window.location.search);
+    const editId = params.get('editTxn');
+    const viewId = params.get('txn');
+    if (editId) {
+      setPendingEditTxnId(editId);
+    } else if (viewId) {
+      setPendingEditTxnId(viewId);
+      setPendingPresetSold(false);
+    }
   }, []);
 
   // Once transactions are loaded, open the edit modal for the deep-linked id.
-  // Arriving via the deactivate "Yes" prompt, pre-set the form to sold + today's
-  // date so it's already reflected the moment the modal appears (not yet saved).
+  // Arriving via the deactivate "Yes" prompt (?editTxn), pre-set the form to sold +
+  // today's date so it's already reflected the moment the modal appears (not yet
+  // saved). Arriving from a listing's Finances button (?txn), open it as-is.
   useEffect(() => {
     if (!pendingEditTxnId || transactions.length === 0) return;
     const txn = transactions.find((t) => t.id === pendingEditTxnId);
     if (txn) {
       openEditDialog(txn);
-      const today = new Date().toISOString().split('T')[0];
-      setForm((prev) => ({ ...prev, transactionType: 'sold', date: today }));
+      if (pendingPresetSold) {
+        const today = new Date().toISOString().split('T')[0];
+        setForm((prev) => ({ ...prev, transactionType: 'sold', date: today }));
+      }
     }
     setPendingEditTxnId(null);
     stripEditTxnParam();
-  }, [pendingEditTxnId, transactions]);
+  }, [pendingEditTxnId, pendingPresetSold, transactions]);
 
   // Auto-calculate profit when revenue, purchasePrice, or shippingCost change
   const updateProfit = (updates: Partial<TransactionFormData>, current: TransactionFormData) => {

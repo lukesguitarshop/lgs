@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList, DollarSign } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
@@ -158,6 +158,7 @@ export default function AdminPage() {
   const [result, setResult] = useState<ScraperResponse | null>(null);
   const [listings, setListings] = useState<AdminListing[]>([]);
   const [loadingListings, setLoadingListings] = useState(false);
+  const [openingFinancesId, setOpeningFinancesId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [reservingListing, setReservingListing] = useState<
     { id: string; title: string; price: number } | null
@@ -447,6 +448,18 @@ export default function AdminPage() {
       );
     } finally {
       setSavingFeatured(false);
+    }
+  };
+
+  // Jump straight to this guitar's transaction in Finances.
+  const openListingFinances = async (id: string) => {
+    setOpeningFinancesId(id);
+    try {
+      const txn = await api.authGet<{ id: string }>(`/admin/transactions/by-listing/${id}`);
+      router.push(`/finances?txn=${txn.id}`);
+    } catch {
+      showToast('No finance transaction found for this listing', 'info');
+      setOpeningFinancesId(null);
     }
   };
 
@@ -1008,6 +1021,19 @@ export default function AdminPage() {
                         <ExternalLink className="h-3 w-3" />
                         View
                       </a>
+                      <button
+                        onClick={() => openListingFinances(listing.id)}
+                        disabled={openingFinancesId === listing.id}
+                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-[#020E1C] hover:bg-gray-100 transition-colors disabled:opacity-50"
+                        title="Open this guitar's transaction in Finances"
+                      >
+                        {openingFinancesId === listing.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <DollarSign className="h-3 w-3" />
+                        )}
+                        Finances
+                      </button>
                       {/* The old "Pending for Trade-In" toggle is gone. Reservations
                           carry a customer, terms and an expiry, so they're created
                           through a dialog and managed on the Reservations tab. */}

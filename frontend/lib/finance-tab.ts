@@ -1,4 +1,4 @@
-// Which Finances sub-tab to show on load. A deep link (?editTxn=<id>) targets
+// Which Finances sub-tab to show on load. A deep link (?editTxn=<id> or ?txn=<id>) targets
 // the Transactions tab and must win over the last-used tab in localStorage --
 // otherwise the restored tab unmounts TransactionsTab and the deep link is lost.
 
@@ -17,7 +17,8 @@ export function isFinanceTab(value: string | null | undefined): value is Finance
  * @param savedTab localStorage 'adminFinanceTab' value, if any
  */
 export function resolveFinanceTab(search: string, savedTab: string | null): FinanceTab {
-  if (new URLSearchParams(search).get('editTxn')) return 'transactions';
+  const params = new URLSearchParams(search);
+  if (params.get('editTxn') || params.get('txn')) return 'transactions';
   if (isFinanceTab(savedTab)) return savedTab;
   return DEFAULT_FINANCE_TAB;
 }
