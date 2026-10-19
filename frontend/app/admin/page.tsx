@@ -152,6 +152,13 @@ function formatTimeAgo(dateString: string | null): string {
   });
 }
 
+// Where each Export All file gets uploaded.
+const BULK_UPLOAD_PAGES = [
+  'https://www.facebook.com/marketplace/create/bulk',
+  'https://www.sweetwater.com/used/account/listings/bulk',
+  'https://www.ebay.com/sh/reports/uploads',
+];
+
 export default function AdminPage() {
   const { isAdmin, isLoading, isAuthenticated, setShowLoginModal } = useAuth();
   const { showToast } = useToast();
@@ -673,6 +680,9 @@ export default function AdminPage() {
   const handleExportAll = async () => {
     const selected = listings.filter(l => selectedListingIds.has(l.id));
     if (selected.length === 0) return;
+    // Open the upload pages first, while still inside the click -- browsers
+    // block window.open once an await has run.
+    for (const url of BULK_UPLOAD_PAGES) window.open(url, '_blank', 'noopener');
     setExportingAll(true);
     try {
       handleBulkFbExport();
@@ -1172,7 +1182,7 @@ export default function AdminPage() {
                 <div>
                   {/* Bulk action bar */}
                   {selectedListingIds.size > 0 && (
-                    <div className="flex items-center gap-3 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex flex-wrap items-center gap-3 mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                       <span className="text-sm font-medium text-blue-800">
                         {selectedListingIds.size} selected
                       </span>
@@ -1180,7 +1190,7 @@ export default function AdminPage() {
                         className="text-sm h-8 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
                         onClick={handleExportAll}
                         disabled={exportingAll || bulkDownloading || bulkExporting}
-                        title="Download photos plus FB, Sweetwater and eBay files, using the defaults"
+                        title="Download photos plus FB, Sweetwater and eBay files using the defaults, and open each upload page"
                       >
                         {exportingAll ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Zap className="h-3.5 w-3.5 mr-1.5" />}
                         {exportingAll ? 'Exporting...' : 'Export All'}
