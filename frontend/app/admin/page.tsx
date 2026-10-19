@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList, DollarSign } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList, DollarSign, Zap } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
@@ -28,6 +28,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
 import { ReservationDialog } from '@/components/admin/ReservationDialog';
+import { buildBulkUploadCsv } from '@/lib/sweetwater/bulk-upload';
+import { deriveRow } from '@/lib/sweetwater/derive';
+import { LISTING_DEFAULTS, buildListingCsv, deriveListingRow } from '@/lib/ebay/listing';
 
 interface ScraperResponse {
   success: boolean;
@@ -199,6 +202,7 @@ export default function AdminPage() {
   const [selectedListingIds, setSelectedListingIds] = useState<Set<string>>(new Set());
   const [bulkDownloading, setBulkDownloading] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [exportingAll, setExportingAll] = useState(false);
   const [swExportOpen, setSwExportOpen] = useState(false);
   const [ebayExportOpen, setEbayExportOpen] = useState(false);
   const [initPricesLoading, setInitPricesLoading] = useState(false);
@@ -649,6 +653,46 @@ export default function AdminPage() {
       console.error('Failed to create bulk photo zip:', err);
     } finally {
       setBulkDownloading(false);
+    }
+  };
+
+  const downloadCsv = (csv: string, filename: string) => {
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  // One click for the whole batch: FB, Sweetwater and eBay files with the same
+  // defaults their review modals start from (no review step), then the photos.
+  // The single buttons stay for when something needs adjusting first.
+  const handleExportAll = async () => {
+    const selected = listings.filter(l => selectedListingIds.has(l.id));
+    if (selected.length === 0) return;
+    setExportingAll(true);
+    try {
+      handleBulkFbExport();
+      downloadCsv(
+        buildBulkUploadCsv(selected.map(deriveRow)),
+        `sweetwater_bulk_upload_${selected.length}_listings.csv`,
+      );
+      downloadCsv(
+        buildListingCsv(selected.map(deriveListingRow), {
+          action: LISTING_DEFAULTS.action,
+          shippingService: LISTING_DEFAULTS.shippingService,
+        }),
+        `ebay_${LISTING_DEFAULTS.action.toLowerCase()}_listings_${selected.length}.csv`,
+      );
+      await handleBulkPhotoDownload();
+    } catch (err) {
+      console.error('Export all failed:', err);
+      showToast('Export all failed partway -- check your downloads', 'error');
+    } finally {
+      setExportingAll(false);
     }
   };
 
@@ -1132,6 +1176,15 @@ export default function AdminPage() {
                       <span className="text-sm font-medium text-blue-800">
                         {selectedListingIds.size} selected
                       </span>
+                      <Button
+                        className="text-sm h-8 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                        onClick={handleExportAll}
+                        disabled={exportingAll || bulkDownloading || bulkExporting}
+                        title="Download photos plus FB, Sweetwater and eBay files, using the defaults"
+                      >
+                        {exportingAll ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Zap className="h-3.5 w-3.5 mr-1.5" />}
+                        {exportingAll ? 'Exporting...' : 'Export All'}
+                      </Button>
                       <Button
                         variant="outline"
                         className="text-sm h-8"
