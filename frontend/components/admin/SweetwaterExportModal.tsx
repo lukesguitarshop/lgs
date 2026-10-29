@@ -21,6 +21,7 @@ import {
   type PayoutMethod,
 } from '@/lib/sweetwater/derive';
 import { BRANDS, CONDITIONS, DECADES, TOP_CATEGORIES } from '@/lib/sweetwater/vocabulary';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 
 interface SweetwaterExportModalProps {
   open: boolean;
@@ -66,6 +67,163 @@ export function SweetwaterExportModal({ open, onOpenChange, listings }: Sweetwat
     onOpenChange(false);
   };
 
+  const columns: ResponsiveColumn<ExportRow>[] = [
+    {
+      id: 'listing',
+      header: 'Listing',
+      priority: 'key',
+      cellClassName: 'pl-0 max-w-[240px]',
+      wide: true,
+      headerClassName: 'pl-0',
+      cell: (row) => (
+        <>
+          <div className="flex items-start gap-1.5">
+            {row.needsReview && (
+              <span
+                className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"
+                title="Some fields fell back to a default"
+              />
+            )}
+            <span className="text-gray-900">{row.title}</span>
+          </div>
+          <span className="text-gray-400">{row.images.length} photos</span>
+        </>
+      ),
+    },
+    {
+      id: 'brand',
+      header: 'Brand',
+      priority: 'key',
+      cell: (row) => (
+        <>
+          <select
+            value={row.brand}
+            onChange={e => update(row.id, { brand: e.target.value })}
+            className="border border-gray-300 rounded px-1 py-1 bg-white w-32"
+          >
+            <option value="">&mdash;</option>
+            {BRANDS.map(b => (
+              <option key={b} value={b}>{b}</option>
+            ))}
+          </select>
+        </>
+      ),
+    },
+    {
+      id: 'category',
+      header: 'Category',
+      priority: 'key',
+      cell: (row) => (
+        <>
+          <select
+            value={row.topCategory}
+            onChange={e => {
+              const top = e.target.value;
+              // Old subcategory belongs to the old parent, so reset it.
+              update(row.id, { topCategory: top, subCategory: subcategoriesFor(top)[0]?.code ?? '' });
+            }}
+            className="border border-gray-300 rounded px-1 py-1 bg-white w-36"
+          >
+            {TOP_CATEGORIES.map(t => (
+              <option key={t.code} value={t.code}>{t.label}</option>
+            ))}
+          </select>
+        </>
+      ),
+    },
+    {
+      id: 'subcategory',
+      header: 'Subcategory',
+      priority: 'key',
+      wide: true,
+      cell: (row) => (
+        <>
+          <select
+            value={row.subCategory}
+            onChange={e => update(row.id, { subCategory: e.target.value })}
+            className="border border-gray-300 rounded px-1 py-1 bg-white w-44"
+          >
+            {subcategoriesFor(row.topCategory).map(s => (
+              <option key={s.code} value={s.code}>{s.label}</option>
+            ))}
+          </select>
+        </>
+      ),
+    },
+    {
+      id: 'condition',
+      header: 'Condition',
+      priority: 'key',
+      cell: (row) => (
+        <>
+          <select
+            value={row.condition}
+            onChange={e => update(row.id, { condition: e.target.value })}
+            className="border border-gray-300 rounded px-1 py-1 bg-white"
+          >
+            {CONDITIONS.map(c => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </select>
+        </>
+      ),
+    },
+    {
+      id: 'year',
+      header: 'Year',
+      priority: 'key',
+      cell: (row) => (
+        <>
+          <input
+            value={row.year}
+            onChange={e => update(row.id, { year: e.target.value })}
+            className="border border-gray-300 rounded px-1 py-1 bg-white w-16"
+            placeholder="—"
+          />
+        </>
+      ),
+    },
+    {
+      id: 'decade',
+      header: 'Decade',
+      priority: 'key',
+      cell: (row) => (
+        <>
+          <select
+            value={row.decade}
+            onChange={e => update(row.id, { decade: e.target.value })}
+            className="border border-gray-300 rounded px-1 py-1 bg-white w-24"
+          >
+            <option value="">&mdash;</option>
+            {DECADES.map(d => (
+              <option key={d} value={d}>{d}</option>
+            ))}
+          </select>
+        </>
+      ),
+    },
+    {
+      id: 'price',
+      header: 'Price',
+      priority: 'key',
+      cellClassName: 'text-right tabular-nums',
+      headerClassName: 'text-right',
+      cell: (row) => (
+        <>{currency(row.price)}</>
+      ),
+    },
+    {
+      id: 'payout',
+      header: 'Net payout',
+      priority: 'key',
+      cellClassName: 'pr-0 text-right tabular-nums text-gray-600',
+      headerClassName: 'pr-0 text-right',
+      cell: (row) => (
+        <>{currency(netPayout(row.price, payoutMethod))}</>
+      ),
+    },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[95vw] w-[1200px] max-h-[90vh] flex flex-col">
@@ -73,7 +231,7 @@ export function SweetwaterExportModal({ open, onOpenChange, listings }: Sweetwat
           <DialogTitle>Sweetwater Gear Exchange export</DialogTitle>
         </DialogHeader>
 
-        <div className="flex items-center gap-4 text-sm border-b pb-3">
+        <div className="flex items-center gap-4 text-sm border-b pb-3 max-md:flex-wrap">
           <span className="font-medium">{rows.length} listings</span>
           {reviewCount > 0 && (
             <span className="flex items-center gap-1.5 text-amber-700">
@@ -81,12 +239,12 @@ export function SweetwaterExportModal({ open, onOpenChange, listings }: Sweetwat
               {reviewCount} need a look
             </span>
           )}
-          <div className="ml-auto flex items-center gap-3">
-            <label className="text-gray-600">Payout via</label>
+          <div className="ml-auto flex items-center gap-3 max-md:ml-0 max-md:w-full">
+            <label className="text-gray-600 shrink-0">Payout via</label>
             <select
               value={payoutMethod}
               onChange={e => setPayoutMethod(e.target.value as PayoutMethod)}
-              className="border border-gray-300 rounded px-2 py-1 bg-white"
+              className="border border-gray-300 rounded px-2 py-1 bg-white max-md:min-w-0 max-md:flex-1"
             >
               <option value="cash">Cash &mdash; {feePercent}% fees</option>
               <option value="store_credit">Store credit &mdash; no fees</option>
@@ -94,120 +252,34 @@ export function SweetwaterExportModal({ open, onOpenChange, listings }: Sweetwat
           </div>
         </div>
 
-        <div className="overflow-auto flex-1 -mx-6 px-6">
-          <table className="w-full text-xs">
-            <thead className="sticky top-0 bg-white">
-              <tr className="border-b text-left text-gray-600">
-                <th className="py-2 pr-2 font-medium">Listing</th>
-                <th className="py-2 px-2 font-medium">Brand</th>
-                <th className="py-2 px-2 font-medium">Category</th>
-                <th className="py-2 px-2 font-medium">Subcategory</th>
-                <th className="py-2 px-2 font-medium">Condition</th>
-                <th className="py-2 px-2 font-medium">Year</th>
-                <th className="py-2 px-2 font-medium">Decade</th>
-                <th className="py-2 px-2 font-medium text-right">Price</th>
-                <th className="py-2 pl-2 font-medium text-right">Net payout</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(row => (
-                <tr key={row.id} className="border-b align-top">
-                  <td className="py-2 pr-2 max-w-[240px]">
-                    <div className="flex items-start gap-1.5">
-                      {row.needsReview && (
-                        <span
-                          className="mt-1 h-1.5 w-1.5 rounded-full bg-amber-500 shrink-0"
-                          title="Some fields fell back to a default"
-                        />
-                      )}
-                      <span className="text-gray-900">{row.title}</span>
-                    </div>
-                    <span className="text-gray-400">{row.images.length} photos</span>
-                  </td>
-                  <td className="py-2 px-2">
-                    <select
-                      value={row.brand}
-                      onChange={e => update(row.id, { brand: e.target.value })}
-                      className="border border-gray-300 rounded px-1 py-1 bg-white w-32"
-                    >
-                      <option value="">&mdash;</option>
-                      {BRANDS.map(b => (
-                        <option key={b} value={b}>{b}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-2 px-2">
-                    <select
-                      value={row.topCategory}
-                      onChange={e => {
-                        const top = e.target.value;
-                        // Old subcategory belongs to the old parent, so reset it.
-                        update(row.id, { topCategory: top, subCategory: subcategoriesFor(top)[0]?.code ?? '' });
-                      }}
-                      className="border border-gray-300 rounded px-1 py-1 bg-white w-36"
-                    >
-                      {TOP_CATEGORIES.map(t => (
-                        <option key={t.code} value={t.code}>{t.label}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-2 px-2">
-                    <select
-                      value={row.subCategory}
-                      onChange={e => update(row.id, { subCategory: e.target.value })}
-                      className="border border-gray-300 rounded px-1 py-1 bg-white w-44"
-                    >
-                      {subcategoriesFor(row.topCategory).map(s => (
-                        <option key={s.code} value={s.code}>{s.label}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-2 px-2">
-                    <select
-                      value={row.condition}
-                      onChange={e => update(row.id, { condition: e.target.value })}
-                      className="border border-gray-300 rounded px-1 py-1 bg-white"
-                    >
-                      {CONDITIONS.map(c => (
-                        <option key={c} value={c}>{c}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-2 px-2">
-                    <input
-                      value={row.year}
-                      onChange={e => update(row.id, { year: e.target.value })}
-                      className="border border-gray-300 rounded px-1 py-1 bg-white w-16"
-                      placeholder="—"
-                    />
-                  </td>
-                  <td className="py-2 px-2">
-                    <select
-                      value={row.decade}
-                      onChange={e => update(row.id, { decade: e.target.value })}
-                      className="border border-gray-300 rounded px-1 py-1 bg-white w-24"
-                    >
-                      <option value="">&mdash;</option>
-                      {DECADES.map(d => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-2 px-2 text-right tabular-nums">{currency(row.price)}</td>
-                  <td className="py-2 pl-2 text-right tabular-nums text-gray-600">
-                    {currency(netPayout(row.price, payoutMethod))}
-                  </td>
+        <div className="overflow-auto flex-1 -mx-5 px-5 sm:-mx-6 sm:px-6">
+          <ResponsiveTable
+            label="Sweetwater listings"
+            columns={columns}
+            rows={rows}
+            rowKey={(row) => row.id}
+            rowClassName={(row) => `border-b align-top${row.needsReview ? ' max-md:border-amber-400' : ''}`}
+            containerClassName="overflow-visible"
+            tableClassName="w-full text-xs"
+            theadClassName="sticky top-0 z-[2] bg-white"
+            headerRowClassName="border-b text-left text-gray-600 bg-white"
+            thClassName="py-2 px-2 font-medium"
+            tdClassName="py-2 px-2"
+            surfaceClassName="bg-background"
+            tableFooter={
+                <tr className="font-medium">
+                  <td className="py-2 pr-2" colSpan={7}>Total</td>
+                  <td className="py-2 px-2 text-right tabular-nums">{currency(totalPrice)}</td>
+                  <td className="py-2 pl-2 text-right tabular-nums">{currency(totalPayout)}</td>
                 </tr>
-              ))}
-            </tbody>
-            <tfoot>
-              <tr className="font-medium">
-                <td className="py-2 pr-2" colSpan={7}>Total</td>
-                <td className="py-2 px-2 text-right tabular-nums">{currency(totalPrice)}</td>
-                <td className="py-2 pl-2 text-right tabular-nums">{currency(totalPayout)}</td>
-              </tr>
-            </tfoot>
-          </table>
+            }
+            mobileFooter={
+              <div className="mt-3 flex justify-between border-t pt-3 text-sm font-medium">
+                <span>Total {currency(totalPrice)}</span>
+                <span>Payout {currency(totalPayout)}</span>
+              </div>
+            }
+          />
         </div>
 
         <p className="text-xs text-gray-500 border-t pt-3">

@@ -4,6 +4,16 @@ import { api } from '@/lib/api';
 import { FinanceSummary, MonthlySnapshot } from '@/lib/types/finance-summary';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
+
+interface PivotRow {
+  key: string;
+  label: string;
+  labelClassName?: string;
+  value: (year: number) => number | null | undefined;
+  empty: React.ReactNode;
+  className: string;
+}
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -220,6 +230,73 @@ export default function MonthlyBreakdownTab() {
   const colorClass = (value: number) =>
     value > 0 ? 'text-green-700' : value < 0 ? 'text-red-600' : 'text-gray-500';
 
+  // One row per month, then the summary rows; each knows how to read a year.
+  const monthRows: PivotRow[] = MONTH_NAMES.map((name, idx) => {
+    const month = idx + 1;
+    return {
+      key: String(month),
+      label: name,
+      value: (year) => cellValues.get(`${year}-${month}`),
+      empty: <>&mdash;</>,
+      className: `border-b ${month === currentMonth ? 'bg-yellow-50 font-semibold' : 'hover:bg-gray-50'}`,
+    };
+  });
+  const summaryRows: PivotRow[] = [
+    {
+      key: 'total',
+      label: 'Yearly Total',
+      value: (year) => yearlyTotals.get(year),
+      empty: 'N/A',
+      className: 'border-t-2 border-[#6E0114] bg-gray-100 font-semibold',
+    },
+    {
+      key: 'this-month',
+      label: `This Month (${MONTH_NAMES[currentMonth - 1]})`,
+      value: (year) => thisMonthProfit.get(year),
+      empty: <>&mdash;</>,
+      className: 'bg-yellow-50 font-semibold',
+    },
+    {
+      key: 'avg',
+      label: 'Avg/Month',
+      labelClassName: 'font-semibold',
+      value: (year) => yearlyAvg.get(year),
+      empty: 'N/A',
+      className: 'bg-gray-100',
+    },
+  ];
+
+  const columns: ResponsiveColumn<PivotRow>[] = [
+    {
+      id: 'month',
+      header: 'Month',
+      priority: 'primary',
+      headerClassName: 'text-left',
+      cellClassName: (row) => `text-left ${row.labelClassName ?? ''}`,
+      cell: (row) => row.label,
+    },
+    ...years.map((year): ResponsiveColumn<PivotRow> => ({
+      id: String(year),
+      header: String(year),
+      priority: 'key',
+      headerClassName: 'text-right',
+      cellClassName: (row) => {
+        const v = row.value(year);
+        return `text-right ${v === null || v === undefined ? 'text-gray-400' : colorClass(v)}`;
+      },
+      isEmpty: (row) => {
+        const v = row.value(year);
+        return v === null || v === undefined;
+      },
+      emptyLabel: 'No data',
+      cell: (row) => {
+        const v = row.value(year);
+        return v === null || v === undefined ? row.empty : formatCurrency(v);
+      },
+      mobileCell: (row) => <span className={colorClass(row.value(year)!)}>{formatCurrency(row.value(year)!)}</span>,
+    })),
+  ];
+
   return (
     <div className="space-y-4">
       {/* Toggle */}
@@ -241,102 +318,21 @@ export default function MonthlyBreakdownTab() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-lg border">
-        <table className="w-full text-sm bg-[#FFFFF3]">
-          <thead>
-            <tr className="border-b bg-[#020E1C] text-white">
-              <th className="px-4 py-2 text-left font-semibold">Month</th>
-              {years.map((year) => (
-                <th key={year} className="px-4 py-2 text-right font-semibold">
-                  {year}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {MONTH_NAMES.map((name, idx) => {
-              const month = idx + 1;
-              const isCurrentMonth = month === currentMonth;
-              return (
-                <tr
-                  key={month}
-                  className={`border-b ${isCurrentMonth ? 'bg-yellow-50 font-semibold' : 'hover:bg-gray-50'}`}
-                >
-                  <td className="px-4 py-2 text-left">{name}</td>
-                  {years.map((year) => {
-                    const key = `${year}-${month}`;
-                    const value = cellValues.get(key);
-                    if (value === undefined) {
-                      return (
-                        <td key={year} className="px-4 py-2 text-right text-gray-400">
-                          &mdash;
-                        </td>
-                      );
-                    }
-                    return (
-                      <td key={year} className={`px-4 py-2 text-right ${colorClass(value)}`}>
-                        {formatCurrency(value)}
-                      </td>
-                    );
-                  })}
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr className="border-t-2 border-[#6E0114] bg-gray-100 font-semibold">
-              <td className="px-4 py-2 text-left">Yearly Total</td>
-              {years.map((year) => {
-                const total = yearlyTotals.get(year);
-                if (total === null || total === undefined) {
-                  return (
-                    <td key={year} className="px-4 py-2 text-right text-gray-400">N/A</td>
-                  );
-                }
-                return (
-                  <td key={year} className={`px-4 py-2 text-right ${colorClass(total)}`}>
-                    {formatCurrency(total)}
-                  </td>
-                );
-              })}
-            </tr>
-            <tr className="bg-yellow-50 font-semibold">
-              <td className="px-4 py-2 text-left">This Month ({MONTH_NAMES[currentMonth - 1]})</td>
-              {years.map((year) => {
-                const val = thisMonthProfit.get(year);
-                if (val === null || val === undefined) {
-                  return (
-                    <td key={year} className="px-4 py-2 text-right text-gray-400">
-                      &mdash;
-                    </td>
-                  );
-                }
-                return (
-                  <td key={year} className={`px-4 py-2 text-right ${colorClass(val)}`}>
-                    {formatCurrency(val)}
-                  </td>
-                );
-              })}
-            </tr>
-            <tr className="bg-gray-100">
-              <td className="px-4 py-2 text-left font-semibold">Avg/Month</td>
-              {years.map((year) => {
-                const avg = yearlyAvg.get(year);
-                if (avg === null || avg === undefined) {
-                  return (
-                    <td key={year} className="px-4 py-2 text-right text-gray-400">N/A</td>
-                  );
-                }
-                return (
-                  <td key={year} className={`px-4 py-2 text-right ${colorClass(avg)}`}>
-                    {formatCurrency(avg)}
-                  </td>
-                );
-              })}
-            </tr>
-          </tfoot>
-        </table>
-      </div>
+      <ResponsiveTable
+        label="Monthly breakdown"
+        columns={columns}
+        rows={monthRows}
+        rowKey={(row) => row.key}
+        rowClassName={(row) => row.className}
+        footerRows={summaryRows}
+        footerRowClassName={(row) => row.className}
+        tableClassName="w-full text-sm bg-[#FFFFF3]"
+        containerClassName="rounded-lg border"
+        headerRowClassName="border-b bg-[#020E1C] text-white"
+        thClassName="px-4 py-2 font-semibold"
+        tdClassName="px-4 py-2"
+        mobilePageSize={12}
+      />
     </div>
   );
 }

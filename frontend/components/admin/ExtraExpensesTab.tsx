@@ -9,7 +9,8 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
-import { Plus, Trash2, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Loader2, Pencil } from 'lucide-react';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 
 const EXPENSE_CATEGORIES = [
   'Boxes',
@@ -76,20 +77,6 @@ export default function ExtraExpensesTab() {
 
   const totalPages = Math.ceil(sortedExpenses.length / PAGE_SIZE);
   const paginatedExpenses = sortedExpenses.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  const SortHeader = ({ column, label }: { column: string; label: string }) => (
-    <th
-      className="text-left py-3 px-4 text-sm font-medium text-gray-600 cursor-pointer hover:bg-[#020E1C]/80 hover:text-white select-none"
-      onClick={() => handleSort(column)}
-    >
-      <span className="flex items-center gap-1">
-        {label}
-        {sortColumn === column && (
-          <span className="text-xs">{sortDirection === 'asc' ? '▲' : '▼'}</span>
-        )}
-      </span>
-    </th>
-  );
 
   const fetchExpenses = useCallback(async () => {
     setLoading(true);
@@ -169,6 +156,54 @@ export default function ExtraExpensesTab() {
     }
   };
 
+  const columns: ResponsiveColumn<ExtraExpense>[] = [
+    { id: 'date', header: 'Date', sortKey: 'date', priority: 'key', cell: (expense) => formatDate(expense.date) },
+    { id: 'category', header: 'Category', sortKey: 'category', priority: 'primary', cell: (expense) => expense.category },
+    {
+      id: 'cost',
+      header: 'Cost',
+      sortKey: 'cost',
+      priority: 'key',
+      cellClassName: 'text-right',
+      cell: (expense) => formatCurrency(expense.cost),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      priority: 'actions',
+      stopRowClick: true,
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      cell: (expense) => (
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-xs h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={(e) => handleDelete(e, expense)}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      ),
+      mobileCell: (expense) => (
+        <>
+          <Button variant="outline" size="sm" className="flex-1" onClick={() => openEditDialog(expense)}>
+            <Pencil className="h-4 w-4 mr-1.5" />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={(e) => handleDelete(e, expense)}
+          >
+            <Trash2 className="h-4 w-4 mr-1.5" />
+            Delete
+          </Button>
+        </>
+      ),
+    },
+  ];
+
   // Category subtotals
   const categoryTotals = expenses.reduce<Record<string, number>>((acc, exp) => {
     acc[exp.category] = (acc[exp.category] || 0) + exp.cost;
@@ -189,14 +224,14 @@ export default function ExtraExpensesTab() {
   return (
     <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold text-[#020E1C]">Extra Expenses</h2>
           <p className="text-gray-600 text-sm mt-1">
             Track non-transaction expenses like shipping supplies and tools
           </p>
         </div>
-        <Button onClick={openAddDialog} className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
+        <Button onClick={openAddDialog} className="w-full sm:w-auto bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
           <Plus className="h-4 w-4 mr-2" />
           Add Expense
         </Button>
@@ -221,47 +256,23 @@ export default function ExtraExpensesTab() {
         </div>
       ) : (
         <>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <SortHeader column="date" label="Date" />
-                  <SortHeader column="category" label="Category" />
-                  <SortHeader column="cost" label="Cost" />
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedExpenses.map((expense) => (
-                  <tr
-                    key={expense.id}
-                    className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => openEditDialog(expense)}
-                  >
-                    <td className="py-3 px-4 text-sm text-[#020E1C]">
-                      {formatDate(expense.date)}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-[#020E1C]">{expense.category}</td>
-                    <td className="py-3 px-4 text-sm text-right text-[#020E1C]">
-                      {formatCurrency(expense.cost)}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        onClick={(e) => handleDelete(e, expense)}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable
+            label="Expenses"
+            columns={columns}
+            rows={paginatedExpenses}
+            rowKey={(expense) => expense.id}
+            onRowClick={openEditDialog}
+            rowClassName={() => 'border-b border-gray-100 hover:bg-gray-50 cursor-pointer'}
+            sort={{ key: sortColumn, direction: sortDirection, onSort: handleSort }}
+            tableClassName="w-full"
+            headerRowClassName="border-b border-gray-200"
+            thClassName="text-left py-3 px-4 text-sm font-medium text-gray-600"
+            sortableThClassName="cursor-pointer hover:bg-[#020E1C]/80 hover:text-white select-none"
+            tdClassName="py-3 px-4 text-sm text-[#020E1C]"
+            mobilePageSize={PAGE_SIZE}
+          />
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-4 px-2">
+            <div className="flex flex-wrap items-center justify-between gap-2 mt-4 px-2">
               <span className="text-sm text-gray-600">
                 Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, sortedExpenses.length)} of {sortedExpenses.length}
               </span>

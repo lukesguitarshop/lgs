@@ -14,6 +14,8 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
+import { CopyButton } from '@/components/ui/copy-button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList, DollarSign, Zap } from 'lucide-react';
 import JSZip from 'jszip';
@@ -371,6 +373,359 @@ export default function AdminPage() {
         return status;
     }
   };
+
+  const orderColumns: ResponsiveColumn<AdminOrder>[] = [
+    {
+      id: 'id',
+      header: 'Order ID',
+      priority: 'primary',
+      cell: (order) => (
+        <>
+          <div className="flex items-center gap-1">
+            <Link
+              href={`/order/${order.id}`}
+              className="font-mono text-xs text-[#6E0114] hover:underline"
+              title={order.id}
+            >
+              {order.id.substring(0, 8)}...
+            </Link>
+            <button
+              onClick={() => copyToClipboard(order.id)}
+              className="p-1 text-gray-400 hover:text-gray-600"
+              title="Copy full ID"
+            >
+              <Copy className="h-3 w-3" />
+            </button>
+          </div>
+        </>
+      ),
+      mobileCell: (order) => (
+        <span className="flex items-center gap-1">
+          <Link href={`/order/${order.id}`} className="font-mono text-[#6E0114] underline">
+            Order {order.id.substring(0, 8)}...
+          </Link>
+          <CopyButton value={order.id} label="Copy full order ID" />
+        </span>
+      ),
+    },
+    {
+      id: 'date',
+      header: 'Date',
+      priority: 'key',
+      cell: (order) => (
+        <>
+          <span className="text-gray-600 text-xs whitespace-nowrap">
+            {formatOrderDate(order.createdAt)}
+          </span>
+        </>
+      ),
+    },
+    {
+      id: 'buyer',
+      header: 'Buyer',
+      priority: 'key',
+      wide: true,
+      cell: (order) => (
+        <>
+          <div>
+            <p className="font-medium text-[#020E1C] text-sm">{buyerDisplayName(order.buyerName, order)}</p>
+            <p className="text-xs text-gray-500">{order.buyerEmail}</p>
+            {order.needsDetails && (
+              <Link
+                href={`/order/${order.id}`}
+                className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200"
+                title="Fill in who bought this"
+              >
+                <ClipboardList className="h-3 w-3" />
+                Needs details
+              </Link>
+            )}
+          </div>
+        </>
+      ),
+      mobileCell: (order) => (
+        <div className="min-w-0">
+          <p className="font-medium text-[#020E1C] text-sm">{buyerDisplayName(order.buyerName, order)}</p>
+          <p className="text-xs text-gray-500 break-all">{order.buyerEmail}</p>
+          {order.needsDetails && (
+            <Link
+              href={`/order/${order.id}`}
+              className="mt-1 inline-flex min-h-11 items-center gap-1 rounded-full bg-amber-100 px-3 text-xs font-medium text-amber-800"
+            >
+              <ClipboardList className="h-3 w-3" />
+              Needs details
+            </Link>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'items',
+      header: 'Items',
+      priority: 'key',
+      wide: true,
+      cell: (order) => (
+        <>
+          <div className="space-y-1">
+            {expandedOrderItems === order.id ? (
+              <>
+                {order.items.map((item, idx) => (
+                  <div key={idx} className="text-xs">
+                    <span className="text-[#020E1C] break-words">
+                      {item.listingTitle}
+                    </span>
+                    <span className="text-gray-500 ml-1">
+                      ({item.quantity}x ${item.price.toLocaleString()})
+                    </span>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setExpandedOrderItems(null)}
+                  className="text-xs text-[#6E0114] hover:underline"
+                >
+                  Collapse
+                </button>
+              </>
+            ) : (
+              <>
+                {order.items.map((item, idx) => (
+                  <div key={idx} className="text-xs">
+                    <span className="text-[#020E1C] line-clamp-1" title={item.listingTitle}>
+                      {item.listingTitle.length > 25 ? item.listingTitle.substring(0, 25) + '...' : item.listingTitle}
+                    </span>
+                    <span className="text-gray-500 ml-1">
+                      ({item.quantity}x ${item.price.toLocaleString()})
+                    </span>
+                  </div>
+                ))}
+                <button
+                  onClick={() => setExpandedOrderItems(order.id)}
+                  className="text-xs text-[#6E0114] hover:underline"
+                >
+                  Expand
+                </button>
+              </>
+            )}
+          </div>
+        </>
+      ),
+      // Cards have room for the full titles, so no expand/collapse.
+      mobileCell: (order) => (
+        <div className="space-y-1">
+          {order.items.map((item, idx) => (
+            <div key={idx} className="text-xs">
+              <span className="text-[#020E1C] break-words">{item.listingTitle}</span>
+              <span className="text-gray-500 ml-1">
+                ({item.quantity}x ${item.price.toLocaleString()})
+              </span>
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      id: 'total',
+      header: 'Total',
+      priority: 'key',
+      cell: (order) => <>
+              <span className="font-semibold text-[#020E1C]">
+                ${order.totalAmount.toLocaleString()}
+              </span>
+              <span className="text-gray-500 text-xs ml-1">{order.currency}</span>
+            </>,
+    },
+    {
+      id: 'payment',
+      header: 'Payment',
+      priority: 'badge',
+      cell: (order) => (
+        <>
+          <span className={`inline-flex items-center whitespace-nowrap px-2 py-1 rounded-full text-xs font-medium ${
+            isInPersonOrder(order)
+              ? 'bg-[#6E0114]/10 text-[#6E0114]'
+              : order.paymentMethod === 'stripe'
+              ? 'bg-purple-100 text-purple-700'
+              : 'bg-blue-100 text-blue-700'
+          }`}>
+            {paymentLabel(order)}
+          </span>
+        </>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      priority: 'badge',
+      cell: (order) => (
+        <>
+          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            order.status === 'cancelled'
+              ? 'bg-red-100 text-red-700'
+              : order.status === 'pending'
+              ? 'bg-yellow-100 text-yellow-700'
+              : 'bg-green-100 text-green-700'
+          }`}>
+            {getStatusDisplay(order.status)}
+          </span>
+        </>
+      ),
+    },
+    {
+      id: 'tracking',
+      header: 'Tracking',
+      priority: 'key',
+      wide: true,
+      cell: (order) => (
+        <>
+          {editingTrackingId === order.id ? (
+            <div className="space-y-2">
+              <select
+                value={trackingCarrier}
+                onChange={(e) => setTrackingCarrier(e.target.value)}
+                className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+              >
+                <option value="">Select carrier...</option>
+                <option value="UPS">UPS</option>
+                <option value="USPS">USPS</option>
+                <option value="FedEx">FedEx</option>
+              </select>
+              <input
+                type="text"
+                value={trackingNumber}
+                onChange={(e) => setTrackingNumber(e.target.value)}
+                placeholder="Tracking number"
+                className="w-full text-xs border border-gray-300 rounded px-2 py-1"
+              />
+              <div className="flex gap-1">
+                <Button
+                  size="sm"
+                  onClick={() => saveTracking(order.id)}
+                  disabled={savingTracking}
+                  className="text-xs h-6 px-2 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                >
+                  {savingTracking ? 'Saving...' : 'Save'}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={cancelEditTracking}
+                  disabled={savingTracking}
+                  className="text-xs h-6 px-2"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : order.trackingCarrier && order.trackingNumber ? (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-[#020E1C]">{order.trackingCarrier}</p>
+              <p className="text-xs text-gray-600 font-mono">{order.trackingNumber}</p>
+              <button
+                onClick={() => startEditTracking(order)}
+                className="text-xs text-[#6E0114] hover:underline"
+              >
+                Edit
+              </button>
+            </div>
+          ) : isHandedOver(order) ? (
+            <span className="text-xs text-gray-500">Handed over in person</span>
+          ) : (
+            <button
+              onClick={() => startEditTracking(order)}
+              className="text-xs text-[#6E0114] hover:underline"
+            >
+              Add tracking
+            </button>
+          )}
+        </>
+      ),
+    },
+    {
+      id: 'address',
+      header: 'Address',
+      priority: 'detail',
+      wide: true,
+      cell: (order) => (
+        <>
+          {isHandedOver(order) && !order.shippingAddress.line1 ? (
+            <span className="text-xs text-gray-500">None (in person)</span>
+          ) : (
+          <>
+          <button
+            onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+            className="flex items-center gap-1 text-xs text-gray-600 hover:text-[#020E1C]"
+          >
+            {expandedOrderId === order.id ? (
+              <>
+                <ChevronUp className="h-3 w-3" />
+                Hide
+              </>
+            ) : (
+              <>
+                <ChevronDown className="h-3 w-3" />
+                View
+              </>
+            )}
+          </button>
+          {expandedOrderId === order.id && (
+            <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
+              <p className="font-medium">{order.shippingAddress.fullName}</p>
+              <p>{order.shippingAddress.line1}</p>
+              {order.shippingAddress.line2 && <p>{order.shippingAddress.line2}</p>}
+              <p>
+                {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}
+              </p>
+              <p>{order.shippingAddress.country}</p>
+            </div>
+          )}
+          </>
+          )}
+        </>
+      ),
+      // Already behind the card's Details expander, so show it outright.
+      mobileCell: (order) =>
+        isHandedOver(order) && !order.shippingAddress.line1 ? (
+          <span className="text-xs text-gray-500">None (in person)</span>
+        ) : (
+          <div className="text-xs">
+            <p className="font-medium">{order.shippingAddress.fullName}</p>
+            <p>{order.shippingAddress.line1}</p>
+            {order.shippingAddress.line2 && <p>{order.shippingAddress.line2}</p>}
+            <p>
+              {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}
+            </p>
+            <p>{order.shippingAddress.country}</p>
+          </div>
+        ),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      priority: 'actions',
+      cell: (order) => (
+        <>
+          {order.status === 'cancelled' ? (
+            <button
+              onClick={() => restoreOrder(order.id)}
+              disabled={cancellingOrderId === order.id}
+              className="text-xs text-green-700 hover:underline disabled:opacity-50"
+            >
+              {cancellingOrderId === order.id ? 'Restoring...' : 'Restore'}
+            </button>
+          ) : (
+            <button
+              onClick={() => cancelOrder(order.id)}
+              disabled={cancellingOrderId === order.id}
+              className="text-xs text-red-600 hover:underline disabled:opacity-50"
+            >
+              {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel'}
+            </button>
+          )}
+        </>
+      ),
+    },
+  ];
+
 
   const startReply = (conversationId: string) => {
     setReplyingToId(conversationId);
@@ -926,8 +1281,8 @@ export default function AdminPage() {
         {/* Manage Listings Tab */}
         <TabsContent value="listings">
           <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="min-w-0">
                 <h2 className="text-xl font-semibold text-[#020E1C]">Manage Listings</h2>
                 <p className="text-gray-600 text-sm mt-1">Enable or disable listings manually</p>
               </div>
@@ -964,218 +1319,280 @@ export default function AdminPage() {
               const pagedDisabled = filteredDisabled.slice(
                 disabledStart, disabledStart + DISABLED_PER_PAGE);
 
-              const renderListingRow = (listing: AdminListing) => (
-                <tr key={listing.id} className={`border-b border-gray-100 ${listing.disabled ? 'bg-gray-50 opacity-60' : ''}`}>
-                  <td className="py-3 px-2 w-8">
+              // Select-all covers the rows the table was given (one page of the
+              // disabled list, not the hundreds hidden on other pages).
+              const listingColumns = (listingIds: string[]): ResponsiveColumn<AdminListing>[] => [
+                {
+                  id: 'select',
+                  header: (
                     <input
                       type="checkbox"
-                      checked={selectedListingIds.has(listing.id)}
-                      onChange={() => toggleSelectListing(listing.id)}
+                      checked={listingIds.length > 0 && listingIds.every(id => selectedListingIds.has(id))}
+                      onChange={() => toggleSelectAll(listingIds)}
                       className="h-4 w-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114] cursor-pointer"
+                      aria-label="Select all"
                     />
-                  </td>
-                  <td className="py-3 px-2">
-                    {listing.images?.[0] ? (
-                      <Image
-                        src={listing.images[0]}
-                        alt={listing.listing_title}
-                        width={48}
-                        height={48}
-                        className="rounded object-cover"
+                  ),
+                  priority: 'actions',
+                  headerClassName: 'w-8',
+                  cellClassName: 'w-8',
+                  cell: (listing) => (
+                    <>
+                      <input
+                        type="checkbox"
+                        checked={selectedListingIds.has(listing.id)}
+                        onChange={() => toggleSelectListing(listing.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114] cursor-pointer"
                       />
-                    ) : (
-                      <div className="w-12 h-12 bg-gray-200 rounded" />
-                    )}
-                  </td>
-                  <td className="py-3 px-2">
-                    <span className="font-medium text-[#020E1C] line-clamp-2">{listing.listing_title}</span>
-                  </td>
-                  <td className="py-3 px-2 text-gray-600">{listing.condition || '-'}</td>
-                  <td className="py-3 px-2">
-                    {editingPriceId === listing.id ? (
-                      <div className="flex items-center gap-1">
-                        <span className="text-[#020E1C]">$</span>
-                        <input
-                          type="number"
-                          value={editPriceValue}
-                          onChange={(e) => setEditPriceValue(e.target.value)}
-                          className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
-                          min="0.01"
-                          step="0.01"
-                          autoFocus
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') savePrice(listing.id);
-                            if (e.key === 'Escape') cancelEditPrice();
-                          }}
+                    </>
+                  ),
+                  mobileCell: (listing) => (
+                    <label className="flex min-h-11 w-full cursor-pointer items-center gap-2 text-sm text-gray-700">
+                      <input
+                        type="checkbox"
+                        checked={selectedListingIds.has(listing.id)}
+                        onChange={() => toggleSelectListing(listing.id)}
+                        className="h-5 w-5 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114]"
+                      />
+                      Select for export
+                    </label>
+                  ),
+                },
+                {
+                  id: 'image',
+                  header: 'Image',
+                  priority: 'desktop',
+                  cell: (listing) => (
+                    <>
+                      {listing.images?.[0] ? (
+                        <Image
+                          src={listing.images[0]}
+                          alt={listing.listing_title}
+                          width={48}
+                          height={48}
+                          className="rounded object-cover"
                         />
-                        <button
-                          onClick={() => savePrice(listing.id)}
-                          disabled={savingPriceId === listing.id}
-                          className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
-                          title="Save"
+                      ) : (
+                        <div className="w-12 h-12 bg-gray-200 rounded" />
+                      )}
+                    </>
+                  ),
+                },
+                {
+                  id: 'title',
+                  header: 'Title',
+                  priority: 'primary',
+                  cell: (listing) => (
+                    <>
+                      <span className="font-medium text-[#020E1C] line-clamp-2">{listing.listing_title}</span>
+                    </>
+                  ),
+                  mobileCell: (listing) => listing.listing_title,
+                },
+                {
+                  id: 'condition',
+                  header: 'Condition',
+                  priority: 'key',
+                  cellClassName: 'text-gray-600',
+                  isEmpty: (listing) => !listing.condition,
+                  emptyLabel: 'Not set',
+                  cell: (listing) => listing.condition || '-',
+                },
+                {
+                  id: 'price',
+                  header: 'Price',
+                  priority: 'key',
+                  cell: (listing) => (
+                    <>
+                      {editingPriceId === listing.id ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[#020E1C]">$</span>
+                          <input
+                            type="number"
+                            value={editPriceValue}
+                            onChange={(e) => setEditPriceValue(e.target.value)}
+                            className="w-24 px-2 py-1 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
+                            min="0.01"
+                            step="0.01"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') savePrice(listing.id);
+                              if (e.key === 'Escape') cancelEditPrice();
+                            }}
+                          />
+                          <button
+                            onClick={() => savePrice(listing.id)}
+                            disabled={savingPriceId === listing.id}
+                            className="p-1 text-green-600 hover:text-green-700 disabled:opacity-50"
+                            title="Save"
+                          >
+                            {savingPriceId === listing.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Check className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={cancelEditPrice}
+                            className="p-1 text-gray-500 hover:text-gray-700"
+                            title="Cancel"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[#020E1C] font-medium">${listing.price.toLocaleString()}</span>
+                          <button
+                            onClick={() => startEditPrice(listing)}
+                            className="p-1 text-gray-400 hover:text-gray-600"
+                            title="Edit price"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  ),
+                },
+                {
+                  id: 'status',
+                  header: 'Status',
+                  priority: 'badge',
+                  cell: (listing) => (
+                    <>
+                      {listing.disabled ? (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                          Disabled
+                        </span>
+                      ) : listing.is_reserved ? (
+                        // Type + who it's held for, at a glance.
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex w-fit items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                            {listing.reservation_type_label || 'On Hold'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {listing.reservation_unassigned
+                              ? 'Unassigned'
+                              : listing.reservation_user_name || '—'}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                          Active
+                        </span>
+                      )}
+                    </>
+                  ),
+                },
+                {
+                  id: 'actions',
+                  header: 'Action',
+                  priority: 'actions',
+                  cell: (listing) => (
+                    <>
+                      <div className="flex items-center gap-2 max-md:w-full max-md:flex-wrap">
+                        <a
+                          href={`/listing/${listing.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-[#020E1C] hover:bg-gray-100 transition-colors"
                         >
-                          {savingPriceId === listing.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                          <ExternalLink className="h-3 w-3" />
+                          View
+                        </a>
+                        <button
+                          onClick={() => openListingFinances(listing.id)}
+                          disabled={openingFinancesId === listing.id}
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-[#020E1C] hover:bg-gray-100 transition-colors disabled:opacity-50"
+                          title="Open this guitar's transaction in Finances"
+                        >
+                          {openingFinancesId === listing.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
                           ) : (
-                            <Check className="h-4 w-4" />
+                            <DollarSign className="h-3 w-3" />
+                          )}
+                          Finances
+                        </button>
+                        {/* The old "Pending for Trade-In" toggle is gone. Reservations
+                            carry a customer, terms and an expiry, so they're created
+                            through a dialog and managed on the Reservations tab. */}
+                        {listing.is_reserved ? (
+                          <Link
+                            href="/admin/other-tools?tab=reservations"
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-yellow-500 hover:bg-yellow-600 text-white transition-colors"
+                            title="Manage this reservation"
+                          >
+                            <Bookmark className="h-3 w-3" />
+                            Reserved
+                          </Link>
+                        ) : (
+                          <button
+                            onClick={() =>
+                              setReservingListing({
+                                id: listing.id,
+                                title: listing.listing_title,
+                                price: listing.price,
+                              })
+                            }
+                            disabled={listing.disabled}
+                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-yellow-100 hover:bg-yellow-200 text-yellow-800 transition-colors disabled:opacity-50"
+                            title="Mark as pending"
+                          >
+                            <Bookmark className="h-3 w-3" />
+                            Mark pending
+                          </button>
+                        )}
+                        <button
+                          onClick={() => toggleListing(listing.id)}
+                          disabled={togglingId === listing.id}
+                          className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
+                            listing.disabled
+                              ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
+                              : 'bg-gray-600 hover:bg-gray-700 text-[#FFFFF3]'
+                          } disabled:opacity-50`}
+                        >
+                          {togglingId === listing.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : listing.disabled ? (
+                            <>
+                              <ToggleRight className="h-3 w-3" />
+                              Enable
+                            </>
+                          ) : (
+                            <>
+                              <ToggleLeft className="h-3 w-3" />
+                              Disable
+                            </>
                           )}
                         </button>
                         <button
-                          onClick={cancelEditPrice}
-                          className="p-1 text-gray-500 hover:text-gray-700"
-                          title="Cancel"
+                          onClick={() => deleteListing(listing)}
+                          disabled={deletingId === listing.id}
+                          className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-red-600 hover:text-[#FFFFF3] hover:bg-red-600 transition-colors disabled:opacity-50"
+                          title="Delete listing"
                         >
-                          <X className="h-4 w-4" />
+                          {deletingId === listing.id ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3 w-3" />
+                          )}
                         </button>
                       </div>
-                    ) : (
-                      <div className="flex items-center gap-2">
-                        <span className="text-[#020E1C] font-medium">${listing.price.toLocaleString()}</span>
-                        <button
-                          onClick={() => startEditPrice(listing)}
-                          className="p-1 text-gray-400 hover:text-gray-600"
-                          title="Edit price"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </td>
-                  <td className="py-3 px-2">
-                    {listing.disabled ? (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-700">
-                        Disabled
-                      </span>
-                    ) : listing.is_reserved ? (
-                      // Type + who it's held for, at a glance.
-                      <div className="flex flex-col gap-0.5">
-                        <span className="inline-flex w-fit items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                          {listing.reservation_type_label || 'On Hold'}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          {listing.reservation_unassigned
-                            ? 'Unassigned'
-                            : listing.reservation_user_name || '—'}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                        Active
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-2">
-                    <div className="flex items-center gap-2">
-                      <a
-                        href={`/listing/${listing.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-[#020E1C] hover:bg-gray-100 transition-colors"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        View
-                      </a>
-                      <button
-                        onClick={() => openListingFinances(listing.id)}
-                        disabled={openingFinancesId === listing.id}
-                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-gray-600 hover:text-[#020E1C] hover:bg-gray-100 transition-colors disabled:opacity-50"
-                        title="Open this guitar's transaction in Finances"
-                      >
-                        {openingFinancesId === listing.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <DollarSign className="h-3 w-3" />
-                        )}
-                        Finances
-                      </button>
-                      {/* The old "Pending for Trade-In" toggle is gone. Reservations
-                          carry a customer, terms and an expiry, so they're created
-                          through a dialog and managed on the Reservations tab. */}
-                      {listing.is_reserved ? (
-                        <Link
-                          href="/admin/other-tools?tab=reservations"
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-yellow-500 hover:bg-yellow-600 text-white transition-colors"
-                          title="Manage this reservation"
-                        >
-                          <Bookmark className="h-3 w-3" />
-                          Reserved
-                        </Link>
-                      ) : (
-                        <button
-                          onClick={() =>
-                            setReservingListing({
-                              id: listing.id,
-                              title: listing.listing_title,
-                              price: listing.price,
-                            })
-                          }
-                          disabled={listing.disabled}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium bg-yellow-100 hover:bg-yellow-200 text-yellow-800 transition-colors disabled:opacity-50"
-                          title="Mark as pending"
-                        >
-                          <Bookmark className="h-3 w-3" />
-                          Mark pending
-                        </button>
-                      )}
-                      <button
-                        onClick={() => toggleListing(listing.id)}
-                        disabled={togglingId === listing.id}
-                        className={`inline-flex items-center gap-1 px-3 py-1.5 rounded text-xs font-medium transition-colors ${
-                          listing.disabled
-                            ? 'bg-green-600 hover:bg-green-700 text-[#FFFFF3]'
-                            : 'bg-gray-600 hover:bg-gray-700 text-[#FFFFF3]'
-                        } disabled:opacity-50`}
-                      >
-                        {togglingId === listing.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : listing.disabled ? (
-                          <>
-                            <ToggleRight className="h-3 w-3" />
-                            Enable
-                          </>
-                        ) : (
-                          <>
-                            <ToggleLeft className="h-3 w-3" />
-                            Disable
-                          </>
-                        )}
-                      </button>
-                      <button
-                        onClick={() => deleteListing(listing)}
-                        disabled={deletingId === listing.id}
-                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded text-xs font-medium text-red-600 hover:text-[#FFFFF3] hover:bg-red-600 transition-colors disabled:opacity-50"
-                        title="Delete listing"
-                      >
-                        {deletingId === listing.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-3 w-3" />
-                        )}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              );
+                    </>
+                  ),
+                },
+              ];
 
-              const renderTableHeader = (listingIds: string[]) => (
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="py-3 px-2 w-8">
-                      <input
-                        type="checkbox"
-                        checked={listingIds.length > 0 && listingIds.every(id => selectedListingIds.has(id))}
-                        onChange={() => toggleSelectAll(listingIds)}
-                        className="h-4 w-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114] cursor-pointer"
-                      />
-                    </th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-700">Image</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-700">Title</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-700">Condition</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-700">Price</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-700">Status</th>
-                    <th className="text-left py-3 px-2 font-medium text-gray-700">Action</th>
-                  </tr>
-                </thead>
+              const renderListingTable = (rows: AdminListing[], label: string) => (
+                <ResponsiveTable
+                  label={label}
+                  columns={listingColumns(rows.map(l => l.id))}
+                  rows={rows}
+                  rowKey={(listing) => listing.id}
+                  rowClassName={(listing) => `border-b border-gray-100 ${listing.disabled ? 'bg-gray-50 opacity-60' : ''}`}
+                  headerRowClassName="border-b border-gray-200"
+                />
               );
 
               return (
@@ -1239,14 +1656,7 @@ export default function AdminPage() {
                   )}
 
                   {/* Active Listings */}
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      {renderTableHeader(activeListings.map(l => l.id))}
-                      <tbody>
-                        {activeListings.map(renderListingRow)}
-                      </tbody>
-                    </table>
-                  </div>
+                  {renderListingTable(activeListings, 'Active listings')}
 
                   {/* Disabled Listings Accordion */}
                   {disabledListings.length > 0 && (
@@ -1288,15 +1698,8 @@ export default function AdminPage() {
                           </div>
 
                           {pagedDisabled.length > 0 && (
-                            <div className="overflow-x-auto border-t border-gray-200">
-                              <table className="w-full text-sm">
-                                {/* Select-all covers the rows actually on screen, not the
-                                    hundreds hidden on other pages. */}
-                                {renderTableHeader(pagedDisabled.map(l => l.id))}
-                                <tbody>
-                                  {pagedDisabled.map(renderListingRow)}
-                                </tbody>
-                              </table>
+                            <div className="border-t border-gray-200 max-md:p-3">
+                              {renderListingTable(pagedDisabled, 'Disabled listings')}
                             </div>
                           )}
 
@@ -1516,8 +1919,8 @@ export default function AdminPage() {
         {/* Messages Tab */}
         <TabsContent value="messages">
           <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="min-w-0">
                 <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
                   <MessageSquare className="h-5 w-5" />
                   Customer Messages
@@ -1702,8 +2105,8 @@ export default function AdminPage() {
         {/* Offers Tab */}
         <TabsContent value="offers">
           <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="min-w-0">
                 <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
                   <Tag className="h-5 w-5" />
                   Manage Offers
@@ -1864,8 +2267,8 @@ export default function AdminPage() {
         {/* Orders Tab */}
         <TabsContent value="orders">
           <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="min-w-0">
                 <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
                   <Receipt className="h-5 w-5" />
                   All Orders
@@ -1900,256 +2303,14 @@ export default function AdminPage() {
                 <p className="text-gray-400 text-sm">When customers complete purchases, they&apos;ll appear here</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Order ID</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Date</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Buyer</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Items</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Total</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Payment</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Status</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Tracking</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Address</th>
-                      <th className="text-left py-3 px-2 font-medium text-gray-700">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {orders.map((order) => (
-                      <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="py-3 px-2">
-                          <div className="flex items-center gap-1">
-                            <Link
-                              href={`/order/${order.id}`}
-                              className="font-mono text-xs text-[#6E0114] hover:underline"
-                              title={order.id}
-                            >
-                              {order.id.substring(0, 8)}...
-                            </Link>
-                            <button
-                              onClick={() => copyToClipboard(order.id)}
-                              className="p-1 text-gray-400 hover:text-gray-600"
-                              title="Copy full ID"
-                            >
-                              <Copy className="h-3 w-3" />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <span className="text-gray-600 text-xs whitespace-nowrap">
-                            {formatOrderDate(order.createdAt)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2">
-                          <div>
-                            <p className="font-medium text-[#020E1C] text-sm">{buyerDisplayName(order.buyerName, order)}</p>
-                            <p className="text-xs text-gray-500">{order.buyerEmail}</p>
-                            {order.needsDetails && (
-                              <Link
-                                href={`/order/${order.id}`}
-                                className="mt-1 inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800 hover:bg-amber-200"
-                                title="Fill in who bought this"
-                              >
-                                <ClipboardList className="h-3 w-3" />
-                                Needs details
-                              </Link>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <div className="space-y-1">
-                            {expandedOrderItems === order.id ? (
-                              <>
-                                {order.items.map((item, idx) => (
-                                  <div key={idx} className="text-xs">
-                                    <span className="text-[#020E1C] break-words">
-                                      {item.listingTitle}
-                                    </span>
-                                    <span className="text-gray-500 ml-1">
-                                      ({item.quantity}x ${item.price.toLocaleString()})
-                                    </span>
-                                  </div>
-                                ))}
-                                <button
-                                  onClick={() => setExpandedOrderItems(null)}
-                                  className="text-xs text-[#6E0114] hover:underline"
-                                >
-                                  Collapse
-                                </button>
-                              </>
-                            ) : (
-                              <>
-                                {order.items.map((item, idx) => (
-                                  <div key={idx} className="text-xs">
-                                    <span className="text-[#020E1C] line-clamp-1" title={item.listingTitle}>
-                                      {item.listingTitle.length > 25 ? item.listingTitle.substring(0, 25) + '...' : item.listingTitle}
-                                    </span>
-                                    <span className="text-gray-500 ml-1">
-                                      ({item.quantity}x ${item.price.toLocaleString()})
-                                    </span>
-                                  </div>
-                                ))}
-                                <button
-                                  onClick={() => setExpandedOrderItems(order.id)}
-                                  className="text-xs text-[#6E0114] hover:underline"
-                                >
-                                  Expand
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-2">
-                          <span className="font-semibold text-[#020E1C]">
-                            ${order.totalAmount.toLocaleString()}
-                          </span>
-                          <span className="text-gray-500 text-xs ml-1">{order.currency}</span>
-                        </td>
-                        <td className="py-3 px-2">
-                          <span className={`inline-flex items-center whitespace-nowrap px-2 py-1 rounded-full text-xs font-medium ${
-                            isInPersonOrder(order)
-                              ? 'bg-[#6E0114]/10 text-[#6E0114]'
-                              : order.paymentMethod === 'stripe'
-                              ? 'bg-purple-100 text-purple-700'
-                              : 'bg-blue-100 text-blue-700'
-                          }`}>
-                            {paymentLabel(order)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2">
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                            order.status === 'cancelled'
-                              ? 'bg-red-100 text-red-700'
-                              : order.status === 'pending'
-                              ? 'bg-yellow-100 text-yellow-700'
-                              : 'bg-green-100 text-green-700'
-                          }`}>
-                            {getStatusDisplay(order.status)}
-                          </span>
-                        </td>
-                        <td className="py-3 px-2">
-                          {editingTrackingId === order.id ? (
-                            <div className="space-y-2">
-                              <select
-                                value={trackingCarrier}
-                                onChange={(e) => setTrackingCarrier(e.target.value)}
-                                className="w-full text-xs border border-gray-300 rounded px-2 py-1"
-                              >
-                                <option value="">Select carrier...</option>
-                                <option value="UPS">UPS</option>
-                                <option value="USPS">USPS</option>
-                                <option value="FedEx">FedEx</option>
-                              </select>
-                              <input
-                                type="text"
-                                value={trackingNumber}
-                                onChange={(e) => setTrackingNumber(e.target.value)}
-                                placeholder="Tracking number"
-                                className="w-full text-xs border border-gray-300 rounded px-2 py-1"
-                              />
-                              <div className="flex gap-1">
-                                <Button
-                                  size="sm"
-                                  onClick={() => saveTracking(order.id)}
-                                  disabled={savingTracking}
-                                  className="text-xs h-6 px-2 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
-                                >
-                                  {savingTracking ? 'Saving...' : 'Save'}
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={cancelEditTracking}
-                                  disabled={savingTracking}
-                                  className="text-xs h-6 px-2"
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          ) : order.trackingCarrier && order.trackingNumber ? (
-                            <div className="space-y-1">
-                              <p className="text-xs font-medium text-[#020E1C]">{order.trackingCarrier}</p>
-                              <p className="text-xs text-gray-600 font-mono">{order.trackingNumber}</p>
-                              <button
-                                onClick={() => startEditTracking(order)}
-                                className="text-xs text-[#6E0114] hover:underline"
-                              >
-                                Edit
-                              </button>
-                            </div>
-                          ) : isHandedOver(order) ? (
-                            <span className="text-xs text-gray-500">Handed over in person</span>
-                          ) : (
-                            <button
-                              onClick={() => startEditTracking(order)}
-                              className="text-xs text-[#6E0114] hover:underline"
-                            >
-                              Add tracking
-                            </button>
-                          )}
-                        </td>
-                        <td className="py-3 px-2">
-                          {isHandedOver(order) && !order.shippingAddress.line1 ? (
-                            <span className="text-xs text-gray-500">None (in person)</span>
-                          ) : (
-                          <>
-                          <button
-                            onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
-                            className="flex items-center gap-1 text-xs text-gray-600 hover:text-[#020E1C]"
-                          >
-                            {expandedOrderId === order.id ? (
-                              <>
-                                <ChevronUp className="h-3 w-3" />
-                                Hide
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown className="h-3 w-3" />
-                                View
-                              </>
-                            )}
-                          </button>
-                          {expandedOrderId === order.id && (
-                            <div className="mt-2 p-2 bg-gray-50 rounded text-xs">
-                              <p className="font-medium">{order.shippingAddress.fullName}</p>
-                              <p>{order.shippingAddress.line1}</p>
-                              {order.shippingAddress.line2 && <p>{order.shippingAddress.line2}</p>}
-                              <p>
-                                {order.shippingAddress.city}, {order.shippingAddress.state} {order.shippingAddress.postalCode}
-                              </p>
-                              <p>{order.shippingAddress.country}</p>
-                            </div>
-                          )}
-                          </>
-                          )}
-                        </td>
-                        <td className="py-3 px-2">
-                          {order.status === 'cancelled' ? (
-                            <button
-                              onClick={() => restoreOrder(order.id)}
-                              disabled={cancellingOrderId === order.id}
-                              className="text-xs text-green-700 hover:underline disabled:opacity-50"
-                            >
-                              {cancellingOrderId === order.id ? 'Restoring...' : 'Restore'}
-                            </button>
-                          ) : (
-                            <button
-                              onClick={() => cancelOrder(order.id)}
-                              disabled={cancellingOrderId === order.id}
-                              className="text-xs text-red-600 hover:underline disabled:opacity-50"
-                            >
-                              {cancellingOrderId === order.id ? 'Cancelling...' : 'Cancel'}
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <ResponsiveTable
+                label="Orders"
+                columns={orderColumns}
+                rows={orders}
+                rowKey={(order) => order.id}
+                rowClassName={() => 'border-b border-gray-100 hover:bg-gray-50'}
+                headerRowClassName="border-b border-gray-200"
+              />
             )}
           </div>
         </TabsContent>

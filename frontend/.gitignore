@@ -42,3 +42,6 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# mobile layout audit output (screenshots, report, desktop baselines)
+/mobile-audit/

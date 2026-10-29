@@ -256,9 +256,9 @@ export function DealFinderTab() {
   };
 
   return (
-    <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
+    <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-4 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
             <TrendingDown className="h-5 w-5" />
             Reverb Deal Finder
@@ -503,9 +503,9 @@ export function DealFinderTab() {
                 key={deal.id}
                 className="border rounded-lg p-4 hover:border-gray-300 transition-colors"
               >
-                <div className="flex gap-4">
+                <div className="flex gap-3 sm:gap-4">
                   {/* Image */}
-                  <div className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
+                  <div className="relative w-16 h-16 sm:w-24 sm:h-24 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
                     {deal.images?.[0] ? (
                       <Image
                         src={deal.images[0]}
@@ -609,7 +609,7 @@ export function DealFinderTab() {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6 pt-4 border-t border-gray-100">
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-6 pt-4 border-t border-gray-100">
               <Button
                 variant="outline"
                 size="sm"

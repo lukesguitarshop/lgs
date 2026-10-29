@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 import {
   ArrowLeft, Clipboard, Copy, Check, Play, Loader2, CheckCircle, XCircle, Star,
   Activity, LogIn, ShoppingCart, Heart, HeartOff, Receipt, ChevronLeft, ChevronRight, X,
@@ -116,6 +117,60 @@ function formatActivityDate(dateString: string): string {
     minute: '2-digit',
   });
 }
+
+const activityColumns: ResponsiveColumn<AdminActivityEntry>[] = [
+  {
+    id: 'event',
+    header: 'Event',
+    priority: 'badge',
+    cell: (entry) => (
+      <span className="inline-flex items-center gap-2 whitespace-nowrap">
+        {getActivityIcon(entry.type)}
+        <span className="text-gray-700">{entry.type.replace(/_/g, ' ')}</span>
+      </span>
+    ),
+  },
+  {
+    id: 'user',
+    header: 'User',
+    priority: 'key',
+    cell: (entry) => (
+      <>
+        <Link
+          href={`/admin/user/${entry.userId}`}
+          className="text-[#6E0114] hover:underline font-medium"
+        >
+          {entry.userName}
+        </Link>
+        {entry.userEmail && (
+          <div className="text-xs text-gray-400 max-md:break-all">{entry.userEmail}</div>
+        )}
+      </>
+    ),
+  },
+  {
+    id: 'details',
+    header: 'Details',
+    priority: 'primary',
+    cell: (entry) =>
+      entry.listingId ? (
+        <Link href={`/listing/${entry.listingId}`} className="text-[#020E1C] hover:text-[#6E0114] hover:underline">
+          {entry.description}
+        </Link>
+      ) : (
+        <span className="text-[#020E1C]">{entry.description}</span>
+      ),
+  },
+  {
+    id: 'when',
+    header: 'When',
+    priority: 'key',
+    headerClassName: 'pr-0 whitespace-nowrap',
+    cellClassName: 'pr-0 text-gray-500 whitespace-nowrap',
+    cell: (entry) => formatActivityDate(entry.createdAt),
+  },
+];
+
 
 const ACTIVITY_PER_PAGE = 50;
 
@@ -443,53 +498,16 @@ function OtherToolsContent() {
               </div>
             ) : (
               <>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-200 text-left text-gray-500">
-                        <th className="pb-2 pr-4 font-medium">Event</th>
-                        <th className="pb-2 pr-4 font-medium">User</th>
-                        <th className="pb-2 pr-4 font-medium">Details</th>
-                        <th className="pb-2 font-medium whitespace-nowrap">When</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activity.map((entry) => (
-                        <tr key={entry.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
-                          <td className="py-2 pr-4">
-                            <span className="inline-flex items-center gap-2 whitespace-nowrap">
-                              {getActivityIcon(entry.type)}
-                              <span className="text-gray-700">{entry.type.replace(/_/g, ' ')}</span>
-                            </span>
-                          </td>
-                          <td className="py-2 pr-4">
-                            <Link
-                              href={`/admin/user/${entry.userId}`}
-                              className="text-[#6E0114] hover:underline font-medium"
-                            >
-                              {entry.userName}
-                            </Link>
-                            {entry.userEmail && (
-                              <div className="text-xs text-gray-400">{entry.userEmail}</div>
-                            )}
-                          </td>
-                          <td className="py-2 pr-4">
-                            {entry.listingId ? (
-                              <Link href={`/listing/${entry.listingId}`} className="text-[#020E1C] hover:text-[#6E0114] hover:underline">
-                                {entry.description}
-                              </Link>
-                            ) : (
-                              <span className="text-[#020E1C]">{entry.description}</span>
-                            )}
-                          </td>
-                          <td className="py-2 text-gray-500 whitespace-nowrap">
-                            {formatActivityDate(entry.createdAt)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ResponsiveTable
+                  label="Activity"
+                  columns={activityColumns}
+                  rows={activity}
+                  rowKey={(entry) => entry.id}
+                  rowClassName={() => 'border-b border-gray-100 last:border-0 hover:bg-gray-50'}
+                  headerRowClassName="border-b border-gray-200 text-left text-gray-500"
+                  thClassName="pb-2 pr-4 font-medium"
+                  tdClassName="py-2 pr-4"
+                />
 
                 {/* Pagination */}
                 {totalActivityPages > 1 && (

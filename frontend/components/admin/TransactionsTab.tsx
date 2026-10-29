@@ -21,7 +21,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
-import { Plus, RefreshCw, Trash2, Loader2, Package } from 'lucide-react';
+import { Plus, RefreshCw, Trash2, Loader2, Package, Pencil } from 'lucide-react';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
+import { CopyButton } from '@/components/ui/copy-button';
 
 const PLATFORMS = ['Reverb', 'Cash', 'PayPal', 'eBay', 'Venmo', 'Zelle', 'lukesguitarshop.com', 'Gear Exchange', 'Insurance', 'Restocking Fee'];
 const CARRIERS = ['UPS', 'USPS', 'FedEx'];
@@ -58,6 +60,63 @@ function formatCurrency(value: number | null): string {
   if (value === null || value === undefined) return '—';
   return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
 }
+
+function profitClass(profit: number | null): string {
+  if (profit === null) return 'text-gray-400';
+  return profit >= 0 ? 'text-green-600' : 'text-red-600';
+}
+
+function trackingUrl(carrier: string, number: string): string | null {
+  const urls: Record<string, string> = {
+    'UPS': `https://www.ups.com/track?tracknum=${number}`,
+    'USPS': `https://tools.usps.com/go/TrackConfirmAction?tLabels=${number}`,
+    'FedEx': `https://www.fedex.com/fedextrack/?trknbr=${number}`,
+  };
+  return urls[carrier] ?? null;
+}
+
+function ActionNeededBadge() {
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full text-xs font-medium whitespace-nowrap">
+      Action needed
+    </span>
+  );
+}
+
+function TypeBadge({ type }: { type: Transaction['transactionType'] }) {
+  if (type === 'traded') {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+        Traded
+      </span>
+    );
+  }
+  if (type === 'for_sale') {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
+        For Sale
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
+      Sold
+    </span>
+  );
+}
+
+// Guitar, Purchase Price, Sold/Traded, Transaction Type, Trade For, Revenue, Shipping Cost, Profit
+const CSV_PREVIEW_COLUMNS: ResponsiveColumn<string[]>[] = [
+  'Guitar', 'Purchase', 'Sold/Traded', 'Type', 'Trade For', 'Revenue', 'Shipping', 'Profit',
+].map((header, j): ResponsiveColumn<string[]> => ({
+  id: header,
+  header,
+  priority: j === 0 ? 'primary' : 'key',
+  headerClassName: j >= 5 ? 'text-right' : 'text-left',
+  cellClassName: j >= 5 ? 'text-right' : 'text-left',
+  cell: (row: string[]) => row[j] || '—',
+  mobileCell: (row: string[]) => row[j] || null,
+}));
 
 function parseCurrencyString(value: string): number | null {
   if (!value || value.trim() === '') return null;
@@ -211,20 +270,6 @@ export default function TransactionsTab() {
 
   const totalPages = Math.ceil(sortedTransactions.length / PAGE_SIZE);
   const paginatedTransactions = sortedTransactions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
-
-  const SortHeader = ({ column, label }: { column: string; label: string }) => (
-    <th
-      className="text-left py-3 px-3 text-sm font-medium text-gray-600 cursor-pointer hover:bg-[#020E1C]/80 hover:text-white select-none"
-      onClick={() => handleSort(column)}
-    >
-      <span className="flex items-center gap-1">
-        {label}
-        {sortColumn === column && (
-          <span className="text-xs">{sortDirection === 'asc' ? '▲' : '▼'}</span>
-        )}
-      </span>
-    </th>
-  );
 
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -497,11 +542,167 @@ export default function TransactionsTab() {
     });
   };
 
+  const columns: ResponsiveColumn<Transaction>[] = [
+    {
+      id: 'date',
+      header: 'Date',
+      sortKey: 'date',
+      priority: 'key',
+      cellClassName: 'text-gray-700',
+      cell: (txn) => formatDate(txn.date),
+    },
+    {
+      id: 'guitar',
+      header: 'Guitar',
+      sortKey: 'guitarName',
+      priority: 'primary',
+      cellClassName: 'font-medium text-[#020E1C]',
+      cell: (txn) => (
+        <div className="flex items-center gap-2">
+          <span>{txn.guitarName}</span>
+          {txn.needsReview && <ActionNeededBadge />}
+        </div>
+      ),
+      mobileCell: (txn) => txn.guitarName,
+      mobileBadge: (txn) => (txn.needsReview ? <ActionNeededBadge /> : null),
+    },
+    {
+      id: 'purchase',
+      header: 'Purchase',
+      sortKey: 'purchasePrice',
+      priority: 'key',
+      cellClassName: 'text-gray-700 text-right',
+      isEmpty: (txn) => txn.purchasePrice === null,
+      cell: (txn) => formatCurrency(txn.purchasePrice),
+    },
+    {
+      id: 'type',
+      header: 'Type',
+      sortKey: 'transactionType',
+      priority: 'badge',
+      cell: (txn) => <TypeBadge type={txn.transactionType} />,
+    },
+    {
+      id: 'platform',
+      header: 'Platform / Trade',
+      mobileLabel: 'Platform',
+      sortKey: 'soldVia',
+      priority: 'key',
+      cellClassName: 'text-gray-700',
+      cell: (txn) =>
+        txn.transactionType === 'traded'
+          ? (txn.tradeFor && txn.tradeFor.length > 0 ? txn.tradeFor.join(', ') : '—')
+          : txn.soldVia || '—',
+      mobileCell: (txn) =>
+        txn.transactionType === 'traded'
+          ? (txn.tradeFor && txn.tradeFor.length > 0 ? `Traded for ${txn.tradeFor.join(', ')}` : null)
+          : txn.soldVia,
+    },
+    {
+      id: 'revenue',
+      header: 'Revenue',
+      mobileLabel: 'Sale price',
+      sortKey: 'revenue',
+      priority: 'key',
+      cellClassName: 'text-gray-700 text-right',
+      isEmpty: (txn) => txn.revenue === null,
+      cell: (txn) => formatCurrency(txn.revenue),
+    },
+    {
+      id: 'shipping',
+      header: 'Shipping',
+      sortKey: 'shippingCost',
+      priority: 'key',
+      cellClassName: 'text-gray-700 text-right',
+      isEmpty: (txn) => txn.shippingCost === null,
+      emptyLabel: 'No shipping',
+      cell: (txn) => formatCurrency(txn.shippingCost),
+    },
+    {
+      id: 'profit',
+      header: 'Profit',
+      sortKey: 'profit',
+      priority: 'key',
+      cellClassName: (txn) => `text-right font-medium ${profitClass(txn.profit)}`,
+      isEmpty: (txn) => txn.profit === null,
+      cell: (txn) => formatCurrency(txn.profit),
+      mobileCell: (txn) => <span className={`font-medium ${profitClass(txn.profit)}`}>{formatCurrency(txn.profit)}</span>,
+    },
+    {
+      id: 'tracking',
+      header: 'Tracking',
+      priority: 'detail',
+      wide: true,
+      stopRowClick: true,
+      cellClassName: 'text-gray-700',
+      isEmpty: (txn) => !(txn.trackingCarrier && txn.trackingNumber),
+      cell: (txn) => {
+        if (!(txn.trackingCarrier && txn.trackingNumber)) return '—';
+        const url = trackingUrl(txn.trackingCarrier, txn.trackingNumber);
+        return url ? (
+          <a href={url} target="_blank" rel="noopener noreferrer" className="text-[#6E0114] hover:underline">
+            {txn.trackingCarrier}: {txn.trackingNumber}
+          </a>
+        ) : `${txn.trackingCarrier}: ${txn.trackingNumber}`;
+      },
+      mobileCell: (txn) => {
+        const url = trackingUrl(txn.trackingCarrier!, txn.trackingNumber!);
+        return (
+          <div className="flex items-center gap-2">
+            {url ? (
+              <a href={url} target="_blank" rel="noopener noreferrer" className="min-w-0 break-all text-[#6E0114] underline">
+                {txn.trackingCarrier}: {txn.trackingNumber}
+              </a>
+            ) : (
+              <span className="min-w-0 break-all">{txn.trackingCarrier}: {txn.trackingNumber}</span>
+            )}
+            <CopyButton value={txn.trackingNumber!} label="Copy tracking number" />
+          </div>
+        );
+      },
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      priority: 'actions',
+      stopRowClick: true,
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      cell: (txn) => (
+        <Button
+          size="sm"
+          variant="outline"
+          className="text-xs h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
+          onClick={(e) => handleDelete(e, txn)}
+        >
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      ),
+      mobileCell: (txn) => (
+        <>
+          <Button variant="outline" size="sm" className="flex-1" onClick={() => openEditDialog(txn)}>
+            <Pencil className="h-4 w-4 mr-1.5" />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={(e) => handleDelete(e, txn)}
+          >
+            <Trash2 className="h-4 w-4 mr-1.5" />
+            Delete
+          </Button>
+        </>
+      ),
+    },
+  ];
+
   return (
     <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
             <Package className="h-5 w-5" />
             Transactions
@@ -510,11 +711,11 @@ export default function TransactionsTab() {
             Track guitar sales, trades, and shipping
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           <Button
             onClick={fetchTransactions}
             variant="outline"
-            className="text-sm"
+            className="text-sm flex-1 sm:flex-none"
             disabled={loading}
           >
             {loading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
@@ -522,7 +723,7 @@ export default function TransactionsTab() {
           </Button>
           <Button
             onClick={openAddDialog}
-            className="text-sm bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+            className="text-sm flex-1 sm:flex-none bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
           >
             <Plus className="h-4 w-4 mr-2" />
             Add Transaction
@@ -536,10 +737,10 @@ export default function TransactionsTab() {
           placeholder="Search guitars..."
           value={searchQuery}
           onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-          className="w-48 h-9 text-sm"
+          className="w-full sm:w-48 h-11 sm:h-9 text-sm"
         />
         <Select value={filterType} onValueChange={(val) => { setFilterType(val); setCurrentPage(1); }}>
-          <SelectTrigger className="w-36 h-9 text-sm">
+          <SelectTrigger className="w-full sm:w-36 h-11 sm:h-9 text-sm">
             <SelectValue placeholder="All Types" />
           </SelectTrigger>
           <SelectContent>
@@ -550,7 +751,7 @@ export default function TransactionsTab() {
           </SelectContent>
         </Select>
         <Select value={filterPlatform} onValueChange={(val) => { setFilterPlatform(val); setCurrentPage(1); }}>
-          <SelectTrigger className="w-44 h-9 text-sm">
+          <SelectTrigger className="w-full sm:w-44 h-11 sm:h-9 text-sm">
             <SelectValue placeholder="All Platforms" />
           </SelectTrigger>
           <SelectContent>
@@ -565,7 +766,7 @@ export default function TransactionsTab() {
             variant="outline"
             size="sm"
             onClick={() => { setFilterType('all'); setFilterPlatform('all'); setSearchQuery(''); setCurrentPage(1); }}
-            className="text-xs h-9"
+            className="text-xs h-11 sm:h-9"
           >
             Clear Filters
           </Button>
@@ -590,121 +791,25 @@ export default function TransactionsTab() {
         </div>
       ) : (
         <>
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="border-b border-gray-200">
-                <SortHeader column="date" label="Date" />
-                <SortHeader column="guitarName" label="Guitar" />
-                <SortHeader column="purchasePrice" label="Purchase" />
-                <SortHeader column="transactionType" label="Type" />
-                <SortHeader column="soldVia" label="Platform / Trade" />
-                <SortHeader column="revenue" label="Revenue" />
-                <SortHeader column="shippingCost" label="Shipping" />
-                <SortHeader column="profit" label="Profit" />
-                <th className="text-left py-3 px-3 text-sm font-medium text-gray-600">Tracking</th>
-                <th className="text-right py-3 px-3 text-sm font-medium text-gray-600">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedTransactions.map((txn) => (
-                <tr
-                  key={txn.id}
-                  className={`border-b border-gray-100 cursor-pointer ${
-                    txn.needsReview ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'
-                  }`}
-                  onClick={() => openEditDialog(txn)}
-                >
-                  <td className="py-3 px-3 text-sm text-gray-700">
-                    {formatDate(txn.date)}
-                  </td>
-                  <td className="py-3 px-3 text-sm font-medium text-[#020E1C]">
-                    <div className="flex items-center gap-2">
-                      <span>{txn.guitarName}</span>
-                      {txn.needsReview && (
-                        <span className="inline-flex items-center px-2 py-0.5 bg-amber-200 text-amber-900 rounded-full text-xs font-medium whitespace-nowrap">
-                          Action needed
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-3 text-sm text-gray-700 text-right">
-                    {formatCurrency(txn.purchasePrice)}
-                  </td>
-                  <td className="py-3 px-3 text-sm">
-                    {txn.transactionType === 'traded' ? (
-                      <span className="inline-flex items-center px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
-                        Traded
-                      </span>
-                    ) : txn.transactionType === 'for_sale' ? (
-                      <span className="inline-flex items-center px-2 py-0.5 bg-amber-100 text-amber-800 rounded-full text-xs font-medium">
-                        For Sale
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-2 py-0.5 bg-green-100 text-green-800 rounded-full text-xs font-medium">
-                        Sold
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-3 px-3 text-sm text-gray-700">
-                    {txn.transactionType === 'traded'
-                      ? (txn.tradeFor && txn.tradeFor.length > 0 ? txn.tradeFor.join(', ') : '—')
-                      : txn.soldVia || '—'}
-                  </td>
-                  <td className="py-3 px-3 text-sm text-gray-700 text-right">
-                    {formatCurrency(txn.revenue)}
-                  </td>
-                  <td className="py-3 px-3 text-sm text-gray-700 text-right">
-                    {formatCurrency(txn.shippingCost)}
-                  </td>
-                  <td
-                    className={`py-3 px-3 text-sm text-right font-medium ${
-                      txn.profit !== null && txn.profit >= 0
-                        ? 'text-green-600'
-                        : txn.profit !== null
-                        ? 'text-red-600'
-                        : 'text-gray-400'
-                    }`}
-                  >
-                    {formatCurrency(txn.profit)}
-                  </td>
-                  <td className="py-3 px-3 text-sm text-gray-700" onClick={(e) => e.stopPropagation()}>
-                    {txn.trackingCarrier && txn.trackingNumber
-                      ? (() => {
-                          const urls: Record<string, string> = {
-                            'UPS': `https://www.ups.com/track?tracknum=${txn.trackingNumber}`,
-                            'USPS': `https://tools.usps.com/go/TrackConfirmAction?tLabels=${txn.trackingNumber}`,
-                            'FedEx': `https://www.fedex.com/fedextrack/?trknbr=${txn.trackingNumber}`,
-                          };
-                          const url = urls[txn.trackingCarrier!];
-                          return url ? (
-                            <a href={url} target="_blank" rel="noopener noreferrer" className="text-[#6E0114] hover:underline">
-                              {txn.trackingCarrier}: {txn.trackingNumber}
-                            </a>
-                          ) : `${txn.trackingCarrier}: ${txn.trackingNumber}`;
-                        })()
-                      : '—'}
-                  </td>
-                  <td
-                    className="py-3 px-3 text-right"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-xs h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                      onClick={(e) => handleDelete(e, txn)}
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable
+          label="Transactions"
+          columns={columns}
+          rows={paginatedTransactions}
+          rowKey={(txn) => txn.id}
+          onRowClick={openEditDialog}
+          rowClassName={(txn) => `border-b border-gray-100 cursor-pointer ${
+            txn.needsReview ? 'bg-amber-50 hover:bg-amber-100' : 'hover:bg-gray-50'
+          }`}
+          sort={{ key: sortColumn, direction: sortDirection, onSort: handleSort }}
+          tableClassName="w-full"
+          headerRowClassName="border-b border-gray-200"
+          thClassName="text-left py-3 px-3 text-sm font-medium text-gray-600"
+          sortableThClassName="cursor-pointer hover:bg-[#020E1C]/80 hover:text-white select-none"
+          tdClassName="py-3 px-3 text-sm"
+          mobilePageSize={PAGE_SIZE}
+        />
         {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-4 px-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-4 px-2">
             <span className="text-sm text-gray-600">
               Showing {((currentPage - 1) * PAGE_SIZE) + 1}–{Math.min(currentPage * PAGE_SIZE, sortedTransactions.length)} of {sortedTransactions.length}
             </span>
@@ -980,36 +1085,19 @@ export default function TransactionsTab() {
                 <p className="text-sm font-medium text-gray-700 mb-2">
                   Preview ({csvData.length} rows total, showing first {csvPreview.length})
                 </p>
-                <div className="overflow-x-auto border rounded">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b bg-gray-50">
-                        <th className="py-2 px-2 text-left">Guitar</th>
-                        <th className="py-2 px-2 text-left">Purchase</th>
-                        <th className="py-2 px-2 text-left">Sold/Traded</th>
-                        <th className="py-2 px-2 text-left">Type</th>
-                        <th className="py-2 px-2 text-left">Trade For</th>
-                        <th className="py-2 px-2 text-right">Revenue</th>
-                        <th className="py-2 px-2 text-right">Shipping</th>
-                        <th className="py-2 px-2 text-right">Profit</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {csvPreview.map((row, i) => (
-                        <tr key={i} className="border-b border-gray-100">
-                          {row.slice(0, 8).map((cell, j) => (
-                            <td
-                              key={j}
-                              className={`py-1.5 px-2 ${j >= 5 ? 'text-right' : 'text-left'}`}
-                            >
-                              {cell || '—'}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                <ResponsiveTable
+                  label="CSV preview"
+                  columns={CSV_PREVIEW_COLUMNS}
+                  rows={csvPreview}
+                  rowKey={(_, i) => String(i)}
+                  rowClassName={() => 'border-b border-gray-100'}
+                  containerClassName="border rounded"
+                  tableClassName="w-full text-xs"
+                  headerRowClassName="border-b bg-gray-50"
+                  thClassName="py-2 px-2"
+                  tdClassName="py-1.5 px-2"
+                  surfaceClassName="bg-background"
+                />
               </div>
             )}
           </div>

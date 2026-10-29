@@ -8,6 +8,8 @@ import { openImpersonationTab, impersonationErrorMessage } from '@/lib/impersona
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
+import { CopyButton } from '@/components/ui/copy-button';
 import {
   ArrowLeft,
   Loader2,
@@ -477,6 +479,193 @@ export default function AdminUserDetailPage() {
     );
   }
 
+  type CreditEntry = (typeof storeCreditHistory)[number];
+  const creditColumns: ResponsiveColumn<CreditEntry>[] = [
+    {
+      id: 'date',
+      header: 'Date',
+      priority: 'key',
+      cellClassName: 'text-gray-500 whitespace-nowrap',
+      cell: (entry) => new Date(entry.createdAt).toLocaleDateString(),
+    },
+    {
+      id: 'type',
+      header: 'Type',
+      priority: 'badge',
+      cell: (entry) => (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${entry.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+          {entry.type}
+        </span>
+      ),
+    },
+    {
+      id: 'amount',
+      header: 'Amount',
+      priority: 'key',
+      cellClassName: (entry) => `font-medium ${entry.type === 'credit' ? 'text-green-600' : 'text-red-600'}`,
+      cell: (entry) => `${entry.type === 'credit' ? '+' : '-'}$${entry.amount.toFixed(2)}`,
+      mobileCell: (entry) => (
+        <span className={`font-medium ${entry.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
+          {entry.type === 'credit' ? '+' : '-'}${entry.amount.toFixed(2)}
+        </span>
+      ),
+    },
+    {
+      id: 'reason',
+      header: 'Reason',
+      priority: 'primary',
+      headerClassName: 'pr-0',
+      cellClassName: 'pr-0 text-gray-600',
+      cell: (entry) => entry.reason,
+      mobileCell: (entry) => entry.reason || 'No reason given',
+    },
+  ];
+
+  const orderColumns: ResponsiveColumn<UserOrder>[] = [
+    {
+      id: 'id',
+      header: 'Order ID',
+      priority: 'primary',
+      stopRowClick: true,
+      cell: (order) => (
+        <div className="flex items-center gap-1">
+          <Link
+            href={`/order/${order.id}?fromUser=${userId}`}
+            className="font-mono text-xs text-[#6E0114] hover:underline"
+          >
+            {order.id.substring(0, 8)}...
+          </Link>
+          <button
+            onClick={() => copyToClipboard(order.id)}
+            className="p-1 text-gray-400 hover:text-gray-600"
+          >
+            <Copy className="h-3 w-3" />
+          </button>
+        </div>
+      ),
+      mobileCell: (order) => (
+        <Link href={`/order/${order.id}?fromUser=${userId}`} className="font-mono text-[#6E0114] underline">
+          Order {order.id.substring(0, 8)}...
+        </Link>
+      ),
+    },
+    {
+      id: 'date',
+      header: 'Date',
+      priority: 'key',
+      cellClassName: 'text-gray-600 whitespace-nowrap',
+      cell: (order) => formatDate(order.createdAt),
+    },
+    {
+      id: 'items',
+      header: 'Items',
+      priority: 'detail',
+      wide: true,
+      cell: (order) => (
+        <>
+          <button
+            onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+            className="flex items-center gap-1 text-xs text-gray-600 hover:text-[#020E1C]"
+          >
+            {order.items.length} item{order.items.length !== 1 ? 's' : ''}
+            {expandedOrderId === order.id ? (
+              <ChevronUp className="h-3 w-3" />
+            ) : (
+              <ChevronDown className="h-3 w-3" />
+            )}
+          </button>
+          {expandedOrderId === order.id && (
+            <div className="mt-2 space-y-1">
+              {order.items.map((item, idx) => (
+                <div key={idx} className="text-xs text-gray-600">
+                  <span className="font-medium">{item.listingTitle}</span>
+                  <span className="text-gray-400 ml-1">
+                    ({item.quantity}x ${item.price.toLocaleString()})
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ),
+      // The card's Details expander already hides these, so list them outright.
+      mobileCell: (order) => (
+        <div className="space-y-1">
+          {order.items.map((item, idx) => (
+            <div key={idx} className="text-xs text-gray-600">
+              <span className="font-medium">{item.listingTitle}</span>
+              <span className="text-gray-400 ml-1">
+                ({item.quantity}x ${item.price.toLocaleString()})
+              </span>
+            </div>
+          ))}
+        </div>
+      ),
+    },
+    {
+      id: 'total',
+      header: 'Total',
+      priority: 'key',
+      cellClassName: 'font-semibold text-[#020E1C]',
+      cell: (order) => `$${order.totalAmount.toLocaleString()}`,
+    },
+    {
+      id: 'payment',
+      header: 'Payment',
+      priority: 'badge',
+      cell: (order) => (
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            order.paymentMethod === 'stripe'
+              ? 'bg-purple-100 text-purple-700'
+              : 'bg-blue-100 text-blue-700'
+          }`}
+        >
+          {order.paymentMethod === 'stripe' ? 'Stripe' : 'PayPal'}
+        </span>
+      ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      priority: 'badge',
+      cell: (order) => (
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
+          }`}
+        >
+          {getStatusDisplay(order.status)}
+        </span>
+      ),
+    },
+    {
+      id: 'tracking',
+      header: 'Tracking',
+      priority: 'key',
+      wide: true,
+      isEmpty: (order) => !(order.trackingCarrier && order.trackingNumber),
+      emptyLabel: 'No tracking',
+      cell: (order) =>
+        order.trackingCarrier && order.trackingNumber ? (
+          <div>
+            <p className="text-xs font-medium text-[#020E1C]">{order.trackingCarrier}</p>
+            <p className="text-xs text-gray-600 font-mono">{order.trackingNumber}</p>
+          </div>
+        ) : (
+          <span className="text-xs text-gray-400">No tracking</span>
+        ),
+      mobileCell: (order) => (
+        <div className="flex items-center gap-2">
+          <span className="min-w-0 break-all font-mono text-xs">
+            {order.trackingCarrier}: {order.trackingNumber}
+          </span>
+          <CopyButton value={order.trackingNumber!} label="Copy tracking number" />
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
       {/* Back Link */}
@@ -491,14 +680,14 @@ export default function AdminUserDetailPage() {
       </div>
 
       {/* Page Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-3xl font-bold text-[#020E1C]">{user.fullName}</h1>
-          <p className="text-gray-600">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="min-w-0">
+          <h1 className="text-3xl font-bold text-[#020E1C] break-words">{user.fullName}</h1>
+          <p className="text-gray-600 break-all">
             {user.email || (user.isGuest ? `Guest (${user.guestSessionId?.slice(0, 8)}...)` : 'No email')}
           </p>
         </div>
-        <div className="flex gap-2 items-start">
+        <div className="flex flex-wrap gap-2 items-start">
           {!editing ? (
             <>
               <div className="flex flex-col items-end">
@@ -655,36 +844,16 @@ export default function AdminUserDetailPage() {
         {storeCreditHistory.length === 0 ? (
           <p className="text-sm text-gray-400">No transactions</p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 text-left text-gray-500">
-                  <th className="pb-2 pr-4 font-medium">Date</th>
-                  <th className="pb-2 pr-4 font-medium">Type</th>
-                  <th className="pb-2 pr-4 font-medium">Amount</th>
-                  <th className="pb-2 font-medium">Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {storeCreditHistory.map((entry, i) => (
-                  <tr key={i} className="border-b border-gray-100 last:border-0">
-                    <td className="py-2 pr-4 text-gray-500 whitespace-nowrap">
-                      {new Date(entry.createdAt).toLocaleDateString()}
-                    </td>
-                    <td className="py-2 pr-4">
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${entry.type === 'credit' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                        {entry.type}
-                      </span>
-                    </td>
-                    <td className={`py-2 pr-4 font-medium ${entry.type === 'credit' ? 'text-green-600' : 'text-red-600'}`}>
-                      {entry.type === 'credit' ? '+' : '-'}${entry.amount.toFixed(2)}
-                    </td>
-                    <td className="py-2 text-gray-600">{entry.reason}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable
+            label="Store credit history"
+            columns={creditColumns}
+            rows={storeCreditHistory}
+            rowKey={(_, i) => String(i)}
+            rowClassName={() => 'border-b border-gray-100 last:border-0'}
+            headerRowClassName="border-b border-gray-200 text-left text-gray-500"
+            thClassName="pb-2 pr-4 font-medium"
+            tdClassName="py-2 pr-4"
+          />
         )}
       </div>
 
@@ -983,102 +1152,14 @@ export default function AdminUserDetailPage() {
             <p className="text-gray-500">No orders yet</p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-2 font-medium text-gray-700">Order ID</th>
-                  <th className="text-left py-3 px-2 font-medium text-gray-700">Date</th>
-                  <th className="text-left py-3 px-2 font-medium text-gray-700">Items</th>
-                  <th className="text-left py-3 px-2 font-medium text-gray-700">Total</th>
-                  <th className="text-left py-3 px-2 font-medium text-gray-700">Payment</th>
-                  <th className="text-left py-3 px-2 font-medium text-gray-700">Status</th>
-                  <th className="text-left py-3 px-2 font-medium text-gray-700">Tracking</th>
-                </tr>
-              </thead>
-              <tbody>
-                {orders.map((order) => (
-                  <tr key={order.id} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-3 px-2">
-                      <div className="flex items-center gap-1">
-                        <Link
-                          href={`/order/${order.id}?fromUser=${userId}`}
-                          className="font-mono text-xs text-[#6E0114] hover:underline"
-                        >
-                          {order.id.substring(0, 8)}...
-                        </Link>
-                        <button
-                          onClick={() => copyToClipboard(order.id)}
-                          className="p-1 text-gray-400 hover:text-gray-600"
-                        >
-                          <Copy className="h-3 w-3" />
-                        </button>
-                      </div>
-                    </td>
-                    <td className="py-3 px-2 text-gray-600 whitespace-nowrap">{formatDate(order.createdAt)}</td>
-                    <td className="py-3 px-2">
-                      <button
-                        onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
-                        className="flex items-center gap-1 text-xs text-gray-600 hover:text-[#020E1C]"
-                      >
-                        {order.items.length} item{order.items.length !== 1 ? 's' : ''}
-                        {expandedOrderId === order.id ? (
-                          <ChevronUp className="h-3 w-3" />
-                        ) : (
-                          <ChevronDown className="h-3 w-3" />
-                        )}
-                      </button>
-                      {expandedOrderId === order.id && (
-                        <div className="mt-2 space-y-1">
-                          {order.items.map((item, idx) => (
-                            <div key={idx} className="text-xs text-gray-600">
-                              <span className="font-medium">{item.listingTitle}</span>
-                              <span className="text-gray-400 ml-1">
-                                ({item.quantity}x ${item.price.toLocaleString()})
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-2 font-semibold text-[#020E1C]">
-                      ${order.totalAmount.toLocaleString()}
-                    </td>
-                    <td className="py-3 px-2">
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          order.paymentMethod === 'stripe'
-                            ? 'bg-purple-100 text-purple-700'
-                            : 'bg-blue-100 text-blue-700'
-                        }`}
-                      >
-                        {order.paymentMethod === 'stripe' ? 'Stripe' : 'PayPal'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-2">
-                      <span
-                        className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-700' : 'bg-green-100 text-green-700'
-                        }`}
-                      >
-                        {getStatusDisplay(order.status)}
-                      </span>
-                    </td>
-                    <td className="py-3 px-2">
-                      {order.trackingCarrier && order.trackingNumber ? (
-                        <div>
-                          <p className="text-xs font-medium text-[#020E1C]">{order.trackingCarrier}</p>
-                          <p className="text-xs text-gray-600 font-mono">{order.trackingNumber}</p>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">No tracking</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable
+            label="Order history"
+            columns={orderColumns}
+            rows={orders}
+            rowKey={(order) => order.id}
+            rowClassName={() => 'border-b border-gray-100 hover:bg-gray-50'}
+            headerRowClassName="border-b border-gray-200"
+          />
         )}
       </div>
     </div>

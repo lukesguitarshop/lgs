@@ -13,6 +13,7 @@ import {
 } from '@/lib/api';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
 import type { AdminTradeInListItem, TradeInStatus, TradeInCondition } from '@/lib/types/trade-in';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 
 const STATUS_FILTERS: (TradeInStatus | 'all')[] = ['all','submitted','offered','accepted','received','inspected','completed','declined','rejected','expired','cancelled'];
 const CONDITIONS: TradeInCondition[] = ['Mint', 'Excellent', 'Very Good', 'Good', 'Fair'];
@@ -118,6 +119,60 @@ export default function AdminTradeInsListPage() {
       .finally(() => setBusyId(null));
   };
 
+  const columns: ResponsiveColumn<AdminTradeInListItem>[] = [
+    { id: 'email', header: 'Email', priority: 'key', wide: true, cellClassName: 'text-sm', cell: (it) => it.email, mobileCell: (it) => <span className="break-all">{it.email}</span> },
+    { id: 'guitar', header: 'Guitar', priority: 'primary', cellClassName: 'text-sm font-medium', cell: (it) => `${it.brand} ${it.model}` },
+    {
+      id: 'status',
+      header: 'Status',
+      priority: 'badge',
+      cell: (it) => (
+        <span className={`text-xs font-medium px-2 py-0.5 rounded ${statusColors[it.status] || 'bg-gray-100'}`}>{it.status}</span>
+      ),
+    },
+    {
+      id: 'date',
+      header: 'Date',
+      priority: 'key',
+      cellClassName: 'text-sm text-gray-600',
+      cell: (it) => new Date(it.createdAt).toLocaleDateString(),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      priority: 'actions',
+      headerClassName: 'text-right',
+      cell: (it) => (
+        <div className="flex items-center justify-end gap-1 max-md:w-full max-md:justify-start">
+          <button
+            onClick={() => openEdit(it.id)}
+            disabled={busyId === it.id}
+            className="p-1.5 text-gray-500 hover:text-[#6E0114] hover:bg-[#6E0114]/10 rounded transition-colors disabled:opacity-50 max-md:flex max-md:items-center max-md:justify-center"
+            aria-label="Edit"
+            title="Edit"
+          >
+            <Pencil className="h-4 w-4" />
+          </button>
+          <button
+            onClick={() => handleDelete(it)}
+            disabled={busyId === it.id}
+            className="p-1.5 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50 max-md:flex max-md:items-center max-md:justify-center"
+            aria-label="Delete"
+            title="Delete"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <Link
+            href={`/admin/trade-ins/${it.id}`}
+            className="ml-1 inline-flex items-center text-[#6E0114] hover:underline text-sm max-md:ml-auto max-md:px-3"
+          >
+            Open <ArrowRight className="h-4 w-4 ml-1" />
+          </Link>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
       <div className="mb-6">
@@ -147,59 +202,18 @@ export default function AdminTradeInsListPage() {
       ) : items.length === 0 ? (
         <p className="text-gray-600">No trade-ins {status !== 'all' && `with status "${status}"`}.</p>
       ) : (
-        <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 overflow-hidden">
-          <table className="w-full">
-            <thead className="bg-[#FFFFF3] border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-600">
-              <tr>
-                <th className="px-4 py-3">Email</th>
-                <th className="px-4 py-3">Guitar</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-              {items.map(it => (
-                <tr key={it.id} className="hover:bg-black/[0.02]">
-                  <td className="px-4 py-3 text-sm">{it.email}</td>
-                  <td className="px-4 py-3 text-sm font-medium">{it.brand} {it.model}</td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${statusColors[it.status] || 'bg-gray-100'}`}>{it.status}</span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600">{new Date(it.createdAt).toLocaleDateString()}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center justify-end gap-1">
-                      <button
-                        onClick={() => openEdit(it.id)}
-                        disabled={busyId === it.id}
-                        className="p-1.5 text-gray-500 hover:text-[#6E0114] hover:bg-[#6E0114]/10 rounded transition-colors disabled:opacity-50"
-                        aria-label="Edit"
-                        title="Edit"
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(it)}
-                        disabled={busyId === it.id}
-                        className="p-1.5 text-gray-500 hover:text-red-700 hover:bg-red-50 rounded transition-colors disabled:opacity-50"
-                        aria-label="Delete"
-                        title="Delete"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                      <Link
-                        href={`/admin/trade-ins/${it.id}`}
-                        className="ml-1 inline-flex items-center text-[#6E0114] hover:underline text-sm"
-                      >
-                        Open <ArrowRight className="h-4 w-4 ml-1" />
-                      </Link>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <ResponsiveTable
+          label="Trade-ins"
+          columns={columns}
+          rows={items}
+          rowKey={(it) => it.id}
+          rowClassName={() => 'border-b border-gray-100 last:border-0 hover:bg-black/[0.02]'}
+          containerClassName="bg-[#FFFFF3] rounded-lg border border-gray-200"
+          tableClassName="w-full"
+          theadClassName="bg-[#FFFFF3] border-b border-gray-200 text-left text-xs uppercase tracking-wide text-gray-600"
+          thClassName="px-4 py-3"
+          tdClassName="px-4 py-3"
+        />
       )}
 
       {/* Edit modal */}

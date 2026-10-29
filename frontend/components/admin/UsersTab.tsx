@@ -18,6 +18,7 @@ import {
   LogIn,
 } from 'lucide-react';
 import { getAdminUsers, deleteAdminUser } from '@/lib/api';
+import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 import type { AdminUser } from '@/lib/types/admin-user';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
 import { useAuth } from '@/contexts/AuthContext';
@@ -143,11 +144,136 @@ export function UsersTab() {
     });
   };
 
+  const columns: ResponsiveColumn<AdminUser>[] = [
+    {
+      id: 'user',
+      header: 'User',
+      priority: 'primary',
+      cell: (user) => (
+        <div>
+          <p className="font-medium text-[#020E1C]">
+            {user.fullName}
+          </p>
+          <p className="text-sm text-gray-500">
+            {user.email || (
+              <span className="italic">
+                Guest ({user.guestSessionId?.slice(0, 8)}...)
+              </span>
+            )}
+          </p>
+        </div>
+      ),
+      mobileCell: (user) => user.fullName,
+    },
+    {
+      id: 'email',
+      header: 'Email',
+      priority: 'key',
+      wide: true,
+      hideOnDesktop: true,
+      cell: (user) =>
+        user.email ? (
+          <span className="break-all">{user.email}</span>
+        ) : (
+          <span className="italic text-gray-500">Guest ({user.guestSessionId?.slice(0, 8)}...)</span>
+        ),
+    },
+    {
+      id: 'status',
+      header: 'Status',
+      priority: 'badge',
+      cell: (user) => (
+        <div className="flex flex-wrap gap-1">
+          {user.isAdmin && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-xs font-medium">
+              <ShieldCheck className="h-3 w-3" />
+              Admin
+            </span>
+          )}
+          {user.isGuest && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
+              <UserX className="h-3 w-3" />
+              Guest
+            </span>
+          )}
+          {!user.isGuest && user.emailVerified && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+              <Mail className="h-3 w-3" />
+              Verified
+            </span>
+          )}
+          {!user.isGuest && !user.emailVerified && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
+              <Mail className="h-3 w-3" />
+              Unverified
+            </span>
+          )}
+        </div>
+      ),
+    },
+    {
+      id: 'created',
+      header: 'Created',
+      priority: 'key',
+      cellClassName: 'text-sm text-gray-500',
+      cell: (user) => formatDate(user.createdAt),
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+      priority: 'actions',
+      stopRowClick: true,
+      headerClassName: 'text-right',
+      cellClassName: 'text-right',
+      cell: (user) => (
+        <div className="flex flex-wrap items-center justify-end gap-2 max-md:w-full">
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs h-8 max-md:flex-1"
+            onClick={() => handleImpersonate(user)}
+            disabled={impersonatingId === user.id || currentUser?.id === user.id}
+            title={
+              currentUser?.id === user.id
+                ? 'This is your own account'
+                : 'Open a new tab signed in as this user'
+            }
+          >
+            {impersonatingId === user.id ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <>
+                <LogIn className="h-3 w-3 mr-1" />
+                Log in as
+              </>
+            )}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="text-xs h-8 max-md:flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
+            onClick={() => setDeletingUser(user)}
+            disabled={actionLoading === user.id}
+          >
+            {actionLoading === user.id ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <>
+                <Trash2 className="h-3 w-3 mr-1" />
+                Delete
+              </>
+            )}
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="min-w-0">
           <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
             <Users className="h-5 w-5" />
             User Management
@@ -187,15 +313,15 @@ export function UsersTab() {
       {/* Search and Filters */}
       <div className="flex flex-wrap items-center gap-4 mb-4 pb-4 border-b border-gray-100">
         {/* Search */}
-        <form onSubmit={handleSearch} className="flex gap-2">
-          <div className="relative">
+        <form onSubmit={handleSearch} className="flex w-full gap-2 sm:w-auto">
+          <div className="relative min-w-0 flex-1 sm:flex-none">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
             <Input
               type="text"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search by name or email..."
-              className="pl-10 w-64"
+              className="pl-10 w-full sm:w-64"
             />
           </div>
           <Button type="submit" variant="outline" size="sm">
@@ -270,133 +396,22 @@ export function UsersTab() {
       ) : (
         <>
           {/* Users Table */}
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-                    User
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-                    Status
-                  </th>
-                  <th className="text-left py-3 px-4 text-sm font-medium text-gray-600">
-                    Created
-                  </th>
-                  <th className="text-right py-3 px-4 text-sm font-medium text-gray-600">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map((user) => (
-                  <tr
-                    key={user.id}
-                    className="border-b border-gray-100 hover:bg-gray-50 cursor-pointer"
-                    onClick={() => router.push(`/admin/user/${user.id}`)}
-                  >
-                    {/* User Info */}
-                    <td className="py-3 px-4">
-                      <div>
-                        <p className="font-medium text-[#020E1C]">
-                          {user.fullName}
-                        </p>
-                        <p className="text-sm text-gray-500">
-                          {user.email || (
-                            <span className="italic">
-                              Guest ({user.guestSessionId?.slice(0, 8)}...)
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    </td>
-
-                    {/* Status Badges */}
-                    <td className="py-3 px-4">
-                      <div className="flex flex-wrap gap-1">
-                        {user.isAdmin && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-800 rounded-full text-xs font-medium">
-                            <ShieldCheck className="h-3 w-3" />
-                            Admin
-                          </span>
-                        )}
-                        {user.isGuest && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
-                            <UserX className="h-3 w-3" />
-                            Guest
-                          </span>
-                        )}
-                        {!user.isGuest && user.emailVerified && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-medium">
-                            <Mail className="h-3 w-3" />
-                            Verified
-                          </span>
-                        )}
-                        {!user.isGuest && !user.emailVerified && (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-yellow-100 text-yellow-700 rounded-full text-xs font-medium">
-                            <Mail className="h-3 w-3" />
-                            Unverified
-                          </span>
-                        )}
-                      </div>
-                    </td>
-
-                    {/* Created Date */}
-                    <td className="py-3 px-4 text-sm text-gray-500">
-                      {formatDate(user.createdAt)}
-                    </td>
-
-                    {/* Actions */}
-                    <td className="py-3 px-4 text-right" onClick={(e) => e.stopPropagation()}>
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs h-8"
-                          onClick={() => handleImpersonate(user)}
-                          disabled={impersonatingId === user.id || currentUser?.id === user.id}
-                          title={
-                            currentUser?.id === user.id
-                              ? 'This is your own account'
-                              : 'Open a new tab signed in as this user'
-                          }
-                        >
-                          {impersonatingId === user.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <>
-                              <LogIn className="h-3 w-3 mr-1" />
-                              Log in as
-                            </>
-                          )}
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs h-8 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          onClick={() => setDeletingUser(user)}
-                          disabled={actionLoading === user.id}
-                        >
-                          {actionLoading === user.id ? (
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <>
-                              <Trash2 className="h-3 w-3 mr-1" />
-                              Delete
-                            </>
-                          )}
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ResponsiveTable
+            label="Users"
+            columns={columns}
+            rows={users}
+            rowKey={(user) => user.id}
+            onRowClick={(user) => router.push(`/admin/user/${user.id}`)}
+            rowClassName={() => 'border-b border-gray-100 hover:bg-gray-50 cursor-pointer'}
+            tableClassName="w-full"
+            headerRowClassName="border-b border-gray-200"
+            thClassName="text-left py-3 px-4 text-sm font-medium text-gray-600"
+            tdClassName="py-3 px-4"
+          />
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 mt-6 pt-4 border-t border-gray-100">
+            <div className="flex flex-wrap items-center justify-center gap-2 mt-6 pt-4 border-t border-gray-100">
               <Button
                 variant="outline"
                 size="sm"
