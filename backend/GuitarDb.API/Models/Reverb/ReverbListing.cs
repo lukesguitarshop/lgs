@@ -59,6 +59,12 @@ public class ReverbListing
     [JsonPropertyName("offers_enabled")]
     public bool OffersEnabled { get; set; }
 
+    [JsonPropertyName("shop_name")]
+    public string? ShopName { get; set; }
+
+    [JsonPropertyName("shop")]
+    public ReverbListingShop? Shop { get; set; }
+
     [JsonIgnore]
     public int? ParsedYear => int.TryParse(Year, out var y) ? y : null;
 
@@ -98,6 +104,34 @@ public class ReverbShipping
 
     [JsonPropertyName("us_rate")]
     public ReverbPrice? UsRate { get; set; }
+
+    [JsonPropertyName("free_expedited_shipping")]
+    public bool FreeExpeditedShipping { get; set; }
+
+    /// <summary>
+    /// Shipping cost to a buyer in the given Reverb region, or null when the listing
+    /// doesn't ship there. Falls back from the exact region to "US" and then to "XX"
+    /// (everywhere else), the way Reverb picks a rate at checkout. Estimated is true
+    /// when Reverb needs the buyer's postal code for an exact rate (carrier-calculated
+    /// or regional pricing), so the amount is Reverb's own estimate.
+    /// </summary>
+    public (decimal Cost, bool Estimated)? CostTo(string regionCode)
+    {
+        if (FreeExpeditedShipping)
+            return (0, false);
+
+        var rate = new[] { regionCode, "US", "XX" }
+            .Select(code => Rates?.FirstOrDefault(r => r.RegionCode.Equals(code, StringComparison.OrdinalIgnoreCase) && r.Rate != null))
+            .FirstOrDefault(r => r != null);
+
+        if (rate != null)
+            return (rate.Rate!.Amount, rate.DestinationPostalCodeNeeded || rate.CarrierCalculated);
+
+        if (UsRate != null && regionCode.StartsWith("US", StringComparison.OrdinalIgnoreCase))
+            return (UsRate.Amount, false);
+
+        return null;
+    }
 }
 
 public class ReverbShippingRate
@@ -107,6 +141,53 @@ public class ReverbShippingRate
 
     [JsonPropertyName("rate")]
     public ReverbPrice? Rate { get; set; }
+
+    [JsonPropertyName("carrier_calculated")]
+    public bool CarrierCalculated { get; set; }
+
+    [JsonPropertyName("regional")]
+    public bool Regional { get; set; }
+
+    [JsonPropertyName("destination_postal_code_needed")]
+    public bool DestinationPostalCodeNeeded { get; set; }
+}
+
+public class ReverbListingShop
+{
+    [JsonPropertyName("slug")]
+    public string? Slug { get; set; }
+
+    [JsonPropertyName("preferred_seller")]
+    public bool PreferredSeller { get; set; }
+}
+
+/// <summary>A Reverb shop as returned by /shops/{slug} - only the seller-reputation fields.</summary>
+public class ReverbShop
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+
+    [JsonPropertyName("slug")]
+    public string Slug { get; set; } = string.Empty;
+
+    [JsonPropertyName("preferred_seller")]
+    public bool PreferredSeller { get; set; }
+
+    [JsonPropertyName("feedback_count")]
+    public int FeedbackCount { get; set; }
+
+    /// <summary>Share of positive feedback, 0 to 1 (Reverb's name says percentage, the value is a fraction).</summary>
+    [JsonPropertyName("rating_percentage")]
+    public decimal? RatingPercentage { get; set; }
+
+    [JsonPropertyName("address")]
+    public ReverbShopAddress? Address { get; set; }
+}
+
+public class ReverbShopAddress
+{
+    [JsonPropertyName("display_location")]
+    public string? DisplayLocation { get; set; }
 }
 
 public class ReverbCondition

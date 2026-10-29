@@ -7,6 +7,7 @@ public class DealFinderService
 {
     private readonly ReverbDealFinderClient _apiClient;
     private readonly PriceGuideCache _priceGuideCache;
+    private readonly SellerCache _sellerCache;
     private readonly MongoDbService _mongoDbService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<DealFinderService> _logger;
@@ -22,12 +23,14 @@ public class DealFinderService
     public DealFinderService(
         ReverbDealFinderClient apiClient,
         PriceGuideCache priceGuideCache,
+        SellerCache sellerCache,
         MongoDbService mongoDbService,
         IConfiguration configuration,
         ILogger<DealFinderService> logger)
     {
         _apiClient = apiClient;
         _priceGuideCache = priceGuideCache;
+        _sellerCache = sellerCache;
         _mongoDbService = mongoDbService;
         _configuration = configuration;
         _logger = logger;
@@ -151,6 +154,9 @@ public class DealFinderService
                 if (oldResolvedRemoved > 0)
                     _logger.LogInformation("Removed {Count} old resolved records", oldResolvedRemoved);
             }
+            var keepMissedDays = _configuration.GetValue<int>("DealFinder:MissedDeals:KeepDays", 180);
+            if (keepMissedDays > 0)
+                await _mongoDbService.DeleteOldMissedDealsAsync(keepMissedDays, cancellationToken);
 
             var totalInDb = await _mongoDbService.GetPotentialBuysTotalCountAsync(cancellationToken);
 
@@ -290,6 +296,8 @@ public class DealFinderService
                 }
             }
 
+            result.MissedDeals = await CheckForQuickSalesAsync(startTime, cancellationToken);
+
             _lastQuickCheckAt = startTime;
 
             result.NewListings = newListings;
@@ -297,7 +305,7 @@ public class DealFinderService
             result.LookupErrors = lookupErrors;
             result.Duration = DateTime.UtcNow - startTime;
             result.Success = true;
-            result.Message = $"Quick check: {newListings} new listings, {result.DealsFound} deals";
+            result.Message = $"Quick check: {newListings} new listings, {result.DealsFound} deals, {result.MissedDeals} missed";
 
             _logger.LogInformation(
                 "Deal finder quick check: {Checked} recent listings read, {New} new, {Deals} deals, since {Cutoff:u}, took {Duration}",
@@ -318,6 +326,52 @@ public class DealFinderService
         {
             _runGate.Release();
         }
+    }
+
+    /// <summary>
+    /// Re-reads listings found in the last two quick checks and records the ones Reverb
+    /// now says sold - a guitar that goes that fast was a deal someone else got to first.
+    /// Only a real "sold" counts; ended or deleted listings were pulled by the seller.
+    /// Only listings found while new are watched: one a full sweep first saw weeks after
+    /// it was listed selling soon after says nothing about how fast deals go.
+    /// </summary>
+    private async Task<int> CheckForQuickSalesAsync(DateTime runStartedAt, CancellationToken ct)
+    {
+        var window = TimeSpan.FromMinutes(_configuration.GetValue<int>("DealFinder:MissedDeals:WindowMinutes", 30));
+        // Checks land every ~15 minutes but not to the second; the grace keeps the
+        // second check after a find inside the window.
+        var grace = TimeSpan.FromMinutes(5);
+
+        var watched = await _mongoDbService.GetPotentialBuysToWatchForSaleAsync(DateTime.UtcNow - window - grace, ct);
+        var missed = 0;
+
+        foreach (var buy in watched)
+        {
+            if (buy.FirstSeenAt >= runStartedAt)
+                continue; // found by this run - nothing to compare against yet
+            if (buy.ListingCreatedAt is null || buy.FirstSeenAt - buy.ListingCreatedAt.Value > window)
+                continue; // already old when we found it
+
+            var state = await _apiClient.GetListingStateAsync(buy.ReverbListingId, ct);
+            if (string.Equals(state, "sold", StringComparison.OrdinalIgnoreCase))
+            {
+                var soldAt = DateTime.UtcNow;
+                var isMissed = soldAt - buy.FirstSeenAt <= window + grace;
+                var wasInDeals = (buy.IsDeal || !buy.HasPriceGuide) && !buy.Dismissed;
+                await _mongoDbService.MarkPotentialBuySoldAsync(buy.Id!, soldAt, isMissed, wasInDeals, ct);
+
+                if (isMissed)
+                {
+                    missed++;
+                    _logger.LogInformation("MISSED {Title}: ${Total} delivered, sold {Minutes:0} min after we found it",
+                        buy.ListingTitle, buy.TotalPrice ?? buy.Price, (soldAt - buy.FirstSeenAt).TotalMinutes);
+                }
+            }
+
+            await Task.Delay(200, ct); // Rate limiting
+        }
+
+        return missed;
     }
 
     private List<SearchFilterSet> GetFilterSets()
@@ -363,32 +417,60 @@ public class DealFinderService
             ReverbListingId = listing.Id,
             PriceGuideId = listing.ComparisonShoppingPageId ?? listing.PriceGuideId,
             LastCheckedAt = DateTime.UtcNow,
-            ListingCreatedAt = listing.PublishedAt
+            ListingCreatedAt = listing.PublishedAt,
+            SellerName = listing.ShopName?.Trim(),
+            SellerSlug = listing.Shop?.Slug,
+            SellerPreferred = listing.Shop?.PreferredSeller ?? false
         };
+
+        // Shipping to our ZIP. Reverb's public API prices by region, not ZIP, so a
+        // carrier-calculated or regional rate is its estimate for the region (flagged).
+        var shipToPostalCode = _configuration["DealFinder:ShipTo:PostalCode"] ?? "43082";
+        var shipToRegion = _configuration["DealFinder:ShipTo:RegionCode"] ?? "US_CON";
+        var shipping = listing.IsLocalPickupOnly ? null : listing.Shipping?.CostTo(shipToRegion);
+
+        potentialBuy.ShipToPostalCode = shipToPostalCode;
+        potentialBuy.ShippingPrice = shipping?.Cost;
+        potentialBuy.ShippingEstimated = shipping?.Estimated ?? false;
+        potentialBuy.TotalPrice = potentialBuy.Price + (shipping?.Cost ?? 0);
+
+        if (!string.IsNullOrEmpty(potentialBuy.SellerSlug))
+        {
+            var shop = await _sellerCache.GetAsync(potentialBuy.SellerSlug, ct);
+            if (shop != null)
+            {
+                potentialBuy.SellerName = string.IsNullOrWhiteSpace(shop.Name) ? potentialBuy.SellerName : shop.Name.Trim();
+                potentialBuy.SellerFeedbackCount = shop.FeedbackCount;
+                potentialBuy.SellerRating = shop.RatingPercentage;
+                potentialBuy.SellerLocation = shop.Address?.DisplayLocation;
+                potentialBuy.SellerPreferred = shop.PreferredSeller;
+            }
+        }
 
         var priceResult = await _priceGuideCache.SearchAsync(listing.Make, listing.Model, ct);
 
         if (priceResult.HasPrice)
         {
             var usedLow = priceResult.UsedLowPrice!.Value;
+            var delivered = potentialBuy.TotalPrice.Value;
 
             potentialBuy.HasPriceGuide = true;
             potentialBuy.PriceGuideId = priceResult.CspId ?? potentialBuy.PriceGuideId;
             potentialBuy.PriceGuideLow = usedLow;                    // lowest current used ask on Reverb
             potentialBuy.PriceGuideHigh = priceResult.NewLowPrice;   // lowest current new ask (may be null)
-            potentialBuy.DiscountPercent = (usedLow - potentialBuy.Price) / usedLow * 100;
+            potentialBuy.DiscountPercent = (usedLow - delivered) / usedLow * 100;
 
-            var isBelowMarket = potentialBuy.Price <= usedLow * dealThresholdPercent / 100m;
+            var isBelowMarket = delivered <= usedLow * dealThresholdPercent / 100m;
             var isWithinBudget = usedLow <= 3500;
-            var canShip = !listing.IsLocalPickupOnly;
+            var canShip = shipping != null;
             potentialBuy.IsDeal = isBelowMarket && isWithinBudget && priceResult.IsReliable && canShip;
 
             string matchLabel = potentialBuy.IsDeal ? "DEAL!" : (priceResult.IsReliable ? "     " : "SKIP ");
             _logger.LogInformation(
-                "{Deal} {Title}: ${Price} vs used low ${UsedLow} (new: ${NewLow}) [{MatchType}: {CspTitle}]",
+                "{Deal} {Title}: ${Price} delivered vs used low ${UsedLow} (new: ${NewLow}) [{MatchType}: {CspTitle}]",
                 matchLabel,
                 listing.Title.Length > 50 ? listing.Title[..50] + "..." : listing.Title,
-                potentialBuy.Price,
+                delivered,
                 usedLow,
                 priceResult.NewLowPrice,
                 priceResult.MatchType,
@@ -407,6 +489,7 @@ public class DealFinderResult
     public int ListingsChecked { get; set; }
     public int DealsFound { get; set; }
     public int NewListings { get; set; }
+    public int MissedDeals { get; set; }
     public int WithPriceData { get; set; }
     public int LookupErrors { get; set; }
     public TimeSpan Duration { get; set; }

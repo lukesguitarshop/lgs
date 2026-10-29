@@ -68,6 +68,7 @@ builder.Services.AddHttpClient<ReverbDealFinderClient>(client =>
     client.Timeout = TimeSpan.FromMinutes(10);
 });
 builder.Services.AddSingleton<PriceGuideCache>();
+builder.Services.AddSingleton<SellerCache>();
 builder.Services.AddSingleton<DealFinderService>();
 
 // Register Sweetwater Deal Finder services

@@ -31,6 +31,40 @@ public class PotentialBuy
     [BsonElement("currency")]
     public string Currency { get; set; } = "USD";
 
+    /// <summary>Shipping to the configured buyer ZIP; null when the listing doesn't ship there.</summary>
+    [BsonElement("shipping_price")]
+    public decimal? ShippingPrice { get; set; }
+
+    /// <summary>True when Reverb prices shipping by exact destination, so ShippingPrice is its estimate.</summary>
+    [BsonElement("shipping_estimated")]
+    public bool ShippingEstimated { get; set; }
+
+    [BsonElement("ship_to_postal_code")]
+    public string? ShipToPostalCode { get; set; }
+
+    /// <summary>Price plus shipping - what the guitar actually costs delivered. Deals are judged on this.</summary>
+    [BsonElement("total_price")]
+    public decimal? TotalPrice { get; set; }
+
+    [BsonElement("seller_name")]
+    public string? SellerName { get; set; }
+
+    [BsonElement("seller_slug")]
+    public string? SellerSlug { get; set; }
+
+    [BsonElement("seller_feedback_count")]
+    public int? SellerFeedbackCount { get; set; }
+
+    /// <summary>Share of positive feedback, 0 to 1.</summary>
+    [BsonElement("seller_rating")]
+    public decimal? SellerRating { get; set; }
+
+    [BsonElement("seller_location")]
+    public string? SellerLocation { get; set; }
+
+    [BsonElement("seller_preferred")]
+    public bool SellerPreferred { get; set; }
+
     [BsonElement("reverb_listing_id")]
     public long ReverbListingId { get; set; }
 
@@ -69,6 +103,19 @@ public class PotentialBuy
 
     [BsonElement("purchased")]
     public bool Purchased { get; set; } = false;
+
+    /// <summary>When a quick check first saw Reverb mark the listing sold (ended/removed never counts).</summary>
+    [BsonElement("sold_at")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? SoldAt { get; set; }
+
+    /// <summary>Found new and sold within the missed-deal window - someone else got it first.</summary>
+    [BsonElement("missed_deal")]
+    public bool MissedDeal { get; set; }
+
+    /// <summary>Whether it was in the Deals list (priced deal or no price data) when it sold.</summary>
+    [BsonElement("was_in_deals")]
+    public bool WasInDeals { get; set; }
 }
 
 public class PotentialBuyStats
@@ -76,4 +123,7 @@ public class PotentialBuyStats
     public int Total { get; set; }
     public int Deals { get; set; }
     public DateTime? LastRunAt { get; set; }
+    public int MissedLast7Days { get; set; }
+    public int MissedLast30Days { get; set; }
+    public int MissedInDealsLast30Days { get; set; }
 }

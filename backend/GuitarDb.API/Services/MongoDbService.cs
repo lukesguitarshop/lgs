@@ -2025,6 +2025,48 @@ public class MongoDbService
     }
 
     // Potential Buys operations
+
+    /// <summary>
+    /// What the Deals list shows: priced deals plus every listing with no price data,
+    /// so guitars that can't be compared against the market still get looked at.
+    /// </summary>
+    private static FilterDefinition<PotentialBuy> ActivePotentialBuyDealsFilter()
+    {
+        var b = Builders<PotentialBuy>.Filter;
+        return b.And(
+            b.Or(b.Eq(x => x.IsDeal, true), b.Eq(x => x.HasPriceGuide, false)),
+            b.Eq(x => x.Dismissed, false),
+            b.Eq(x => x.Purchased, false),
+            b.Eq(x => x.SoldAt, null));
+    }
+
+    /// <summary>
+    /// Listings first seen recently and not yet seen sold - the quick check re-reads
+    /// these from Reverb to catch the ones that sell before anyone looks.
+    /// </summary>
+    public async Task<List<PotentialBuy>> GetPotentialBuysToWatchForSaleAsync(DateTime firstSeenSince, CancellationToken ct = default)
+    {
+        return await _potentialBuysCollection
+            .Find(x => x.FirstSeenAt >= firstSeenSince && x.SoldAt == null && !x.Purchased)
+            .ToListAsync(ct);
+    }
+
+    public async Task MarkPotentialBuySoldAsync(string id, DateTime soldAt, bool missedDeal, bool wasInDeals, CancellationToken ct = default)
+    {
+        var update = Builders<PotentialBuy>.Update
+            .Set(x => x.SoldAt, soldAt)
+            .Set(x => x.MissedDeal, missedDeal)
+            .Set(x => x.WasInDeals, wasInDeals);
+        await _potentialBuysCollection.UpdateOneAsync(x => x.Id == id, update, cancellationToken: ct);
+    }
+
+    public async Task<long> DeleteOldMissedDealsAsync(int olderThanDays, CancellationToken ct = default)
+    {
+        var cutoff = DateTime.UtcNow.AddDays(-olderThanDays);
+        var result = await _potentialBuysCollection.DeleteManyAsync(x => x.MissedDeal && x.SoldAt < cutoff, ct);
+        return result.DeletedCount;
+    }
+
     public async Task<(List<PotentialBuy> Items, long TotalCount)> GetPotentialBuysAsync(
         string? status = null,
         string? sort = null,
@@ -2040,16 +2082,10 @@ public class MongoDbService
         switch (status?.ToLower())
         {
             case "deals":
-                filter = Builders<PotentialBuy>.Filter.And(
-                    Builders<PotentialBuy>.Filter.Eq(x => x.IsDeal, true),
-                    Builders<PotentialBuy>.Filter.Eq(x => x.Dismissed, false),
-                    Builders<PotentialBuy>.Filter.Eq(x => x.Purchased, false));
+                filter = ActivePotentialBuyDealsFilter();
                 break;
-            case "no-price-guide":
-                filter = Builders<PotentialBuy>.Filter.And(
-                    Builders<PotentialBuy>.Filter.Eq(x => x.HasPriceGuide, false),
-                    Builders<PotentialBuy>.Filter.Eq(x => x.Dismissed, false),
-                    Builders<PotentialBuy>.Filter.Eq(x => x.Purchased, false));
+            case "missed":
+                filter = Builders<PotentialBuy>.Filter.Eq(x => x.MissedDeal, true);
                 break;
             case "dismissed":
                 filter = Builders<PotentialBuy>.Filter.Eq(x => x.Dismissed, true);
@@ -2067,23 +2103,33 @@ public class MongoDbService
                 Builders<PotentialBuy>.Filter.Regex(x => x.ListingTitle, regex));
         }
 
+        // Price filters and sorts use the delivered total. Records saved before shipping
+        // was tracked have no total yet, so they fall back to the listing price until
+        // the next full sweep re-saves them.
+        var b = Builders<PotentialBuy>.Filter;
+        var noTotal = b.Eq(x => x.TotalPrice, null);
+
         if (minPrice.HasValue)
         {
-            filter = Builders<PotentialBuy>.Filter.And(filter,
-                Builders<PotentialBuy>.Filter.Gte(x => x.Price, minPrice.Value));
+            filter = b.And(filter, b.Or(
+                b.Gte(x => x.TotalPrice, minPrice.Value),
+                b.And(noTotal, b.Gte(x => x.Price, minPrice.Value))));
         }
 
         if (maxPrice.HasValue)
         {
-            filter = Builders<PotentialBuy>.Filter.And(filter,
-                Builders<PotentialBuy>.Filter.Lte(x => x.Price, maxPrice.Value));
+            filter = b.And(filter, b.Or(
+                b.Lte(x => x.TotalPrice, maxPrice.Value),
+                b.And(noTotal, b.Lte(x => x.Price, maxPrice.Value))));
         }
 
         var sortDef = sort?.ToLower() switch
         {
             "best-deal" => Builders<PotentialBuy>.Sort.Descending(x => x.DiscountPercent),
-            "price-low" => Builders<PotentialBuy>.Sort.Ascending(x => x.Price),
-            "price-high" => Builders<PotentialBuy>.Sort.Descending(x => x.Price),
+            "price-low" => Builders<PotentialBuy>.Sort.Ascending(x => x.TotalPrice).Ascending(x => x.Price),
+            "price-high" => Builders<PotentialBuy>.Sort.Descending(x => x.TotalPrice).Descending(x => x.Price),
+            "listed-newest" => Builders<PotentialBuy>.Sort.Descending(x => x.ListingCreatedAt).Descending(x => x.FirstSeenAt),
+            "sold-newest" => Builders<PotentialBuy>.Sort.Descending(x => x.SoldAt),
             "newest" => Builders<PotentialBuy>.Sort.Descending(x => x.FirstSeenAt),
             "oldest" => Builders<PotentialBuy>.Sort.Ascending(x => x.FirstSeenAt),
             _ => Builders<PotentialBuy>.Sort.Descending(x => x.FirstSeenAt)
@@ -2105,18 +2151,30 @@ public class MongoDbService
     {
         var total = await _potentialBuysCollection.CountDocumentsAsync(_ => true, cancellationToken: ct);
         var deals = await _potentialBuysCollection.CountDocumentsAsync(
-            x => x.IsDeal && !x.Dismissed && !x.Purchased, cancellationToken: ct);
+            ActivePotentialBuyDealsFilter(), cancellationToken: ct);
         var lastChecked = await _potentialBuysCollection
             .Find(_ => true)
             .SortByDescending(x => x.LastCheckedAt)
             .Limit(1)
             .FirstOrDefaultAsync(ct);
 
+        var weekAgo = DateTime.UtcNow.AddDays(-7);
+        var monthAgo = DateTime.UtcNow.AddDays(-30);
+        var missed7 = await _potentialBuysCollection.CountDocumentsAsync(
+            x => x.MissedDeal && x.SoldAt >= weekAgo, cancellationToken: ct);
+        var missed30 = await _potentialBuysCollection.CountDocumentsAsync(
+            x => x.MissedDeal && x.SoldAt >= monthAgo, cancellationToken: ct);
+        var missedInDeals30 = await _potentialBuysCollection.CountDocumentsAsync(
+            x => x.MissedDeal && x.WasInDeals && x.SoldAt >= monthAgo, cancellationToken: ct);
+
         return new PotentialBuyStats
         {
             Total = (int)total,
             Deals = (int)deals,
-            LastRunAt = lastChecked?.LastCheckedAt
+            LastRunAt = lastChecked?.LastCheckedAt,
+            MissedLast7Days = (int)missed7,
+            MissedLast30Days = (int)missed30,
+            MissedInDealsLast30Days = (int)missedInDeals30
         };
     }
 
@@ -2158,11 +2216,7 @@ public class MongoDbService
     /// </summary>
     public async Task<long> DismissAllActiveDealsAsync(CancellationToken ct = default)
     {
-        var filter = Builders<PotentialBuy>.Filter.And(
-            Builders<PotentialBuy>.Filter.Eq(x => x.IsDeal, true),
-            Builders<PotentialBuy>.Filter.Eq(x => x.Dismissed, false),
-            Builders<PotentialBuy>.Filter.Eq(x => x.Purchased, false)
-        );
+        var filter = ActivePotentialBuyDealsFilter();
         var update = Builders<PotentialBuy>.Update.Set(x => x.Dismissed, true);
         var result = await _potentialBuysCollection.UpdateManyAsync(filter, update, cancellationToken: ct);
         return result.ModifiedCount;
@@ -2212,7 +2266,8 @@ public class MongoDbService
     /// </summary>
     public async Task<long> DeleteAllPotentialBuysAsync(CancellationToken ct = default)
     {
-        var result = await _potentialBuysCollection.DeleteManyAsync(_ => true, ct);
+        // Keeps the missed-deal history; that ages out on its own via DeleteOldMissedDealsAsync
+        var result = await _potentialBuysCollection.DeleteManyAsync(x => !x.MissedDeal, ct);
         return result.DeletedCount;
     }
 
@@ -2239,6 +2294,9 @@ public class MongoDbService
             potentialBuy.FirstSeenAt = existing.FirstSeenAt;
             potentialBuy.Dismissed = existing.Dismissed;
             potentialBuy.Purchased = existing.Purchased;
+            potentialBuy.SoldAt = existing.SoldAt;
+            potentialBuy.MissedDeal = existing.MissedDeal;
+            potentialBuy.WasInDeals = existing.WasInDeals;
         }
 
         var filter = Builders<PotentialBuy>.Filter.Eq(x => x.ReverbListingId, potentialBuy.ReverbListingId);
@@ -2286,7 +2344,9 @@ public class MongoDbService
         var filter = Builders<PotentialBuy>.Filter.And(
             Builders<PotentialBuy>.Filter.Lt(x => x.LastCheckedAt, scraperRunStartTime),
             Builders<PotentialBuy>.Filter.Eq(x => x.Dismissed, false),
-            Builders<PotentialBuy>.Filter.Eq(x => x.Purchased, false)
+            Builders<PotentialBuy>.Filter.Eq(x => x.Purchased, false),
+            // Missed deals are sold, so a sweep never refreshes them - they're history, not stale
+            Builders<PotentialBuy>.Filter.Eq(x => x.MissedDeal, false)
         );
 
         var result = await _potentialBuysCollection.DeleteManyAsync(filter, ct);

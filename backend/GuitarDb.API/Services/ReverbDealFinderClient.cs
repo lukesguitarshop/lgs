@@ -200,6 +200,60 @@ public class ReverbDealFinderClient
         }
     }
 
+    /// <summary>
+    /// Looks up a seller's shop for their feedback count, rating and location.
+    /// Returns null when the lookup fails, so a missing seller never blocks a listing.
+    /// </summary>
+    public async Task<ReverbShop?> GetShopAsync(string slug, CancellationToken cancellationToken = default)
+    {
+        var url = $"{BaseUrl}/shops/{Uri.EscapeDataString(slug)}";
+
+        try
+        {
+            var response = await _httpClient.GetAsync(url, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Shop lookup returned HTTP {Status} for {Slug}", (int)response.StatusCode, slug);
+                return null;
+            }
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return JsonSerializer.Deserialize<ReverbShop>(content, _jsonOptions);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Shop lookup failed for {Slug}", slug);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A listing's current Reverb state slug ("live", "sold", "ended"), "deleted" when
+    /// Reverb no longer has it, or null when the lookup itself failed.
+    /// </summary>
+    public async Task<string?> GetListingStateAsync(long listingId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{BaseUrl}/listings/{listingId}", cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return "deleted";
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Listing state lookup returned HTTP {Status} for {Id}", (int)response.StatusCode, listingId);
+                return null;
+            }
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return JsonSerializer.Deserialize<ReverbListing>(content, _jsonOptions)?.State.Slug;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Listing state lookup failed for {Id}", listingId);
+            return null;
+        }
+    }
+
     private static CspPriceResult ToResult(CspResponse csp, PriceGuideMatchType matchType) => new()
     {
         CspId = csp.Id.ToString(),
@@ -265,5 +319,41 @@ public class PriceGuideCache
     {
         public CspPriceResult Data { get; set; } = null!;
         public DateTime ExpiresAt { get; set; }
+    }
+}
+
+/// <summary>
+/// Caches shop lookups - the same sellers show up across many listings in a sweep,
+/// and feedback counts don't move fast enough to need re-reading within a day.
+/// </summary>
+public class SellerCache
+{
+    private readonly ReverbDealFinderClient _apiClient;
+    private readonly int _cacheMinutes;
+    private readonly Dictionary<string, (ReverbShop Shop, DateTime ExpiresAt)> _cache = new(StringComparer.OrdinalIgnoreCase);
+
+    public SellerCache(ReverbDealFinderClient apiClient, IConfiguration configuration)
+    {
+        _apiClient = apiClient;
+        _cacheMinutes = configuration.GetValue<int>("DealFinder:SellerCacheMinutes", 1440);
+    }
+
+    public async Task<ReverbShop?> GetAsync(string slug, CancellationToken ct = default)
+    {
+        lock (_cache)
+        {
+            if (_cache.TryGetValue(slug, out var cached) && cached.ExpiresAt > DateTime.UtcNow)
+                return cached.Shop;
+        }
+
+        var shop = await _apiClient.GetShopAsync(slug, ct);
+
+        // Failed lookups aren't cached, so the next listing from this seller retries
+        if (shop != null)
+        {
+            lock (_cache) { _cache[slug] = (shop, DateTime.UtcNow.AddMinutes(_cacheMinutes)); }
+        }
+
+        return shop;
     }
 }
