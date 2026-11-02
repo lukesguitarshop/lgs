@@ -643,6 +643,23 @@ public class EmailService
     }
 
     /// <summary>
+    /// The money lines of an order email. With store credit or a deposit on the order, the
+    /// total alone overstates what was charged, so those come off and the charge is shown.
+    /// </summary>
+    private static string PaymentSummaryHtml(decimal totalAmount, decimal storeCreditApplied, decimal depositApplied)
+    {
+        if (storeCreditApplied <= 0 && depositApplied <= 0)
+            return $"<p><strong>Total:</strong> ${totalAmount:N2}</p>";
+
+        var charged = Math.Max(0m, totalAmount - storeCreditApplied - depositApplied);
+        var lines = $"<li>Total: ${totalAmount:N2}</li>";
+        if (depositApplied > 0) lines += $"<li>Deposit already paid: -${depositApplied:N2}</li>";
+        if (storeCreditApplied > 0) lines += $"<li>Store credit: -${storeCreditApplied:N2}</li>";
+        lines += $"<li><strong>Charged: ${charged:N2}</strong></li>";
+        return $"<ul style=\"list-style: none; padding-left: 0;\">{lines}</ul>";
+    }
+
+    /// <summary>
     /// Send order confirmation email to buyer
     /// </summary>
     public async Task SendOrderConfirmationToBuyerAsync(
@@ -651,7 +668,9 @@ public class EmailService
         List<(string Title, decimal Price, string Currency)> items,
         decimal totalAmount,
         string shippingName,
-        string shippingAddress)
+        string shippingAddress,
+        decimal storeCreditApplied = 0m,
+        decimal depositApplied = 0m)
     {
         if (!_isEnabled || string.IsNullOrEmpty(buyerEmail))
         {
@@ -676,7 +695,7 @@ public class EmailService
 {itemsList}
 </ul>
 
-<p><strong>Total:</strong> ${totalAmount:N2}</p>
+{PaymentSummaryHtml(totalAmount, storeCreditApplied, depositApplied)}
 
 <h3>Shipping To</h3>
 <p>
@@ -807,7 +826,9 @@ public class EmailService
         decimal totalAmount,
         string buyerName,
         string shippingAddress,
-        string paymentMethod)
+        string paymentMethod,
+        decimal storeCreditApplied = 0m,
+        decimal depositApplied = 0m)
     {
         if (!_isEnabled || string.IsNullOrEmpty(_sellerEmail))
         {
@@ -828,8 +849,9 @@ public class EmailService
 <ul>
     <li><strong>Order Reference:</strong> #{orderId[^8..].ToUpper()}</li>
     <li><strong>Payment Method:</strong> {paymentMethod}</li>
-    <li><strong>Total:</strong> ${totalAmount:N2}</li>
 </ul>
+
+{PaymentSummaryHtml(totalAmount, storeCreditApplied, depositApplied)}
 
 <h3>Items Sold</h3>
 <ul>

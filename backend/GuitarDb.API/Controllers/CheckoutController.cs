@@ -559,7 +559,9 @@ public class CheckoutController : ControllerBase
                     itemsForEmail,
                     totalAmount,
                     shippingAddress.FullName,
-                    shippingAddressFormatted);
+                    shippingAddressFormatted,
+                    order.StoreCreditApplied,
+                    order.DepositApplied);
             }
 
             // Send notification to seller
@@ -569,7 +571,9 @@ public class CheckoutController : ControllerBase
                 totalAmount,
                 shippingAddress.FullName,
                 shippingAddressFormatted,
-                "Stripe");
+                "Stripe",
+                order.StoreCreditApplied,
+                order.DepositApplied);
 
             return Ok(new { success = true, message = "Checkout completed successfully", orderId = order.Id });
         }
@@ -1004,7 +1008,9 @@ public class CheckoutController : ControllerBase
                     itemsForEmail,
                     totalAmount,
                     shippingAddress.FullName,
-                    shippingAddressFormatted);
+                    shippingAddressFormatted,
+                    order.StoreCreditApplied,
+                    order.DepositApplied);
             }
 
             // Send notification to seller
@@ -1014,7 +1020,9 @@ public class CheckoutController : ControllerBase
                 totalAmount,
                 shippingAddress.FullName,
                 shippingAddressFormatted,
-                "PayPal");
+                "PayPal",
+                order.StoreCreditApplied,
+                order.DepositApplied);
 
             return Ok(new { success = true, message = "Payment captured successfully", orderId = order.Id });
         }
@@ -1326,7 +1334,9 @@ public class CheckoutController : ControllerBase
                     itemsForEmail,
                     totalAmount,
                     shippingAddress.FullName,
-                    shippingAddressFormatted);
+                    shippingAddressFormatted,
+                    order.StoreCreditApplied,
+                    order.DepositApplied);
             }
 
             // Send notification to seller
@@ -1336,7 +1346,9 @@ public class CheckoutController : ControllerBase
                 totalAmount,
                 shippingAddress.FullName,
                 shippingAddressFormatted,
-                "Stripe");
+                "Stripe",
+                order.StoreCreditApplied,
+                order.DepositApplied);
         }
 
         return Ok();

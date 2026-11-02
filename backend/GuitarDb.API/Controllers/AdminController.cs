@@ -790,6 +790,9 @@ public class AdminController : ControllerBase
                     Country = order.ShippingAddress.Country
                 },
                 TotalAmount = order.TotalAmount,
+                StoreCreditApplied = order.StoreCreditApplied,
+                DepositApplied = order.DepositApplied,
+                AmountPaid = Math.Max(0m, order.TotalAmount - order.StoreCreditApplied - order.DepositApplied),
                 Currency = order.Currency,
                 Status = order.Status,
                 CreatedAt = order.CreatedAt,
@@ -1016,6 +1019,10 @@ public class AdminController : ControllerBase
         public List<AdminOrderItemDto> Items { get; set; } = new();
         public AdminOrderShippingAddressDto ShippingAddress { get; set; } = new();
         public decimal TotalAmount { get; set; }
+        public decimal StoreCreditApplied { get; set; }
+        public decimal DepositApplied { get; set; }
+        /// <summary>What was actually charged after store credit and any deposit came off.</summary>
+        public decimal AmountPaid { get; set; }
         public string Currency { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public DateTime CreatedAt { get; set; }

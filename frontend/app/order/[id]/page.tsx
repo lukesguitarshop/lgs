@@ -76,6 +76,10 @@ interface Order {
   items: OrderItem[];
   shippingAddress: ShippingAddress;
   totalAmount: number;
+  /** Store credit and deposits come off the total; amountPaid is what was charged. */
+  storeCreditApplied?: number;
+  depositApplied?: number;
+  amountPaid?: number;
   currency: string;
   status: string;
   createdAt: string;
@@ -267,6 +271,30 @@ function generateOrderPdf(order: Order): void {
     y,
     { align: 'right' }
   );
+
+  // Store credit and deposits: without these the receipt reads as the full total charged.
+  const credits: [string, number][] = [
+    ['Deposit already paid', order.depositApplied ?? 0],
+    ['Store credit', order.storeCreditApplied ?? 0],
+  ];
+  if (credits.some(([, amount]) => amount > 0)) {
+    ensureSpace(20 * 3);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    for (const [label, amount] of credits) {
+      if (amount <= 0) continue;
+      y += 20;
+      doc.setTextColor(...ink);
+      doc.text(label, margin, y);
+      doc.text(`-${formatCurrency(amount, order.currency)}`, priceX, y, { align: 'right' });
+    }
+    y += 22;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('Charged', margin, y);
+    doc.setTextColor(...brand);
+    doc.text(formatCurrency(order.amountPaid ?? 0, order.currency), priceX, y, { align: 'right' });
+  }
 
   // Footer
   doc.setFont('helvetica', 'normal');
@@ -993,6 +1021,26 @@ export default function OrderDetailPage() {
                   {formatCurrency(order.totalAmount, order.currency)}
                 </span>
               </div>
+              {((order.depositApplied ?? 0) > 0 || (order.storeCreditApplied ?? 0) > 0) && (
+                <div className="mt-3 space-y-1.5 text-sm">
+                  {(order.depositApplied ?? 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-foreground/60">Deposit already paid</span>
+                      <span>&minus;{formatCurrency(order.depositApplied!, order.currency)}</span>
+                    </div>
+                  )}
+                  {(order.storeCreditApplied ?? 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-foreground/60">Store credit</span>
+                      <span>&minus;{formatCurrency(order.storeCreditApplied!, order.currency)}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between border-t border-foreground/15 pt-2 text-base font-medium">
+                    <span>Charged</span>
+                    <span>{formatCurrency(order.amountPaid ?? 0, order.currency)}</span>
+                  </div>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
