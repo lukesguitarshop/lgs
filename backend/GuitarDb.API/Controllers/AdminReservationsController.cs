@@ -108,16 +108,23 @@ public class AdminReservationsController : ControllerBase
             });
         }
 
-        if (!ReservationType.IsValid(request.Type))
+        if (!ReservationType.AdminSelectable.Contains(request.Type))
         {
-            return BadRequest(new { error = $"Unknown reservation type '{request.Type}'." });
+            return BadRequest(new
+            {
+                error = request.Type == ReservationType.TradeIn
+                    ? "Trade-in holds are gone. Make a regular hold and add the trade-in value as store credit from the customer's account page."
+                    : $"Unknown reservation type '{request.Type}'."
+            });
         }
 
         var user = await _mongoDbService.GetUserByIdAsync(request.UserId);
         if (user == null) return BadRequest(new { error = "Reserved user not found." });
 
         var agreedPrice = request.AgreedPrice > 0 ? request.AgreedPrice : listing.Price;
-        var tradeInCredit = request.Type == ReservationType.TradeIn ? request.TradeInCredit : 0m;
+        // Never taken off a hold: the same trade also became store credit, and the buyer
+        // spent that at checkout too, so it was counted twice.
+        var tradeInCredit = 0m;
 
         var validation = ValidateTerms(agreedPrice, tradeInCredit, request.DepositRequired, request.DepositAmount);
         if (validation != null) return BadRequest(new { error = validation });
@@ -187,7 +194,6 @@ public class AdminReservationsController : ControllerBase
         if (reservation == null) return NotFound(new { error = "Reservation not found" });
 
         if (request.AgreedPrice.HasValue) reservation.AgreedPrice = request.AgreedPrice.Value;
-        if (request.TradeInCredit.HasValue) reservation.TradeInCredit = request.TradeInCredit.Value;
         if (request.DepositRequired.HasValue) reservation.DepositRequired = request.DepositRequired.Value;
         if (request.DepositAmount.HasValue) reservation.DepositAmount = request.DepositAmount.Value;
         if (request.DepositRefundable.HasValue) reservation.DepositRefundable = request.DepositRefundable.Value;

@@ -142,6 +142,31 @@ public class CheckoutController : ControllerBase
         }
     }
 
+    /// <summary>
+    /// The address the buyer typed at checkout. Read from the session, where it is always
+    /// written; sessions created before that only have it on the payment, so fall back to
+    /// that. A $0 store-credit checkout has no payment at all.
+    /// </summary>
+    private static OrderShippingAddress ReadShippingAddress(Session session)
+    {
+        var metadata = session.Metadata != null && session.Metadata.ContainsKey("shipping_line1")
+            ? session.Metadata
+            : session.PaymentIntent?.Metadata;
+
+        if (metadata == null) return new OrderShippingAddress();
+
+        return new OrderShippingAddress
+        {
+            FullName = metadata.GetValueOrDefault("shipping_name", ""),
+            Line1 = metadata.GetValueOrDefault("shipping_line1", ""),
+            Line2 = metadata.GetValueOrDefault("shipping_line2", ""),
+            City = metadata.GetValueOrDefault("shipping_city", ""),
+            State = metadata.GetValueOrDefault("shipping_state", ""),
+            PostalCode = metadata.GetValueOrDefault("shipping_postal_code", ""),
+            Country = metadata.GetValueOrDefault("shipping_country", "")
+        };
+    }
+
     [HttpPost]
     public async Task<IActionResult> CreateCheckoutSession([FromBody] CheckoutRequest request)
     {
@@ -253,6 +278,19 @@ public class CheckoutController : ControllerBase
                 $"{first.PriceData.ProductData.Description} (store credit -${storeCreditApplied:N2})";
         }
 
+        // On the session as well as the payment: a checkout paid entirely by store credit
+        // is $0, Stripe creates no payment for it, and the address would be lost.
+        var shippingMetadata = new Dictionary<string, string>
+        {
+            { "shipping_name", shipping.FullName },
+            { "shipping_line1", shipping.Line1 },
+            { "shipping_line2", shipping.Line2 ?? "" },
+            { "shipping_city", shipping.City },
+            { "shipping_state", shipping.State },
+            { "shipping_postal_code", shipping.PostalCode },
+            { "shipping_country", shipping.Country }
+        };
+
         StripeConfiguration.ApiKey = _configuration["Stripe:SecretKey"];
 
         var options = new SessionCreateOptions
@@ -282,18 +320,9 @@ public class CheckoutController : ControllerBase
             },
             PaymentIntentData = new SessionPaymentIntentDataOptions
             {
-                Metadata = new Dictionary<string, string>
-                {
-                    { "shipping_name", shipping.FullName },
-                    { "shipping_line1", shipping.Line1 },
-                    { "shipping_line2", shipping.Line2 ?? "" },
-                    { "shipping_city", shipping.City },
-                    { "shipping_state", shipping.State },
-                    { "shipping_postal_code", shipping.PostalCode },
-                    { "shipping_country", shipping.Country }
-                }
+                Metadata = new Dictionary<string, string>(shippingMetadata)
             },
-            Metadata = new Dictionary<string, string>
+            Metadata = new Dictionary<string, string>(shippingMetadata)
             {
                 { "listing_ids", string.Join(",", listingIds) },
                 { "user_id", userId ?? "" },
@@ -384,18 +413,7 @@ public class CheckoutController : ControllerBase
             var chargeAmounts = await ResolveChargeAmountsAsync(listings, userId);
 
             var paymentIntent = session.PaymentIntent;
-            var shippingAddress = new OrderShippingAddress();
-
-            if (paymentIntent?.Metadata != null)
-            {
-                shippingAddress.FullName = paymentIntent.Metadata.GetValueOrDefault("shipping_name", "");
-                shippingAddress.Line1 = paymentIntent.Metadata.GetValueOrDefault("shipping_line1", "");
-                shippingAddress.Line2 = paymentIntent.Metadata.GetValueOrDefault("shipping_line2", "");
-                shippingAddress.City = paymentIntent.Metadata.GetValueOrDefault("shipping_city", "");
-                shippingAddress.State = paymentIntent.Metadata.GetValueOrDefault("shipping_state", "");
-                shippingAddress.PostalCode = paymentIntent.Metadata.GetValueOrDefault("shipping_postal_code", "");
-                shippingAddress.Country = paymentIntent.Metadata.GetValueOrDefault("shipping_country", "");
-            }
+            var shippingAddress = ReadShippingAddress(session);
 
             var orderItems = new List<OrderItem>();
             decimal totalAmount = 0;
@@ -1191,18 +1209,7 @@ public class CheckoutController : ControllerBase
             var chargeAmounts = await ResolveChargeAmountsAsync(listings, userId);
 
             var paymentIntent = expandedSession.PaymentIntent;
-            var shippingAddress = new OrderShippingAddress();
-
-            if (paymentIntent?.Metadata != null)
-            {
-                shippingAddress.FullName = paymentIntent.Metadata.GetValueOrDefault("shipping_name", "");
-                shippingAddress.Line1 = paymentIntent.Metadata.GetValueOrDefault("shipping_line1", "");
-                shippingAddress.Line2 = paymentIntent.Metadata.GetValueOrDefault("shipping_line2", "");
-                shippingAddress.City = paymentIntent.Metadata.GetValueOrDefault("shipping_city", "");
-                shippingAddress.State = paymentIntent.Metadata.GetValueOrDefault("shipping_state", "");
-                shippingAddress.PostalCode = paymentIntent.Metadata.GetValueOrDefault("shipping_postal_code", "");
-                shippingAddress.Country = paymentIntent.Metadata.GetValueOrDefault("shipping_country", "");
-            }
+            var shippingAddress = ReadShippingAddress(expandedSession);
 
             var orderItems = new List<OrderItem>();
             decimal totalAmount = 0;

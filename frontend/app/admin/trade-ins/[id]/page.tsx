@@ -202,6 +202,12 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
               </>
             )}
             {data.status === 'inspected' && <Button onClick={() => wrap(async () => { await adminCompleteTradeIn(id); })} disabled={busy} className="bg-green-700 text-white hover:bg-green-800">Complete</Button>}
+            {data.status === 'completed' && data.activeOffer?.acceptedType === 'credit' && (
+              <p className="text-sm text-gray-700">
+                Completing doesn&apos;t issue credit. Add the ${data.activeOffer.storeCreditOffer.toLocaleString()} store credit on the{' '}
+                <Link href={`/admin/user/${data.userId}`} className="text-[#6E0114] underline">customer&apos;s account page</Link>.
+              </p>
+            )}
             {data.status === 'completed' && data.activeOffer?.acceptedType === 'cash' && !data.payout?.paidAt && (
               <>
                 <input type="text" value={paypalTxn} onChange={e => setPaypalTxn(e.target.value)} placeholder="PayPal txn ID" className="border border-gray-300 rounded px-2 py-1 flex-1 bg-[#FFFFF3]" />

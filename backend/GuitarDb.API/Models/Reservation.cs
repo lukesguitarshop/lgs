@@ -170,8 +170,12 @@ public static class ReservationType
 
     public static readonly string[] All = { Hold, TradeIn, OfferAccepted };
 
-    /// <summary>Admin-selectable types. OfferAccepted is created by the offer flow, not by hand.</summary>
-    public static readonly string[] AdminSelectable = { Hold, TradeIn };
+    /// <summary>
+    /// Admin-selectable types. OfferAccepted is created by the offer flow, not by hand.
+    /// TradeIn is kept only so older reservations still read: a trade's value now reaches
+    /// the buyer as store credit added from their account page, never off a hold's price.
+    /// </summary>
+    public static readonly string[] AdminSelectable = { Hold };
 
     public static bool IsValid(string? type) =>
         !string.IsNullOrEmpty(type) && All.Contains(type);

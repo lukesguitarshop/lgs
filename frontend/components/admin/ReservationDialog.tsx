@@ -16,11 +16,9 @@ import { Loader2, AlertTriangle } from 'lucide-react';
 import { UserPicker } from './UserPicker';
 import { createReservation, updateReservation } from '@/lib/api';
 import {
-  RESERVATION_TYPE_OPTIONS,
   defaultExpiryDays,
   formatCurrency,
   type AdminReservation,
-  type ReservationType,
 } from '@/lib/types/reservation';
 
 interface ReservationDialogProps {
@@ -47,10 +45,8 @@ export function ReservationDialog({
 }: ReservationDialogProps) {
   const isEdit = !!reservation;
 
-  const [type, setType] = useState<ReservationType>('hold');
   const [userId, setUserId] = useState<string | null>(null);
   const [agreedPrice, setAgreedPrice] = useState('');
-  const [tradeInCredit, setTradeInCredit] = useState('0');
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositAmount, setDepositAmount] = useState('');
   const [depositRefundable, setDepositRefundable] = useState(false);
@@ -62,14 +58,13 @@ export function ReservationDialog({
   const [error, setError] = useState<string | null>(null);
 
   const priceNum = parseFloat(agreedPrice) || 0;
-  const creditNum = type === 'trade_in' ? parseFloat(tradeInCredit) || 0 : 0;
   const depositNum = parseFloat(depositAmount) || 0;
 
-  // What they'd still owe once the deposit lands. Mirrors the server's
-  // agreed price - deposit - trade-in credit, floored at zero.
+  // What they'd still owe once the deposit lands. A trade-in is never taken off here —
+  // its value goes on the customer's account as store credit, from their account page.
   const balanceAfterDeposit = useMemo(
-    () => Math.max(0, priceNum - creditNum - (depositRequired ? depositNum : 0)),
-    [priceNum, creditNum, depositRequired, depositNum]
+    () => Math.max(0, priceNum - (depositRequired ? depositNum : 0)),
+    [priceNum, depositRequired, depositNum]
   );
 
   // Reset the form each time the dialog opens.
@@ -78,10 +73,8 @@ export function ReservationDialog({
     setError(null);
 
     if (reservation) {
-      setType(reservation.type === 'offer_accepted' ? 'hold' : reservation.type);
       setUserId(reservation.user_id);
       setAgreedPrice(String(reservation.agreed_price));
-      setTradeInCredit(String(reservation.trade_in_credit));
       setDepositRequired(reservation.deposit_required);
       setDepositAmount(reservation.deposit_amount ? String(reservation.deposit_amount) : '');
       setDepositRefundable(reservation.deposit_refundable);
@@ -89,31 +82,18 @@ export function ReservationDialog({
       setExpiresAt(reservation.expires_at ? toDateInput(new Date(reservation.expires_at)) : '');
       setInternalNote(reservation.internal_note || '');
     } else {
-      const initialType: ReservationType = 'hold';
-      setType(initialType);
       setUserId(null);
       setAgreedPrice(listing ? String(listing.price) : '');
-      setTradeInCredit('0');
       setDepositRequired(false);
       setDepositAmount('');
       setDepositRefundable(false);
       setNoExpiration(false);
       setExpiresAt(
-        toDateInput(new Date(Date.now() + defaultExpiryDays(initialType) * 864e5))
+        toDateInput(new Date(Date.now() + defaultExpiryDays('hold') * 864e5))
       );
       setInternalNote('');
     }
   }, [isOpen, reservation, listing]);
-
-  // Changing type moves the default expiry (Hold 7 days, Trade-In 30) unless the
-  // admin has already opted out of expiry.
-  const handleTypeChange = (next: ReservationType) => {
-    setType(next);
-    if (!noExpiration && !isEdit) {
-      setExpiresAt(toDateInput(new Date(Date.now() + defaultExpiryDays(next) * 864e5)));
-    }
-    if (next !== 'trade_in') setTradeInCredit('0');
-  };
 
   /** Quick-pick deposit buttons. */
   const applyDepositPreset = (preset: '10%' | '20%' | '100' | '250') => {
@@ -125,13 +105,9 @@ export function ReservationDialog({
   const validate = (): string | null => {
     if (!isEdit && !userId) return 'Pick the customer this is reserved for.';
     if (priceNum <= 0) return 'Agreed price must be greater than $0.';
-    if (creditNum < 0) return 'Trade-in credit cannot be negative.';
-    if (creditNum > priceNum) return 'Trade-in credit cannot exceed the agreed price.';
     if (depositRequired) {
       if (depositNum <= 0) return 'Deposit amount must be greater than $0.';
-      if (depositNum > priceNum - creditNum) {
-        return 'Deposit cannot exceed the agreed price minus trade-in credit.';
-      }
+      if (depositNum > priceNum) return 'Deposit cannot exceed the agreed price.';
     }
     if (!noExpiration && !expiresAt) return 'Pick an expiration date, or choose no expiration.';
     return null;
@@ -159,7 +135,6 @@ export function ReservationDialog({
         saved = await updateReservation(reservation.id, {
           userId: userId || undefined,
           agreedPrice: priceNum,
-          tradeInCredit: creditNum,
           depositRequired,
           depositAmount: depositRequired ? depositNum : 0,
           depositRefundable,
@@ -171,9 +146,8 @@ export function ReservationDialog({
         saved = await createReservation({
           listingId: listing!.id,
           userId: userId!,
-          type,
+          type: 'hold',
           agreedPrice: priceNum,
-          tradeInCredit: creditNum,
           depositRequired,
           depositAmount: depositRequired ? depositNum : 0,
           depositRefundable,
@@ -212,28 +186,6 @@ export function ReservationDialog({
             </div>
           )}
 
-          {/* Type — only selectable on create; an accepted offer keeps its own type. */}
-          {!isEdit && (
-            <div className="space-y-1.5">
-              <Label>Type</Label>
-              <div className="flex gap-2">
-                {RESERVATION_TYPE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handleTypeChange(opt.value)}
-                    className={`flex-1 rounded-md border px-3 py-2 text-sm transition-colors ${
-                      type === opt.value
-                        ? 'border-[#6E0114] bg-[#6E0114] text-white'
-                        : 'border-gray-300 bg-[#FFFFF3] text-gray-700 hover:bg-gray-50'
-                    }`}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div className="space-y-1.5">
             <Label>Reserved for</Label>
@@ -270,22 +222,6 @@ export function ReservationDialog({
             />
           </div>
 
-          {(type === 'trade_in' || reservation?.type === 'trade_in') && (
-            <div className="space-y-1.5">
-              <Label htmlFor="tradeInCredit">Trade-in credit</Label>
-              <Input
-                id="tradeInCredit"
-                type="number"
-                min="0"
-                step="0.01"
-                value={tradeInCredit}
-                onChange={(e) => setTradeInCredit(e.target.value)}
-              />
-              <p className="text-xs text-gray-500">
-                Subtracted from what they owe.
-              </p>
-            </div>
-          )}
 
           {/* Deposit */}
           <div className="space-y-2 rounded-md border border-gray-200 p-3">
@@ -387,12 +323,6 @@ export function ReservationDialog({
               <span>Agreed price</span>
               <span>{formatCurrency(priceNum)}</span>
             </div>
-            {creditNum > 0 && (
-              <div className="flex justify-between text-gray-600">
-                <span>Trade-in credit</span>
-                <span>-{formatCurrency(creditNum)}</span>
-              </div>
-            )}
             {depositRequired && depositNum > 0 && (
               <div className="flex justify-between text-gray-600">
                 <span>Deposit to secure</span>

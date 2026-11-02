@@ -14,7 +14,10 @@ export type CancellationReason =
   | 'sold_elsewhere'
   | 'other';
 
-/** Admin-selectable types. `offer_accepted` is created by the offer flow, not by hand. */
+/**
+ * Types the reservations list filters by. New holds are always `hold`: `trade_in` is
+ * only on older reservations, and `offer_accepted` is created by the offer flow.
+ */
 export const RESERVATION_TYPE_OPTIONS: { value: ReservationType; label: string }[] = [
   { value: 'hold', label: 'Hold' },
   { value: 'trade_in', label: 'Trade-In' },
@@ -151,7 +154,6 @@ export interface CreateReservationPayload {
   userId: string;
   type: ReservationType;
   agreedPrice: number;
-  tradeInCredit: number;
   depositRequired: boolean;
   depositAmount: number;
   depositRefundable: boolean;
@@ -163,7 +165,6 @@ export interface CreateReservationPayload {
 export interface UpdateReservationPayload {
   userId?: string;
   agreedPrice?: number;
-  tradeInCredit?: number;
   depositRequired?: boolean;
   depositAmount?: number;
   depositRefundable?: boolean;

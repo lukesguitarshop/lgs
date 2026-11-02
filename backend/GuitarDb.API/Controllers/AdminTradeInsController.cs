@@ -187,21 +187,10 @@ public class AdminTradeInsController : ControllerBase
         req.Payout.CompletedAt = DateTime.UtcNow;
         req.Status = TradeInStatus.Completed;
 
-        if (accepted.AcceptedType == TradeInOfferType.Credit)
-        {
-            var sc = await _mongoDbService.CreateOrCreditUserAsync(
-                req.UserId, accepted.StoreCreditOffer,
-                $"trade-in {req.Id}", req.Id);
-            req.Payout.StoreCreditId = sc.Id;
-            await _mongoDbService.UpdateTradeInRequestAsync(req);
-            _ = _emailService.SendTradeInCreditIssuedAsync(req.Email, req.Brand, req.Model,
-                accepted.StoreCreditOffer, sc.Balance);
-        }
-        else
-        {
-            await _mongoDbService.UpdateTradeInRequestAsync(req);
-            // Cash path: admin still needs to mark-paid separately
-        }
+        // No payout happens here. A credit trade-in is paid by the admin adding store
+        // credit on the customer's account page — the one place credit is ever issued,
+        // so a trade can't be counted again somewhere else. Cash still needs mark-paid.
+        await _mongoDbService.UpdateTradeInRequestAsync(req);
         return Ok(new { id = req.Id });
     }
 
