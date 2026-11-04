@@ -218,6 +218,9 @@ export default function ExtraExpensesTab() {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
+      // Expense dates are calendar dates stored as UTC midnight; formatting in
+      // local time would show the previous day in US time zones.
+      timeZone: 'UTC',
     });
   };
 
