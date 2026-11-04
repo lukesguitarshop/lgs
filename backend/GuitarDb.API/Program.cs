@@ -95,6 +95,7 @@ builder.Services.AddHostedService<ReservationExpirationService>();
 builder.Services.AddHostedService<DeliveryTrackingService>();
 builder.Services.AddHostedService<ScheduledDealFinderService>();
 builder.Services.AddHostedService<IncrementalDealFinderService>();
+builder.Services.AddHostedService<SweetwaterIntervalScanService>();
 
 // Configure JWT Authentication
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]

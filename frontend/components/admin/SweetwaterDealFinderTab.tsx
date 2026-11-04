@@ -248,7 +248,7 @@ export function SweetwaterDealFinderTab() {
               </span>
               {scraperRunning
                 ? 'Scanning Sweetwater now…'
-                : stats?.lastRunAt ? `Checked ${timeAgo(stats.lastRunAt)}` : 'Not scanned yet'}
+                : stats?.lastRunAt ? `Live · checked ${timeAgo(stats.lastRunAt)}` : 'Not scanned yet'}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -451,7 +451,7 @@ export function SweetwaterDealFinderTab() {
                 ? 'Try adjusting your search or filters.'
                 : isNoPriceView
                   ? 'Listings Reverb has no market price for will show up here.'
-                  : 'Run a full scan to sweep Gear Exchange now.'}
+                  : 'Gear Exchange is checked every 30 minutes. Run a full scan to sweep it now.'}
             </p>
           </div>
         ) : (
