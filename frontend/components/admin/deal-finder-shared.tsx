@@ -1,5 +1,6 @@
 'use client';
 
+import { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 // Pieces the Reverb and Sweetwater deal finder tabs share, so the two stay identical.
@@ -123,10 +124,24 @@ export function PageNav({ currentPage, totalPages, loading, onPage }: {
   loading: boolean;
   onPage: (page: number) => void;
 }) {
+  const navRef = useRef<HTMLElement>(null);
   if (totalPages <= 1) return null;
+
+  // Changing page from the bottom of a long list should land you at the top of this
+  // deal finder (Reverb or Sweetwater), not leave you staring at the pager.
+  const goTo = (page: number) => {
+    onPage(page);
+    const section = navRef.current?.closest('section');
+    if (!section) return;
+    // The site header is sticky - stop just below it rather than under it
+    const headerBottom = document.querySelector('header')?.getBoundingClientRect().bottom ?? 0;
+    const top = section.getBoundingClientRect().top + window.scrollY - Math.max(0, headerBottom) - 8;
+    window.scrollTo({ top, behavior: 'smooth' });
+  };
+
   return (
-    <nav className="mt-6 flex flex-wrap items-center justify-center gap-1.5 border-t border-foreground/10 pt-5" aria-label="Pages">
-      <button onClick={() => onPage(currentPage - 1)} disabled={currentPage <= 1 || loading} className={ghostBtn}>
+    <nav ref={navRef} className="mt-6 flex flex-wrap items-center justify-center gap-1.5 border-t border-foreground/10 pt-5" aria-label="Pages">
+      <button onClick={() => goTo(currentPage - 1)} disabled={currentPage <= 1 || loading} className={ghostBtn}>
         <ChevronLeft className="h-3.5 w-3.5" />
         Prev
       </button>
@@ -140,7 +155,7 @@ export function PageNav({ currentPage, totalPages, loading, onPage }: {
         return (
           <button
             key={pageNum}
-            onClick={() => onPage(pageNum)}
+            onClick={() => goTo(pageNum)}
             disabled={loading}
             aria-current={current ? 'page' : undefined}
             className={`h-9 w-9 cursor-pointer font-mono text-xs tabular-nums transition-colors ${current ? 'bg-foreground text-background' : 'border border-foreground/20 hover:border-foreground'}`}
@@ -149,7 +164,7 @@ export function PageNav({ currentPage, totalPages, loading, onPage }: {
           </button>
         );
       })}
-      <button onClick={() => onPage(currentPage + 1)} disabled={currentPage >= totalPages || loading} className={ghostBtn}>
+      <button onClick={() => goTo(currentPage + 1)} disabled={currentPage >= totalPages || loading} className={ghostBtn}>
         Next
         <ChevronRight className="h-3.5 w-3.5" />
       </button>
