@@ -37,6 +37,7 @@ export interface PotentialBuy {
 export interface PotentialBuyStats {
   total: number;
   deals: number;
+  noPriceGuide?: number;
   lastRunAt?: string;
   missedLast7Days?: number;
   missedLast30Days?: number;

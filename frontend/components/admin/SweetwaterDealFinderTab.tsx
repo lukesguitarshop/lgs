@@ -2,21 +2,30 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Button } from '@/components/ui/button';
-import { Loader2, ExternalLink, X, Check, TrendingDown, RefreshCw, Play, ChevronLeft, ChevronRight, Trash2, Search } from 'lucide-react';
+import { Loader2, ExternalLink, X, Check, RefreshCw, Play, Trash2, Search, MapPin, Truck, HelpCircle, Store } from 'lucide-react';
 import { getSweetwaterPotentialBuys, getSweetwaterPotentialBuyStats, dismissSweetwaterPotentialBuy, dismissSweetwaterPotentialBuysBulk, dismissAllSweetwaterPotentialBuys, deleteAllSweetwaterPotentialBuys, markSweetwaterPotentialBuyPurchased, runSweetwaterDealFinder, getSweetwaterDealFinderStatus } from '@/lib/api';
 import type { SweetwaterPotentialBuy, SweetwaterPotentialBuyStats } from '@/lib/types/sweetwater-potential-buy';
+import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, StatCell, ViewTabs, ListSkeleton, PageNav } from './deal-finder-shared';
+
+/**
+ * Sweetwater keeps seller review counts behind bot protection, so shops are told apart
+ * by how many listings they have up: private sellers have a handful, shops have 100+.
+ */
+const SMALL_SELLER_MAX_LISTINGS = 25;
+
+type View = 'deals' | 'no-price-guide';
 
 export function SweetwaterDealFinderTab() {
   const [deals, setDeals] = useState<SweetwaterPotentialBuy[]>([]);
   const [stats, setStats] = useState<SweetwaterPotentialBuyStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('deals');
-  const [sortBy, setSortBy] = useState<string>('best-deal');
+  const [sortBy, setSortBy] = useState<string>('listed-newest');
   const [searchInput, setSearchInput] = useState('');
   const [minPriceInput, setMinPriceInput] = useState('');
   const [maxPriceInput, setMaxPriceInput] = useState('');
   const [appliedFilters, setAppliedFilters] = useState<{ search: string; minPrice?: number; maxPrice?: number }>({ search: '' });
+  const [smallSellersOnly, setSmallSellersOnly] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [scraperRunning, setScraperRunning] = useState(false);
   const [scraperResult, setScraperResult] = useState<{ success: boolean; message: string } | null>(null);
@@ -27,13 +36,18 @@ export function SweetwaterDealFinderTab() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const perPage = 20;
+  const view: View = statusFilter === 'no-price-guide' ? 'no-price-guide' : 'deals';
+  const isNoPriceView = view === 'no-price-guide';
+  // The list on screen when it's one you work through (not dismissed/purchased)
+  const activeList = statusFilter === 'deals' || statusFilter === 'no-price-guide' ? statusFilter : null;
+  const activeCount = activeList === 'no-price-guide' ? stats?.noPriceGuide ?? 0 : stats?.deals ?? 0;
 
   const fetchDeals = async (page = currentPage) => {
     setLoading(true);
     setFetchError(null);
     try {
       const [dealsData, statsData] = await Promise.all([
-        getSweetwaterPotentialBuys(statusFilter, sortBy, page, perPage, appliedFilters.search || undefined, appliedFilters.minPrice, appliedFilters.maxPrice),
+        getSweetwaterPotentialBuys(statusFilter, sortBy, page, perPage, appliedFilters.search || undefined, appliedFilters.minPrice, appliedFilters.maxPrice, smallSellersOnly ? SMALL_SELLER_MAX_LISTINGS : undefined),
         getSweetwaterPotentialBuyStats()
       ]);
       setDeals(dealsData.items);
@@ -55,7 +69,7 @@ export function SweetwaterDealFinderTab() {
   useEffect(() => {
     setCurrentPage(1);
     fetchDeals(1);
-  }, [statusFilter, sortBy, appliedFilters]);
+  }, [statusFilter, sortBy, appliedFilters, smallSellersOnly]);
 
   // Debounce search/price inputs before applying them as fetch filters
   useEffect(() => {
@@ -88,6 +102,24 @@ export function SweetwaterDealFinderTab() {
     checkStatus();
   }, []);
 
+  // Re-render once a minute so the "12m ago" times stay honest while the tab sits open
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  /** Keeps the tab counts right after cards leave the active list without a refetch. */
+  const decrementActive = (by: number) => {
+    if (!activeList) return;
+    setStats(prev => {
+      if (!prev) return prev;
+      return activeList === 'no-price-guide'
+        ? { ...prev, noPriceGuide: Math.max(0, (prev.noPriceGuide ?? 0) - by) }
+        : { ...prev, deals: Math.max(0, prev.deals - by) };
+    });
+  };
+
   const handleRunScraper = async () => {
     setScraperRunning(true);
     setScraperResult(null);
@@ -117,9 +149,7 @@ export function SweetwaterDealFinderTab() {
     try {
       await dismissSweetwaterPotentialBuy(id);
       setDeals(prev => prev.filter(d => d.id !== id));
-      if (stats && statusFilter === 'deals') {
-        setStats({ ...stats, deals: stats.deals - 1 });
-      }
+      decrementActive(1);
     } catch (err) {
       console.error('Failed to dismiss:', err);
     } finally {
@@ -132,9 +162,7 @@ export function SweetwaterDealFinderTab() {
     try {
       await markSweetwaterPotentialBuyPurchased(id);
       setDeals(prev => prev.filter(d => d.id !== id));
-      if (stats && statusFilter === 'deals') {
-        setStats({ ...stats, deals: stats.deals - 1 });
-      }
+      decrementActive(1);
     } catch (err) {
       console.error('Failed to mark as purchased:', err);
     } finally {
@@ -148,12 +176,9 @@ export function SweetwaterDealFinderTab() {
 
     setBulkDismissing('page');
     try {
-      const ids = deals.map(d => d.id);
-      const result = await dismissSweetwaterPotentialBuysBulk(ids);
+      const result = await dismissSweetwaterPotentialBuysBulk(deals.map(d => d.id));
       setDeals([]);
-      if (stats && statusFilter === 'deals') {
-        setStats({ ...stats, deals: Math.max(0, stats.deals - result.dismissed) });
-      }
+      decrementActive(result.dismissed);
       await fetchDeals(1);
     } catch (err) {
       console.error('Failed to dismiss page:', err);
@@ -163,16 +188,15 @@ export function SweetwaterDealFinderTab() {
   };
 
   const handleDismissAll = async () => {
-    if (!stats || stats.deals === 0) return;
-    if (!confirm(`Dismiss ALL ${stats.deals} active deals? This cannot be undone.`)) return;
+    if (!activeList || activeCount === 0) return;
+    const what = activeList === 'no-price-guide' ? 'listings with no price guide' : 'active deals';
+    if (!confirm(`Dismiss ALL ${activeCount} ${what}? This cannot be undone.`)) return;
 
     setBulkDismissing('all');
     try {
-      await dismissAllSweetwaterPotentialBuys();
+      await dismissAllSweetwaterPotentialBuys(activeList);
       setDeals([]);
-      if (stats) {
-        setStats({ ...stats, deals: 0 });
-      }
+      decrementActive(activeCount);
     } catch (err) {
       console.error('Failed to dismiss all:', err);
     } finally {
@@ -187,7 +211,7 @@ export function SweetwaterDealFinderTab() {
     try {
       await deleteAllSweetwaterPotentialBuys();
       setDeals([]);
-      setStats({ total: 0, deals: 0, lastRunAt: undefined });
+      setStats({ total: 0, deals: 0, noPriceGuide: 0, lastRunAt: undefined });
       setTotalItems(0);
       setTotalPages(1);
       setCurrentPage(1);
@@ -198,422 +222,425 @@ export function SweetwaterDealFinderTab() {
     }
   };
 
-  const formatPrice = (price: number, currency: string = 'USD') => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(price);
+  const switchView = (next: View) => {
+    if (next === view) return;
+    setDeals([]); // show the loading skeleton, not the other tab's cards, until the fetch lands
+    setStatusFilter(next);
+    setSortBy('listed-newest');
   };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  };
+  const hasFilters = !!(searchInput || minPriceInput || maxPriceInput || smallSellersOnly);
 
   return (
-    <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-        <div className="min-w-0">
-          <h2 className="text-xl font-semibold text-[#020E1C] flex items-center gap-2">
-            <TrendingDown className="h-5 w-5" />
-            Sweetwater Deal Finder
-          </h2>
-          <p className="text-gray-600 text-sm mt-1">
-            Sweetwater Gear Exchange guitars priced at or below the lowest used price on Reverb
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            onClick={handleRunScraper}
-            disabled={scraperRunning}
-            variant="default"
-            className="text-sm bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
-          >
-            {scraperRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-            <span className="ml-2">{scraperRunning ? 'Running...' : 'Run Scraper'}</span>
-          </Button>
-          <Button
-            onClick={() => fetchDeals()}
-            disabled={loading}
-            variant="outline"
-            className="text-sm"
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            <span className="ml-2">Refresh</span>
-          </Button>
-          <Button
-            onClick={handleDeleteAll}
-            disabled={deleting || loading}
-            variant="outline"
-            className="text-sm text-red-600 hover:text-red-800 hover:bg-red-50 border-red-200"
-          >
-            {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-            <span className="ml-2">Delete All</span>
-          </Button>
+    <section className="border border-foreground/15 bg-background">
+      {/* Header */}
+      <div className="border-t-4 border-b border-t-primary border-b-foreground/15 px-4 pt-5 pb-4 sm:px-6">
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className="label-mono text-primary">Deal finder · Sweetwater Gear Exchange</p>
+            <h2 className="font-heading mt-1.5 text-[34px] leading-none text-foreground uppercase sm:text-[42px]">
+              Sweetwater Deals
+            </h2>
+            <p className="mt-2 flex items-center gap-2 font-mono text-xs text-muted-foreground">
+              <span className="relative flex h-2 w-2" aria-hidden>
+                {scraperRunning && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary opacity-60" />}
+                <span className={`relative inline-flex h-2 w-2 rounded-full ${scraperRunning ? 'bg-primary' : 'bg-emerald-600'}`} />
+              </span>
+              {scraperRunning
+                ? 'Scanning Sweetwater now…'
+                : stats?.lastRunAt ? `Checked ${timeAgo(stats.lastRunAt)}` : 'Not scanned yet'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={() => fetchDeals()} disabled={loading} className={ghostBtn} aria-label="Refresh">
+              <RefreshCw className={`h-3.5 w-3.5 ${loading ? 'animate-spin' : ''}`} />
+              Refresh
+            </button>
+            <button
+              onClick={handleRunScraper}
+              disabled={scraperRunning}
+              className="font-btn inline-flex h-9 cursor-pointer items-center gap-1.5 bg-primary px-4 text-[11px] text-primary-foreground transition-colors hover:bg-[#580110] disabled:cursor-not-allowed disabled:bg-primary/50 focus-visible:ring-1 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+            >
+              {scraperRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5" />}
+              {scraperRunning ? 'Scanning…' : 'Full scan'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {scraperResult && (
-        <div className={`mb-4 p-3 rounded-lg ${scraperResult.success ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
-          {scraperResult.message}
-        </div>
-      )}
-
-      {fetchError && (
-        <div className="mb-4 p-3 rounded-lg bg-red-50 text-red-700 border border-red-200">
-          <strong>Error loading deals:</strong> {fetchError}
-        </div>
-      )}
-
+      {/* Stat band */}
       {stats && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-[#FFFFF3] border border-[#020E1C] rounded-lg p-3">
-            <p className="text-2xl font-bold text-[#020E1C]">{stats.deals}</p>
-            <p className="text-sm text-gray-600">Active Deals</p>
-          </div>
-          <div className="bg-[#FFFFF3] border border-[#020E1C] rounded-lg p-3">
-            <p className="text-2xl font-bold text-[#020E1C]">{stats.total}</p>
-            <p className="text-sm text-gray-600">Total Scanned</p>
-          </div>
-          <div className="bg-[#FFFFF3] border border-[#020E1C] rounded-lg p-3">
-            <p className="text-sm font-medium text-[#020E1C]">
-              {stats.lastRunAt ? formatDate(stats.lastRunAt) : 'Never'}
-            </p>
-            <p className="text-sm text-gray-600">Last Scan</p>
-          </div>
+        <div className="grid grid-cols-2 border-b border-foreground/15 sm:grid-cols-4">
+          <StatCell value={stats.deals} label="Active deals" onClick={() => switchView('deals')} active={view === 'deals'} />
+          <StatCell value={stats.noPriceGuide ?? 0} label="No price guide" onClick={() => switchView('no-price-guide')} active={isNoPriceView} />
+          <StatCell value={stats.total} label="Scanned" />
+          <StatCell value={stats.lastRunAt ? timeAgo(stats.lastRunAt) : '—'} label="Last check" small />
         </div>
       )}
 
-      {/* Search & price filter */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-          <input
-            type="text"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="Search by title..."
-            className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
-          />
-          {searchInput && (
-            <button
-              onClick={() => setSearchInput('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-              aria-label="Clear search"
-            >
+      <div className="px-4 pb-6 sm:px-6">
+        {/* Tabs */}
+        <ViewTabs
+          tabs={[
+            { value: 'deals', label: 'Deals', count: stats?.deals },
+            { value: 'no-price-guide', label: 'No price guide', count: stats?.noPriceGuide },
+          ] as const}
+          active={view}
+          onSelect={switchView}
+        />
+
+        {/* Messages */}
+        {scraperResult && (
+          <div className={`mt-4 flex items-start justify-between gap-3 border-l-4 px-3 py-2.5 text-sm ${scraperResult.success ? 'border-emerald-600 bg-emerald-50 text-emerald-900' : 'border-primary bg-primary/5 text-primary'}`}>
+            <span>{scraperResult.message}</span>
+            <button onClick={() => setScraperResult(null)} className="cursor-pointer opacity-60 hover:opacity-100" aria-label="Close message">
               <X className="h-4 w-4" />
             </button>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="number"
-            min="0"
-            value={minPriceInput}
-            onChange={(e) => setMinPriceInput(e.target.value)}
-            placeholder="Min $"
-            className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
-          />
-          <span className="text-gray-400 text-sm">–</span>
-          <input
-            type="number"
-            min="0"
-            value={maxPriceInput}
-            onChange={(e) => setMaxPriceInput(e.target.value)}
-            placeholder="Max $"
-            className="w-24 px-2 py-1.5 text-sm border border-gray-300 rounded focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
-          />
-          {(searchInput || minPriceInput || maxPriceInput) && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs text-gray-600 hover:text-[#020E1C]"
-              onClick={() => {
-                setSearchInput('');
-                setMinPriceInput('');
-                setMaxPriceInput('');
-              }}
-            >
-              Clear
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-4 mb-4 pb-4 border-b border-gray-100">
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Status:</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
-            >
-              <option value="deals">Deals Only</option>
-              <option value="no-price-guide">No Price Guide</option>
-              <option value="dismissed">Dismissed</option>
-              <option value="purchased">Purchased</option>
-            </select>
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-sm text-gray-600">Sort:</label>
+        )}
+        {fetchError && (
+          <div className="mt-4 border-l-4 border-primary bg-primary/5 px-3 py-2.5 text-sm text-primary">
+            <strong>Couldn&apos;t load deals:</strong> {fetchError}
+          </div>
+        )}
+
+        {isNoPriceView && (
+          <div className="mt-4 flex gap-3 border border-foreground/15 bg-foreground/[0.03] p-3 sm:p-4">
+            <HelpCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+            <p className="text-sm text-foreground/80">
+              Listings Reverb has <strong className="text-foreground">no market price</strong> for, so the deal finder can&apos;t tell whether they&apos;re a deal. Check these by hand.
+            </p>
+          </div>
+        )}
+
+        {/* Toolbar */}
+        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+          <div className="relative">
+            <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search guitars…"
+              className={`${inputClass} pr-9 pl-9`}
+            />
+            {searchInput && (
+              <button
+                onClick={() => setSearchInput('')}
+                className="absolute top-1/2 right-2.5 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
+                aria-label="Clear search"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5">
+            <input
+              type="number"
+              min="0"
+              value={minPriceInput}
+              onChange={(e) => setMinPriceInput(e.target.value)}
+              placeholder="Min $"
+              aria-label="Minimum delivered price"
+              className={`${inputClass} sm:w-24`}
+            />
+            <span className="text-muted-foreground">–</span>
+            <input
+              type="number"
+              min="0"
+              value={maxPriceInput}
+              onChange={(e) => setMaxPriceInput(e.target.value)}
+              placeholder="Max $"
+              aria-label="Maximum delivered price"
+              className={`${inputClass} sm:w-24`}
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setSmallSellersOnly(v => !v)}
+            aria-pressed={smallSellersOnly}
+            title={`Hide guitars from sellers with more than ${SMALL_SELLER_MAX_LISTINGS} listings on Gear Exchange (shops)`}
+            className={`font-btn inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 border px-3 text-[11px] whitespace-nowrap transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none ${
+              smallSellersOnly ? 'border-foreground bg-foreground text-background' : 'border-foreground/20 bg-background text-foreground hover:border-foreground'
+            }`}
+          >
+            <Store className="h-3.5 w-3.5" aria-hidden />
+            ≤{SMALL_SELLER_MAX_LISTINGS} listings
+          </button>
+          <div className="flex items-center gap-1.5 sm:col-span-3 lg:col-span-1">
+            {view === 'deals' && (
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                aria-label="Status"
+                className={`${selectClass} flex-1 lg:flex-none`}
+              >
+                <option value="deals">Active</option>
+                <option value="dismissed">Dismissed</option>
+                <option value="purchased">Purchased</option>
+              </select>
+            )}
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
-              className="text-sm border border-gray-300 rounded px-2 py-1 focus:ring-2 focus:ring-[#6E0114] focus:border-transparent outline-none"
+              aria-label="Sort"
+              className={`${selectClass} flex-1 lg:flex-none`}
             >
-              <option value="best-deal">Best Deal First</option>
-              <option value="price-low">Price: Low to High</option>
-              <option value="price-high">Price: High to Low</option>
-              <option value="newest">Date Found: Newest</option>
-              <option value="oldest">Date Found: Oldest</option>
+              <option value="listed-newest">Newest listed</option>
+              {!isNoPriceView && <option value="best-deal">Best deal first</option>}
+              <option value="price-low">Price: low to high</option>
+              <option value="price-high">Price: high to low</option>
+              <option value="newest">Date found: newest</option>
+              <option value="oldest">Date found: oldest</option>
             </select>
           </div>
         </div>
 
-        {/* Bulk Action Buttons - deals and no-price-guide lists (Dismiss All is deals-only) */}
-        {(statusFilter === 'deals' || statusFilter === 'no-price-guide') && deals.length > 0 && (
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => {
-                const links = deals.filter(d => d.sweetwaterLink).map(d => d.sweetwaterLink!);
-                links.forEach(link => window.open(link, '_blank'));
-              }}
-              disabled={loading}
-              variant="outline"
-              size="sm"
-              className="text-xs text-[#6E0114] hover:text-[#580110] hover:bg-red-50"
-            >
-              <ExternalLink className="h-3 w-3 mr-1" />
-              Open All ({deals.filter(d => d.sweetwaterLink).length})
-            </Button>
-            <Button
-              onClick={handleDismissPage}
-              disabled={bulkDismissing !== null || loading}
-              variant="outline"
-              size="sm"
-              className="text-xs text-gray-600 hover:text-[#020E1C]"
-            >
-              {bulkDismissing === 'page' ? (
-                <Loader2 className="h-3 w-3 animate-spin mr-1" />
-              ) : (
-                <X className="h-3 w-3 mr-1" />
-              )}
-              Dismiss Page ({deals.length})
-            </Button>
-            {statusFilter === 'deals' && (
-              <Button
-                onClick={handleDismissAll}
-                disabled={bulkDismissing !== null || loading || !stats?.deals}
-                variant="outline"
-                size="sm"
-                className="text-xs text-red-600 hover:text-red-800 hover:bg-red-50"
+        {/* Results bar */}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-b border-foreground/10 pb-3">
+          <p className="label-mono-sm text-muted-foreground">
+            {totalItems} {totalItems === 1 ? 'guitar' : 'guitars'}
+            {totalPages > 1 && ` · page ${currentPage} of ${totalPages}`}
+            {hasFilters && (
+              <button
+                onClick={() => { setSearchInput(''); setMinPriceInput(''); setMaxPriceInput(''); setSmallSellersOnly(false); }}
+                className="ml-3 cursor-pointer text-primary underline-offset-2 hover:underline"
               >
-                {bulkDismissing === 'all' ? (
-                  <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                ) : (
-                  <X className="h-3 w-3 mr-1" />
-                )}
-                Dismiss All ({stats?.deals ?? 0})
-              </Button>
+                Clear filters
+              </button>
             )}
-          </div>
-        )}
-      </div>
-
-      <div className="mb-4">
-        <span className="text-sm text-gray-500">
-          Showing {deals?.length ?? 0} of {totalItems} results (Page {currentPage} of {totalPages})
-        </span>
-      </div>
-
-      {loading && deals.length === 0 ? (
-        <div className="flex justify-center py-8">
-          <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-        </div>
-      ) : deals.length === 0 ? (
-        <div className="text-center py-8">
-          <TrendingDown className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">No Sweetwater deals found</p>
-          <p className="text-gray-400 text-sm">
-            {appliedFilters.search || appliedFilters.minPrice != null || appliedFilters.maxPrice != null
-              ? 'Try adjusting your search or price filters'
-              : 'Run the deal finder scraper to find new deals'}
           </p>
-        </div>
-      ) : (
-        <>
-          <div className="space-y-4">
-            {deals.map((deal) => (
-              <div
-                key={deal.id}
-                className="border rounded-lg p-4 hover:border-gray-300 transition-colors"
+          {activeList && deals.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                onClick={() => {
+                  deals.filter(d => d.sweetwaterLink).forEach(d => window.open(d.sweetwaterLink!, '_blank'));
+                }}
+                disabled={loading}
+                className={ghostBtn}
               >
-                <div className="flex gap-3 sm:gap-4">
-                  <div className="relative w-16 h-16 sm:w-24 sm:h-24 rounded-lg overflow-hidden bg-gray-100 flex-shrink-0">
-                    {deal.images?.[0] ? (
-                      <Image
-                        src={deal.images[0]}
-                        alt={deal.listingTitle}
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-3xl">
-                        🎸
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold text-[#020E1C] line-clamp-2">
-                        {deal.listingTitle}
-                      </h3>
-                      {deal.discountPercent && deal.discountPercent > 0 && (
-                        <span className="flex-shrink-0 px-2 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
-                          {deal.discountPercent.toFixed(0)}% below
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
-                      <span className="font-bold text-lg text-[#6E0114]">
-                        {formatPrice(deal.price, deal.currency)}
-                      </span>
-                      {deal.hasPriceGuide && deal.priceGuideLow && (
-                        <span className="text-gray-500">
-                          Used low: {formatPrice(deal.priceGuideLow)}
-                          {deal.priceGuideHigh ? ` · New: ${formatPrice(deal.priceGuideHigh)}` : ''}
-                        </span>
-                      )}
-                      {deal.condition && (
-                        <span className="text-gray-500">
-                          {deal.condition}
-                        </span>
-                      )}
-                      {deal.shipping && (
-                        <span className="text-gray-500">
-                          {deal.shipping}
-                        </span>
-                      )}
-                    </div>
-
-                    <p className="mt-1 text-xs text-gray-400">
-                      Found: {formatDate(deal.firstSeenAt)}
-                    </p>
-
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {deal.sweetwaterLink && (
-                        <a
-                          href={deal.sweetwaterLink}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                        >
-                          <Button size="sm" variant="outline" className="text-xs h-8">
-                            <ExternalLink className="h-3 w-3 mr-1" />
-                            View on Sweetwater
-                          </Button>
-                        </a>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-8 text-green-600 hover:text-green-700 hover:bg-green-50"
-                        onClick={() => handleMarkPurchased(deal.id)}
-                        disabled={actionLoading === deal.id}
-                      >
-                        {actionLoading === deal.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <>
-                            <Check className="h-3 w-3 mr-1" />
-                            Purchased
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs h-8 text-gray-500 hover:text-gray-700"
-                        onClick={() => handleDismiss(deal.id)}
-                        disabled={actionLoading === deal.id}
-                      >
-                        {actionLoading === deal.id ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <>
-                            <X className="h-3 w-3 mr-1" />
-                            Dismiss
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {totalPages > 1 && (
-            <div className="flex flex-wrap items-center justify-center gap-2 mt-6 pt-4 border-t border-gray-100">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchDeals(currentPage - 1)}
-                disabled={currentPage <= 1 || loading}
+                <ExternalLink className="h-3 w-3" />
+                Open all ({deals.filter(d => d.sweetwaterLink).length})
+              </button>
+              <button onClick={handleDismissPage} disabled={bulkDismissing !== null || loading} className={ghostBtn}>
+                {bulkDismissing === 'page' ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                Dismiss page
+              </button>
+              <button
+                onClick={handleDismissAll}
+                disabled={bulkDismissing !== null || loading || !activeCount}
+                className={`${ghostBtn} text-primary hover:border-primary`}
               >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
-              </Button>
-
-              <div className="flex items-center gap-1">
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum: number;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
-                  return (
-                    <Button
-                      key={pageNum}
-                      variant={pageNum === currentPage ? 'default' : 'outline'}
-                      size="sm"
-                      className={`w-9 ${pageNum === currentPage ? 'bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]' : ''}`}
-                      onClick={() => fetchDeals(pageNum)}
-                      disabled={loading}
-                    >
-                      {pageNum}
-                    </Button>
-                  );
-                })}
-              </div>
-
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchDeals(currentPage + 1)}
-                disabled={currentPage >= totalPages || loading}
-              >
-                Next
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+                {bulkDismissing === 'all' ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
+                Dismiss all ({activeCount})
+              </button>
             </div>
           )}
-        </>
-      )}
-    </div>
+        </div>
+
+        {/* List */}
+        {loading && deals.length === 0 ? (
+          <ListSkeleton />
+        ) : deals.length === 0 ? (
+          <div className="py-14 text-center">
+            <p className="font-heading text-2xl text-foreground uppercase">
+              {isNoPriceView ? 'Nothing without a price guide' : 'No deals right now'}
+            </p>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {hasFilters
+                ? 'Try adjusting your search or filters.'
+                : isNoPriceView
+                  ? 'Listings Reverb has no market price for will show up here.'
+                  : 'Run a full scan to sweep Gear Exchange now.'}
+            </p>
+          </div>
+        ) : (
+          <>
+            <ul className="divide-y divide-foreground/10">
+              {deals.map((deal) => (
+                <SweetwaterDealRow
+                  key={deal.id}
+                  deal={deal}
+                  busy={actionLoading === deal.id}
+                  onPurchased={() => handleMarkPurchased(deal.id)}
+                  onDismiss={() => handleDismiss(deal.id)}
+                />
+              ))}
+            </ul>
+
+            <PageNav currentPage={currentPage} totalPages={totalPages} loading={loading} onPage={(p) => fetchDeals(p)} />
+          </>
+        )}
+
+        {/* Danger zone, out of the way */}
+        <div className="mt-8 flex justify-end">
+          <button
+            onClick={handleDeleteAll}
+            disabled={deleting || loading}
+            className="label-mono-sm inline-flex cursor-pointer items-center gap-1.5 text-muted-foreground transition-colors hover:text-primary disabled:opacity-50"
+          >
+            {deleting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}
+            Delete all scanned data
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss }: {
+  deal: SweetwaterPotentialBuy;
+  busy: boolean;
+  onPurchased: () => void;
+  onDismiss: () => void;
+}) {
+  const total = deal.totalPrice ?? deal.price;
+  const discount = deal.hasPriceGuide && deal.discountPercent && deal.discountPercent > 0 ? deal.discountPercent : null;
+  const isShop = deal.sellerListingCount != null && deal.sellerListingCount > SMALL_SELLER_MAX_LISTINGS;
+  const listedLabel = deal.listingCreatedAt ? `Listed ${timeAgo(deal.listingCreatedAt)}` : `Found ${timeAgo(deal.firstSeenAt)}`;
+
+  return (
+    <li className="group py-4">
+      <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-x-5">
+        {/* Photo */}
+        <a
+          href={deal.sweetwaterLink ?? undefined}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="photo-panel relative h-32 w-24 overflow-hidden border border-foreground/15 sm:row-span-2 sm:h-40 sm:w-36"
+          tabIndex={-1}
+          aria-hidden
+        >
+          {deal.images?.[0] ? (
+            <Image
+              src={deal.images[0]}
+              alt=""
+              fill
+              sizes="144px"
+              unoptimized
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+            />
+          ) : (
+            <span className="label-mono-sm absolute inset-0 flex items-center justify-center text-foreground/45">No photo</span>
+          )}
+          {discount != null ? (
+            <span className="font-heading absolute top-0 left-0 bg-primary px-2 py-1 text-[17px] leading-none text-primary-foreground">
+              −{discount.toFixed(0)}%
+            </span>
+          ) : !deal.hasPriceGuide ? (
+            <span className="label-mono-sm absolute inset-x-0 bottom-0 bg-foreground px-2 py-1.5 text-center text-background">
+              No price data
+            </span>
+          ) : null}
+        </a>
+
+        {/* Details */}
+        <div className="flex min-w-0 flex-col">
+          <div className="flex items-start justify-between gap-3">
+            <a
+              href={deal.sweetwaterLink ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="line-clamp-2 text-[15px] leading-snug font-semibold text-foreground transition-colors hover:text-primary sm:text-base"
+            >
+              {deal.listingTitle}
+            </a>
+            <span className="label-mono-sm hidden flex-shrink-0 pt-1 text-muted-foreground sm:block" title={deal.listingCreatedAt ? `Listed ${formatDate(deal.listingCreatedAt)}` : undefined}>
+              {listedLabel}
+            </span>
+          </div>
+          <span className="label-mono-sm mt-1 text-muted-foreground sm:hidden">{listedLabel}</span>
+
+          {/* Price */}
+          <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <span className="font-heading text-[28px] leading-none text-primary tabular-nums sm:text-[32px]">
+              {formatPrice(total, deal.currency)}
+            </span>
+            {deal.originalPrice != null && deal.originalPrice > deal.price && (
+              <span className="font-mono text-xs text-muted-foreground line-through">{formatPrice(deal.originalPrice, deal.currency)}</span>
+            )}
+            {deal.shippingPrice != null ? (
+              <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                <Truck className="h-3.5 w-3.5" aria-hidden />
+                {deal.shippingPrice === 0
+                  ? <>{formatPrice(deal.price, deal.currency)} + free ship</>
+                  : <>{formatPrice(deal.price, deal.currency)} + {formatPrice(deal.shippingPrice, deal.currency)}</>}
+              </span>
+            ) : deal.shipping ? (
+              <span className="flex items-center gap-1.5 font-mono text-xs text-muted-foreground">
+                <Truck className="h-3.5 w-3.5" aria-hidden />
+                {deal.shipping}
+              </span>
+            ) : null}
+          </div>
+
+          {/* Market + condition */}
+          <p className="mt-1.5 text-[13px] text-foreground/70">
+            {deal.hasPriceGuide && deal.priceGuideLow ? (
+              <>
+                Used low <span className="font-medium text-foreground">{formatPrice(deal.priceGuideLow)}</span>
+                {deal.priceGuideHigh ? <> · New <span className="font-medium text-foreground">{formatPrice(deal.priceGuideHigh)}</span></> : null}
+              </>
+            ) : (
+              <span className="text-muted-foreground">No market price on Reverb</span>
+            )}
+            {deal.condition && <> · {deal.condition}</>}
+          </p>
+
+          {/* Seller */}
+          {(deal.sellerName || deal.sellerLocation) && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
+              {deal.sellerName && (deal.sellerSlug ? (
+                <a
+                  href={`https://www.sweetwater.com/used/storefront/${deal.sellerSlug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-medium text-foreground underline decoration-foreground/25 underline-offset-2 hover:decoration-foreground"
+                >
+                  {deal.sellerName}
+                </a>
+              ) : (
+                <span className="font-medium text-foreground">{deal.sellerName}</span>
+              ))}
+              {deal.sellerListingCount != null && (
+                <span className={`flex items-center gap-1 ${isShop ? 'text-foreground/70' : 'font-medium text-amber-700'}`} title="Listings this seller has up on Gear Exchange">
+                  <Store className="h-3.5 w-3.5" aria-hidden />
+                  {deal.sellerListingCount.toLocaleString('en-US')} {deal.sellerListingCount === 1 ? 'listing' : 'listings'}
+                </span>
+              )}
+              {deal.sellerLocation && (
+                <span className="flex items-center gap-1 text-muted-foreground">
+                  <MapPin className="h-3.5 w-3.5" aria-hidden />
+                  {deal.sellerLocation}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Actions - full width under the card on phones, under the details from sm up */}
+        <div className="col-span-2 flex items-center gap-1.5 pt-3 sm:col-span-1 sm:col-start-2 [&>*]:flex-1 sm:[&>*]:flex-none [&>*]:justify-center">
+          {deal.sweetwaterLink && (
+            <a
+              href={deal.sweetwaterLink}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-btn inline-flex h-9 items-center gap-1.5 bg-foreground px-3 text-[11px] text-background transition-colors hover:bg-foreground/85 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none"
+            >
+              <ExternalLink className="h-3.5 w-3.5" />
+              Sweetwater
+            </a>
+          )}
+          <button onClick={onPurchased} disabled={busy} className={`${ghostBtn} hover:border-emerald-700 hover:text-emerald-800`}>
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Bought
+          </button>
+          <button onClick={onDismiss} disabled={busy} className={`${ghostBtn} text-foreground/70 hover:text-foreground`}>
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+            Dismiss
+          </button>
+        </div>
+      </div>
+    </li>
   );
 }

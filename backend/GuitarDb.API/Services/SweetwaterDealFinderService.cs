@@ -198,8 +198,19 @@ public class SweetwaterDealFinderService
             Currency = "USD",
             SweetwaterListingId = listing.ListingId,
             Shipping = listing.Shipping,
+            ShippingPrice = listing.ShippingPrice,
+            TotalPrice = listing.ShippingPrice.HasValue ? listing.Price + listing.ShippingPrice.Value : null,
+            ListingCreatedAt = listing.PublishedAt,
+            SellerUserId = listing.SellerUserId,
+            SellerName = listing.SellerName,
+            SellerSlug = listing.SellerSlug,
+            SellerLocation = listing.SellerLocation,
+            SellerListingCount = listing.SellerListingCount,
             LastCheckedAt = DateTime.UtcNow
         };
+
+        // Same as Reverb: judge the deal on what it costs delivered
+        var delivered = potentialBuy.TotalPrice ?? potentialBuy.Price;
 
         // Benchmark against Reverb market prices via the CSP API
         var priceResult = await _priceGuideCache.SearchAsync(listing.Make, listing.Model, ct);
@@ -211,18 +222,18 @@ public class SweetwaterDealFinderService
             potentialBuy.HasPriceGuide = true;
             potentialBuy.PriceGuideLow = usedLow;                    // lowest current used ask on Reverb
             potentialBuy.PriceGuideHigh = priceResult.NewLowPrice;   // lowest current new ask (may be null)
-            potentialBuy.DiscountPercent = (usedLow - potentialBuy.Price) / usedLow * 100;
+            potentialBuy.DiscountPercent = (usedLow - delivered) / usedLow * 100;
 
-            var isBelowMarket = potentialBuy.Price <= usedLow * dealThresholdPercent / 100m;
+            var isBelowMarket = delivered <= usedLow * dealThresholdPercent / 100m;
             var isWithinBudget = usedLow <= 3500;
             potentialBuy.IsDeal = isBelowMarket && isWithinBudget && priceResult.IsReliable;
 
             string matchLabel = potentialBuy.IsDeal ? "DEAL!" : (priceResult.IsReliable ? "     " : "SKIP ");
             _logger.LogInformation(
-                "[SW] {Deal} {Title}: ${Price} vs used low ${UsedLow} (new: ${NewLow}) [{MatchType}: {CspTitle}]",
+                "[SW] {Deal} {Title}: ${Price} delivered vs used low ${UsedLow} (new: ${NewLow}) [{MatchType}: {CspTitle}]",
                 matchLabel,
                 listing.Title.Length > 50 ? listing.Title[..50] + "..." : listing.Title,
-                potentialBuy.Price,
+                delivered,
                 usedLow,
                 priceResult.NewLowPrice,
                 priceResult.MatchType,

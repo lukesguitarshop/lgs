@@ -59,7 +59,9 @@ public class SweetwaterScraperClient
                     hitsPerPage = HitsPerPage,
                     page,
                     numericFilters = new[] { $"price<={priceMax}" },
-                    facetFilters = new[] { brandFilters }
+                    facetFilters = new[] { brandFilters },
+                    // user_id isn't in the index's default attributes - ask for everything
+                    attributesToRetrieve = new[] { "*" }
                 };
 
                 var url = $"https://{AlgoliaAppId}-dsn.algolia.net/1/indexes/{AlgoliaIndex}/query";
@@ -116,7 +118,108 @@ public class SweetwaterScraperClient
         }
 
         _logger.LogInformation("Fetched {Count} total Sweetwater listings", allListings.Count);
+
+        try
+        {
+            await AddSellerDetailsAsync(allListings, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Seller details are nice-to-have; a failed lookup shouldn't sink the sweep
+            _logger.LogWarning(ex, "Failed to look up Sweetwater seller details");
+        }
+
         return allListings;
+    }
+
+    // Algolia caps a multi-query at 50 requests; storefront lookups batch the same way
+    private const int SellerBatchSize = 50;
+
+    /// <summary>
+    /// Fills in each listing's seller name/storefront (from the storefronts index) and how
+    /// many listings that seller has up across Gear Exchange. Sweetwater's review counts
+    /// sit behind bot protection, so the listing count is what separates shops (100+)
+    /// from private sellers (a handful).
+    /// </summary>
+    private async Task AddSellerDetailsAsync(List<SweetwaterListing> listings, CancellationToken ct)
+    {
+        var userIds = listings.Where(l => l.SellerUserId.HasValue).Select(l => l.SellerUserId!.Value).Distinct().ToList();
+        if (userIds.Count == 0) return;
+
+        var storefronts = new Dictionary<long, AlgoliaStorefront>();
+        var listingCounts = new Dictionary<long, int>();
+
+        foreach (var batch in userIds.Chunk(SellerBatchSize))
+        {
+            var storefrontQuery = new
+            {
+                query = "",
+                hitsPerPage = batch.Length,
+                filters = string.Join(" OR ", batch.Select(id => $"user_id={id}"))
+            };
+            var storefrontResponse = await PostAlgoliaAsync<AlgoliaStorefrontResponse>(
+                $"https://{AlgoliaAppId}-dsn.algolia.net/1/indexes/production_storefronts/query", storefrontQuery, ct);
+            foreach (var sf in storefrontResponse?.Hits ?? new())
+                storefronts[sf.UserId] = sf;
+
+            var countQuery = new
+            {
+                requests = batch.Select(id => new
+                {
+                    indexName = AlgoliaIndex,
+                    @params = $"hitsPerPage=0&filters=user_id%3D{id}"
+                })
+            };
+            var countResponse = await PostAlgoliaAsync<AlgoliaMultiQueryResponse>(
+                $"https://{AlgoliaAppId}-dsn.algolia.net/1/indexes/*/queries", countQuery, ct);
+            var results = countResponse?.Results ?? new();
+            for (var i = 0; i < Math.Min(batch.Length, results.Count); i++)
+                listingCounts[batch[i]] = results[i].NbHits;
+        }
+
+        foreach (var listing in listings)
+        {
+            if (listing.SellerUserId is not long userId) continue;
+            if (storefronts.TryGetValue(userId, out var sf))
+            {
+                listing.SellerName = sf.Name;
+                listing.SellerSlug = sf.Slug;
+            }
+            if (listingCounts.TryGetValue(userId, out var count))
+                listing.SellerListingCount = count;
+        }
+
+        _logger.LogInformation("Looked up {Sellers} Sweetwater sellers ({Storefronts} storefronts)",
+            userIds.Count, storefronts.Count);
+    }
+
+    private async Task<T?> PostAlgoliaAsync<T>(string url, object body, CancellationToken ct)
+    {
+        using var content = new StringContent(JsonSerializer.Serialize(body), System.Text.Encoding.UTF8, "application/json");
+        var response = await _httpClient.PostAsync(url, content, ct);
+        if (!response.IsSuccessStatusCode)
+        {
+            _logger.LogWarning("Algolia returned {StatusCode} for {Url}", response.StatusCode, url);
+            return default;
+        }
+        var json = await response.Content.ReadAsStringAsync(ct);
+        return JsonSerializer.Deserialize<T>(json, _jsonOptions);
+    }
+
+    private static readonly Regex ShippingAmountRegex = new(@"\$\s*([\d,]+(?:\.\d{1,2})?)", RegexOptions.Compiled);
+
+    /// <summary>"$99.00 Shipping" → 99, free shipping → 0, anything else → null.</summary>
+    private static decimal? ParseShippingPrice(AlgoliaHit hit)
+    {
+        if (hit.FreeShipping == 1) return 0m;
+        var message = hit.ShippingMessage;
+        if (string.IsNullOrWhiteSpace(message)) return null;
+        if (message.Contains("free", StringComparison.OrdinalIgnoreCase)) return 0m;
+        var match = ShippingAmountRegex.Match(message);
+        return match.Success && decimal.TryParse(match.Groups[1].Value.Replace(",", ""),
+            System.Globalization.NumberStyles.Number, System.Globalization.CultureInfo.InvariantCulture, out var amount)
+            ? amount
+            : null;
     }
 
     private SweetwaterListing ConvertToListing(AlgoliaHit hit)
@@ -144,6 +247,10 @@ public class SweetwaterScraperClient
             ImageUrl = hit.PrimaryImage?.ThumbnailUrl ?? hit.PrimaryImage?.MediumUrl,
             ListingUrl = listingUrl,
             Shipping = hit.ShippingMessage ?? (hit.FreeShipping == 1 ? "Free Shipping" : null),
+            ShippingPrice = ParseShippingPrice(hit),
+            PublishedAt = hit.PublishedAt is long ts ? DateTimeOffset.FromUnixTimeSeconds(ts).UtcDateTime : null,
+            SellerUserId = hit.UserId,
+            SellerLocation = hit.Location,
             Make = hit.Brand ?? "",
             Model = model,
             Finish = finish,
@@ -239,6 +346,36 @@ public class AlgoliaHit
 
     [JsonPropertyName("published_at")]
     public long? PublishedAt { get; set; }
+
+    [JsonPropertyName("user_id")]
+    public long? UserId { get; set; }
+
+    [JsonPropertyName("location")]
+    public string? Location { get; set; }
+}
+
+public class AlgoliaStorefrontResponse
+{
+    [JsonPropertyName("hits")]
+    public List<AlgoliaStorefront> Hits { get; set; } = new();
+}
+
+public class AlgoliaStorefront
+{
+    [JsonPropertyName("user_id")]
+    public long UserId { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("slug")]
+    public string? Slug { get; set; }
+}
+
+public class AlgoliaMultiQueryResponse
+{
+    [JsonPropertyName("results")]
+    public List<AlgoliaSearchResponse> Results { get; set; } = new();
 }
 
 public class AlgoliaImage

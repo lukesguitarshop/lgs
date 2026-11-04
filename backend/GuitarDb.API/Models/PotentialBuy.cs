@@ -113,7 +113,7 @@ public class PotentialBuy
     [BsonElement("missed_deal")]
     public bool MissedDeal { get; set; }
 
-    /// <summary>Whether it was in the Deals list (priced deal or no price data) when it sold.</summary>
+    /// <summary>Whether it was in the Deals or No Price Guide list when it sold.</summary>
     [BsonElement("was_in_deals")]
     public bool WasInDeals { get; set; }
 }
@@ -122,6 +122,7 @@ public class PotentialBuyStats
 {
     public int Total { get; set; }
     public int Deals { get; set; }
+    public int NoPriceGuide { get; set; }
     public DateTime? LastRunAt { get; set; }
     public int MissedLast7Days { get; set; }
     public int MissedLast30Days { get; set; }

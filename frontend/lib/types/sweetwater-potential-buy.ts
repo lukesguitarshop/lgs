@@ -9,6 +9,14 @@ export interface SweetwaterPotentialBuy {
   currency: string;
   sweetwaterListingId: number;
   shipping?: string;
+  shippingPrice?: number;
+  totalPrice?: number;
+  listingCreatedAt?: string;
+  sellerUserId?: number;
+  sellerName?: string;
+  sellerSlug?: string;
+  sellerLocation?: string;
+  sellerListingCount?: number;
   priceGuideLow?: number;
   priceGuideHigh?: number;
   discountPercent?: number;
@@ -23,6 +31,7 @@ export interface SweetwaterPotentialBuy {
 export interface SweetwaterPotentialBuyStats {
   total: number;
   deals: number;
+  noPriceGuide?: number;
   lastRunAt?: string;
 }
 

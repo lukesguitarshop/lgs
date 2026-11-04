@@ -2026,19 +2026,30 @@ public class MongoDbService
 
     // Potential Buys operations
 
-    /// <summary>
-    /// What the Deals list shows: priced deals plus every listing with no price data,
-    /// so guitars that can't be compared against the market still get looked at.
-    /// </summary>
-    private static FilterDefinition<PotentialBuy> ActivePotentialBuyDealsFilter()
+    /// <summary>Listings still on Reverb that nobody has dismissed or bought.</summary>
+    private static FilterDefinition<PotentialBuy> ActivePotentialBuyFilter()
     {
         var b = Builders<PotentialBuy>.Filter;
         return b.And(
-            b.Or(b.Eq(x => x.IsDeal, true), b.Eq(x => x.HasPriceGuide, false)),
             b.Eq(x => x.Dismissed, false),
             b.Eq(x => x.Purchased, false),
             b.Eq(x => x.SoldAt, null));
     }
+
+    /// <summary>What the Deals list shows: active listings priced below the market.</summary>
+    private static FilterDefinition<PotentialBuy> ActivePotentialBuyDealsFilter() =>
+        Builders<PotentialBuy>.Filter.And(
+            ActivePotentialBuyFilter(),
+            Builders<PotentialBuy>.Filter.Eq(x => x.IsDeal, true));
+
+    /// <summary>
+    /// What the No Price Guide list shows: active listings Reverb has no market price for,
+    /// so guitars that can't be compared against the market still get looked at.
+    /// </summary>
+    private static FilterDefinition<PotentialBuy> ActiveNoPriceGuideFilter() =>
+        Builders<PotentialBuy>.Filter.And(
+            ActivePotentialBuyFilter(),
+            Builders<PotentialBuy>.Filter.Eq(x => x.HasPriceGuide, false));
 
     /// <summary>
     /// Listings first seen recently and not yet seen sold - the quick check re-reads
@@ -2075,6 +2086,7 @@ public class MongoDbService
         string? search = null,
         decimal? minPrice = null,
         decimal? maxPrice = null,
+        int? maxSellerReviews = null,
         CancellationToken ct = default)
     {
         var filter = Builders<PotentialBuy>.Filter.Empty;
@@ -2083,6 +2095,9 @@ public class MongoDbService
         {
             case "deals":
                 filter = ActivePotentialBuyDealsFilter();
+                break;
+            case "no-price-guide":
+                filter = ActiveNoPriceGuideFilter();
                 break;
             case "missed":
                 filter = Builders<PotentialBuy>.Filter.Eq(x => x.MissedDeal, true);
@@ -2123,6 +2138,14 @@ public class MongoDbService
                 b.And(noTotal, b.Lte(x => x.Price, maxPrice.Value))));
         }
 
+        // Hides established shops; listings with no seller data yet stay visible
+        if (maxSellerReviews.HasValue)
+        {
+            filter = b.And(filter, b.Or(
+                b.Lte(x => x.SellerFeedbackCount, maxSellerReviews.Value),
+                b.Eq(x => x.SellerFeedbackCount, null)));
+        }
+
         var sortDef = sort?.ToLower() switch
         {
             "best-deal" => Builders<PotentialBuy>.Sort.Descending(x => x.DiscountPercent),
@@ -2152,6 +2175,8 @@ public class MongoDbService
         var total = await _potentialBuysCollection.CountDocumentsAsync(_ => true, cancellationToken: ct);
         var deals = await _potentialBuysCollection.CountDocumentsAsync(
             ActivePotentialBuyDealsFilter(), cancellationToken: ct);
+        var noPriceGuide = await _potentialBuysCollection.CountDocumentsAsync(
+            ActiveNoPriceGuideFilter(), cancellationToken: ct);
         var lastChecked = await _potentialBuysCollection
             .Find(_ => true)
             .SortByDescending(x => x.LastCheckedAt)
@@ -2171,6 +2196,7 @@ public class MongoDbService
         {
             Total = (int)total,
             Deals = (int)deals,
+            NoPriceGuide = (int)noPriceGuide,
             LastRunAt = lastChecked?.LastCheckedAt,
             MissedLast7Days = (int)missed7,
             MissedLast30Days = (int)missed30,
@@ -2212,11 +2238,12 @@ public class MongoDbService
     }
 
     /// <summary>
-    /// Dismiss all active deals (not already dismissed/purchased).
+    /// Dismiss everything in the Deals list, or in the No Price Guide list when
+    /// <paramref name="noPriceGuide"/> is set.
     /// </summary>
-    public async Task<long> DismissAllActiveDealsAsync(CancellationToken ct = default)
+    public async Task<long> DismissAllActiveDealsAsync(bool noPriceGuide = false, CancellationToken ct = default)
     {
-        var filter = ActivePotentialBuyDealsFilter();
+        var filter = noPriceGuide ? ActiveNoPriceGuideFilter() : ActivePotentialBuyDealsFilter();
         var update = Builders<PotentialBuy>.Update.Set(x => x.Dismissed, true);
         var result = await _potentialBuysCollection.UpdateManyAsync(filter, update, cancellationToken: ct);
         return result.ModifiedCount;
@@ -2294,9 +2321,15 @@ public class MongoDbService
             potentialBuy.FirstSeenAt = existing.FirstSeenAt;
             potentialBuy.Dismissed = existing.Dismissed;
             potentialBuy.Purchased = existing.Purchased;
-            potentialBuy.SoldAt = existing.SoldAt;
-            potentialBuy.MissedDeal = existing.MissedDeal;
-            potentialBuy.WasInDeals = existing.WasInDeals;
+            // Records saved here come from Reverb search results, which only list live
+            // guitars - so one we marked sold is back for sale (the sale fell through:
+            // canceled order, unpaid offer). Drop the sold/missed state rather than
+            // carrying it forward; a missed deal that never sold isn't one.
+            if (existing.SoldAt != null)
+            {
+                _logger.LogInformation("Listing {Id} ({Title}) is live again after being marked sold - clearing missed-deal state",
+                    existing.ReverbListingId, existing.ListingTitle);
+            }
         }
 
         var filter = Builders<PotentialBuy>.Filter.Eq(x => x.ReverbListingId, potentialBuy.ReverbListingId);
@@ -2371,6 +2404,7 @@ public class MongoDbService
         string? search = null,
         decimal? minPrice = null,
         decimal? maxPrice = null,
+        int? maxSellerListings = null,
         CancellationToken ct = default)
     {
         var filter = Builders<SweetwaterPotentialBuy>.Filter.Empty;
@@ -2405,23 +2439,39 @@ public class MongoDbService
                 Builders<SweetwaterPotentialBuy>.Filter.Regex(x => x.ListingTitle, regex));
         }
 
+        // Price filters and sorts use the delivered total, falling back to the listing price
+        // for records saved before shipping was tracked (or with no stated shipping)
+        var b = Builders<SweetwaterPotentialBuy>.Filter;
+        var noTotal = b.Eq(x => x.TotalPrice, null);
+
         if (minPrice.HasValue)
         {
-            filter = Builders<SweetwaterPotentialBuy>.Filter.And(filter,
-                Builders<SweetwaterPotentialBuy>.Filter.Gte(x => x.Price, minPrice.Value));
+            filter = b.And(filter, b.Or(
+                b.Gte(x => x.TotalPrice, minPrice.Value),
+                b.And(noTotal, b.Gte(x => x.Price, minPrice.Value))));
         }
 
         if (maxPrice.HasValue)
         {
-            filter = Builders<SweetwaterPotentialBuy>.Filter.And(filter,
-                Builders<SweetwaterPotentialBuy>.Filter.Lte(x => x.Price, maxPrice.Value));
+            filter = b.And(filter, b.Or(
+                b.Lte(x => x.TotalPrice, maxPrice.Value),
+                b.And(noTotal, b.Lte(x => x.Price, maxPrice.Value))));
+        }
+
+        // Hides shops; listings with no seller data yet stay visible
+        if (maxSellerListings.HasValue)
+        {
+            filter = b.And(filter, b.Or(
+                b.Lte(x => x.SellerListingCount, maxSellerListings.Value),
+                b.Eq(x => x.SellerListingCount, null)));
         }
 
         var sortDef = sort?.ToLower() switch
         {
             "best-deal" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.DiscountPercent),
-            "price-low" => Builders<SweetwaterPotentialBuy>.Sort.Ascending(x => x.Price),
-            "price-high" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.Price),
+            "price-low" => Builders<SweetwaterPotentialBuy>.Sort.Ascending(x => x.TotalPrice).Ascending(x => x.Price),
+            "price-high" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.TotalPrice).Descending(x => x.Price),
+            "listed-newest" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.ListingCreatedAt).Descending(x => x.FirstSeenAt),
             "newest" => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.FirstSeenAt),
             "oldest" => Builders<SweetwaterPotentialBuy>.Sort.Ascending(x => x.FirstSeenAt),
             _ => Builders<SweetwaterPotentialBuy>.Sort.Descending(x => x.FirstSeenAt)
@@ -2444,6 +2494,8 @@ public class MongoDbService
         var total = await _sweetwaterPotentialBuysCollection.CountDocumentsAsync(_ => true, cancellationToken: ct);
         var deals = await _sweetwaterPotentialBuysCollection.CountDocumentsAsync(
             x => x.IsDeal && !x.Dismissed && !x.Purchased, cancellationToken: ct);
+        var noPriceGuide = await _sweetwaterPotentialBuysCollection.CountDocumentsAsync(
+            x => !x.HasPriceGuide && !x.Dismissed && !x.Purchased, cancellationToken: ct);
         var lastChecked = await _sweetwaterPotentialBuysCollection
             .Find(_ => true)
             .SortByDescending(x => x.LastCheckedAt)
@@ -2454,6 +2506,7 @@ public class MongoDbService
         {
             Total = (int)total,
             Deals = (int)deals,
+            NoPriceGuide = (int)noPriceGuide,
             LastRunAt = lastChecked?.LastCheckedAt
         };
     }
@@ -2482,10 +2535,16 @@ public class MongoDbService
         return result.ModifiedCount;
     }
 
-    public async Task<long> DismissAllActiveSweetwaterDealsAsync(CancellationToken ct = default)
+    /// <summary>
+    /// Dismiss everything in the Sweetwater Deals list, or in its No Price Guide list
+    /// when <paramref name="noPriceGuide"/> is set.
+    /// </summary>
+    public async Task<long> DismissAllActiveSweetwaterDealsAsync(bool noPriceGuide = false, CancellationToken ct = default)
     {
         var filter = Builders<SweetwaterPotentialBuy>.Filter.And(
-            Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.IsDeal, true),
+            noPriceGuide
+                ? Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.HasPriceGuide, false)
+                : Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.IsDeal, true),
             Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, false),
             Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, false)
         );

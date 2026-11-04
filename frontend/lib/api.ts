@@ -179,7 +179,8 @@ export async function getPotentialBuys(
   perPage = 20,
   search?: string,
   minPrice?: number,
-  maxPrice?: number
+  maxPrice?: number,
+  maxSellerReviews?: number
 ): Promise<PaginatedPotentialBuys> {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
@@ -189,6 +190,7 @@ export async function getPotentialBuys(
   if (search) params.set('search', search);
   if (minPrice != null) params.set('minPrice', String(minPrice));
   if (maxPrice != null) params.set('maxPrice', String(maxPrice));
+  if (maxSellerReviews != null) params.set('maxSellerReviews', String(maxSellerReviews));
 
   return api.authGet<PaginatedPotentialBuys>(`/admin/potential-buys?${params}`);
 }
@@ -205,8 +207,9 @@ export async function dismissPotentialBuysBulk(ids: string[]): Promise<{ message
   return api.authPost<{ message: string; dismissed: number }>('/admin/potential-buys/dismiss-bulk', { ids });
 }
 
-export async function dismissAllPotentialBuys(): Promise<{ message: string; dismissed: number }> {
-  return api.authPost<{ message: string; dismissed: number }>('/admin/potential-buys/dismiss-all');
+export async function dismissAllPotentialBuys(status?: 'deals' | 'no-price-guide'): Promise<{ message: string; dismissed: number }> {
+  const query = status === 'no-price-guide' ? '?status=no-price-guide' : '';
+  return api.authPost<{ message: string; dismissed: number }>(`/admin/potential-buys/dismiss-all${query}`);
 }
 
 export async function markPotentialBuyPurchased(id: string): Promise<{ message: string }> {
@@ -270,7 +273,8 @@ export async function getSweetwaterPotentialBuys(
   perPage = 20,
   search?: string,
   minPrice?: number,
-  maxPrice?: number
+  maxPrice?: number,
+  maxSellerListings?: number
 ): Promise<PaginatedSweetwaterPotentialBuys> {
   const params = new URLSearchParams();
   if (status) params.set('status', status);
@@ -280,6 +284,7 @@ export async function getSweetwaterPotentialBuys(
   if (search) params.set('search', search);
   if (minPrice != null) params.set('minPrice', String(minPrice));
   if (maxPrice != null) params.set('maxPrice', String(maxPrice));
+  if (maxSellerListings != null) params.set('maxSellerListings', String(maxSellerListings));
 
   return api.authGet<PaginatedSweetwaterPotentialBuys>(`/admin/sweetwater-potential-buys?${params}`);
 }
@@ -296,8 +301,9 @@ export async function dismissSweetwaterPotentialBuysBulk(ids: string[]): Promise
   return api.authPost<{ message: string; dismissed: number }>('/admin/sweetwater-potential-buys/dismiss-bulk', { ids });
 }
 
-export async function dismissAllSweetwaterPotentialBuys(): Promise<{ message: string; dismissed: number }> {
-  return api.authPost<{ message: string; dismissed: number }>('/admin/sweetwater-potential-buys/dismiss-all');
+export async function dismissAllSweetwaterPotentialBuys(status?: 'deals' | 'no-price-guide'): Promise<{ message: string; dismissed: number }> {
+  const query = status === 'no-price-guide' ? '?status=no-price-guide' : '';
+  return api.authPost<{ message: string; dismissed: number }>(`/admin/sweetwater-potential-buys/dismiss-all${query}`);
 }
 
 export async function markSweetwaterPotentialBuyPurchased(id: string): Promise<{ message: string }> {

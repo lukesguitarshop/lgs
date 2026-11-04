@@ -37,6 +37,34 @@ public class SweetwaterPotentialBuy
     [BsonElement("shipping")]
     public string? Shipping { get; set; }
 
+    [BsonElement("shipping_price")]
+    public decimal? ShippingPrice { get; set; }
+
+    /// <summary>Price plus shipping; null when Sweetwater doesn't state a shipping amount.</summary>
+    [BsonElement("total_price")]
+    public decimal? TotalPrice { get; set; }
+
+    [BsonElement("listing_created_at")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? ListingCreatedAt { get; set; }
+
+    [BsonElement("seller_user_id")]
+    public long? SellerUserId { get; set; }
+
+    [BsonElement("seller_name")]
+    public string? SellerName { get; set; }
+
+    [BsonElement("seller_slug")]
+    public string? SellerSlug { get; set; }
+
+    [BsonElement("seller_location")]
+    public string? SellerLocation { get; set; }
+
+    /// <summary>Listings the seller has up across Gear Exchange - Sweetwater hides review
+    /// counts behind bot protection, so this is what tells a shop from a private seller.</summary>
+    [BsonElement("seller_listing_count")]
+    public int? SellerListingCount { get; set; }
+
     [BsonElement("price_guide_low")]
     public decimal? PriceGuideLow { get; set; }
 
@@ -71,5 +99,6 @@ public class SweetwaterPotentialBuyStats
 {
     public int Total { get; set; }
     public int Deals { get; set; }
+    public int NoPriceGuide { get; set; }
     public DateTime? LastRunAt { get; set; }
 }

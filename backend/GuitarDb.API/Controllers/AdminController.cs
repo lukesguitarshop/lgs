@@ -1150,11 +1150,12 @@ public class AdminController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] decimal? minPrice = null,
         [FromQuery] decimal? maxPrice = null,
+        [FromQuery] int? maxSellerReviews = null,
         CancellationToken ct = default)
     {
         try
         {
-            var (potentialBuys, totalCount) = await _mongoDbService.GetPotentialBuysAsync(status, sort, page, perPage, search, minPrice, maxPrice, ct);
+            var (potentialBuys, totalCount) = await _mongoDbService.GetPotentialBuysAsync(status, sort, page, perPage, search, minPrice, maxPrice, maxSellerReviews, ct);
             return Ok(new
             {
                 items = potentialBuys,
@@ -1216,12 +1217,13 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
-    /// Dismiss all active deals
+    /// Dismiss all active deals, or all active no-price-guide listings with ?status=no-price-guide
     /// </summary>
     [HttpPost("potential-buys/dismiss-all")]
-    public async Task<IActionResult> DismissAllPotentialBuys(CancellationToken ct = default)
+    public async Task<IActionResult> DismissAllPotentialBuys([FromQuery] string? status = null, CancellationToken ct = default)
     {
-        var count = await _mongoDbService.DismissAllActiveDealsAsync(ct);
+        var noPriceGuide = string.Equals(status, "no-price-guide", StringComparison.OrdinalIgnoreCase);
+        var count = await _mongoDbService.DismissAllActiveDealsAsync(noPriceGuide, ct);
         return Ok(new { message = $"Dismissed {count} deals", dismissed = count });
     }
 
@@ -1410,11 +1412,12 @@ public class AdminController : ControllerBase
         [FromQuery] string? search = null,
         [FromQuery] decimal? minPrice = null,
         [FromQuery] decimal? maxPrice = null,
+        [FromQuery] int? maxSellerListings = null,
         CancellationToken ct = default)
     {
         try
         {
-            var (potentialBuys, totalCount) = await _mongoDbService.GetSweetwaterPotentialBuysAsync(status, sort, page, perPage, search, minPrice, maxPrice, ct);
+            var (potentialBuys, totalCount) = await _mongoDbService.GetSweetwaterPotentialBuysAsync(status, sort, page, perPage, search, minPrice, maxPrice, maxSellerListings, ct);
             return Ok(new
             {
                 items = potentialBuys,
@@ -1465,9 +1468,10 @@ public class AdminController : ControllerBase
     }
 
     [HttpPost("sweetwater-potential-buys/dismiss-all")]
-    public async Task<IActionResult> DismissAllSweetwaterPotentialBuys(CancellationToken ct = default)
+    public async Task<IActionResult> DismissAllSweetwaterPotentialBuys([FromQuery] string? status = null, CancellationToken ct = default)
     {
-        var count = await _mongoDbService.DismissAllActiveSweetwaterDealsAsync(ct);
+        var noPriceGuide = string.Equals(status, "no-price-guide", StringComparison.OrdinalIgnoreCase);
+        var count = await _mongoDbService.DismissAllActiveSweetwaterDealsAsync(noPriceGuide, ct);
         return Ok(new { message = $"Dismissed {count} deals", dismissed = count });
     }
 

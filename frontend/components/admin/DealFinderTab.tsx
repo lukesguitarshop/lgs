@@ -2,47 +2,18 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { Loader2, ExternalLink, X, Check, RefreshCw, Play, ChevronLeft, ChevronRight, Trash2, Search, Star, MapPin, Truck, Zap, Clock, BadgeCheck } from 'lucide-react';
+import { Loader2, ExternalLink, X, Check, RefreshCw, Play, Trash2, Search, Star, MapPin, Truck, Zap, Clock, BadgeCheck, HelpCircle } from 'lucide-react';
 import { getPotentialBuys, getPotentialBuyStats, dismissPotentialBuy, dismissPotentialBuysBulk, dismissAllPotentialBuys, deleteAllPotentialBuys, markPotentialBuyPurchased, runDealFinder, getDealFinderStatus, quickCheckDealFinder } from '@/lib/api';
 import type { PotentialBuy, PotentialBuyStats } from '@/lib/types/potential-buy';
-
-const formatPrice = (price: number, currency: string = 'USD') =>
-  new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(price);
-
-const formatDate = (dateString: string) =>
-  new Date(dateString).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-
-/** "just now", "12m ago", "3h ago", then a plain date - scanning a list wants relative times. */
-const timeAgo = (dateString: string) => {
-  const minutes = Math.round((Date.now() - new Date(dateString).getTime()) / 60000);
-  if (minutes < 1) return 'just now';
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateString).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-};
+import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, StatCell, ViewTabs, ListSkeleton, PageNav } from './deal-finder-shared';
 
 const minutesBetween = (from: string, to: string) =>
   Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 60000));
 
-const inputClass =
-  'h-10 w-full border border-foreground/20 bg-background px-3 text-sm text-foreground placeholder:text-muted-foreground focus-visible:border-foreground focus-visible:outline-none';
-const selectClass =
-  'h-10 cursor-pointer border border-foreground/20 bg-background px-2.5 text-sm text-foreground focus-visible:border-foreground focus-visible:outline-none';
-const ghostBtn =
-  'font-btn inline-flex h-9 cursor-pointer items-center gap-1.5 border border-foreground/20 bg-background px-3 text-[11px] text-foreground transition-colors hover:border-foreground disabled:cursor-not-allowed disabled:opacity-50 focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none';
+/** Sellers with more reviews than this are established shops, not the private sellers deals come from. */
+const SMALL_SELLER_MAX_REVIEWS = 100;
+
+type View = 'deals' | 'no-price-guide' | 'missed';
 
 export function DealFinderTab() {
   const [deals, setDeals] = useState<PotentialBuy[]>([]);
@@ -54,6 +25,7 @@ export function DealFinderTab() {
   const [minPriceInput, setMinPriceInput] = useState('');
   const [maxPriceInput, setMaxPriceInput] = useState('');
   const [appliedFilters, setAppliedFilters] = useState<{ search: string; minPrice?: number; maxPrice?: number }>({ search: '' });
+  const [smallSellersOnly, setSmallSellersOnly] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [scraperRunning, setScraperRunning] = useState(false);
   const [quickChecking, setQuickChecking] = useState(false);
@@ -66,14 +38,30 @@ export function DealFinderTab() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const perPage = 20;
-  const isMissedView = statusFilter === 'missed';
+  const view: View = statusFilter === 'missed' || statusFilter === 'no-price-guide' ? statusFilter : 'deals';
+  const isMissedView = view === 'missed';
+  const isNoPriceView = view === 'no-price-guide';
+  // The list on screen when it's one you work through (not dismissed/purchased/missed)
+  const activeList = statusFilter === 'deals' || statusFilter === 'no-price-guide' ? statusFilter : null;
+  const activeCount = activeList === 'no-price-guide' ? stats?.noPriceGuide ?? 0 : stats?.deals ?? 0;
+
+  /** Keeps the tab counts right after cards leave the active list without a refetch. */
+  const decrementActive = (by: number) => {
+    if (!activeList) return;
+    setStats(prev => {
+      if (!prev) return prev;
+      return activeList === 'no-price-guide'
+        ? { ...prev, noPriceGuide: Math.max(0, (prev.noPriceGuide ?? 0) - by) }
+        : { ...prev, deals: Math.max(0, prev.deals - by) };
+    });
+  };
 
   const fetchDeals = async (page = currentPage) => {
     setLoading(true);
     setFetchError(null);
     try {
       const [dealsData, statsData] = await Promise.all([
-        getPotentialBuys(statusFilter, sortBy, page, perPage, appliedFilters.search || undefined, appliedFilters.minPrice, appliedFilters.maxPrice),
+        getPotentialBuys(statusFilter, sortBy, page, perPage, appliedFilters.search || undefined, appliedFilters.minPrice, appliedFilters.maxPrice, smallSellersOnly ? SMALL_SELLER_MAX_REVIEWS : undefined),
         getPotentialBuyStats()
       ]);
       setDeals(dealsData.items);
@@ -100,7 +88,7 @@ export function DealFinderTab() {
   useEffect(() => {
     setCurrentPage(1);
     fetchDeals(1);
-  }, [statusFilter, sortBy, appliedFilters]);
+  }, [statusFilter, sortBy, appliedFilters, smallSellersOnly]);
 
   // Debounce search/price inputs before applying them as fetch filters
   useEffect(() => {
@@ -194,9 +182,7 @@ export function DealFinderTab() {
     try {
       await dismissPotentialBuy(id);
       setDeals(prev => prev.filter(d => d.id !== id));
-      if (stats && statusFilter === 'deals') {
-        setStats({ ...stats, deals: stats.deals - 1 });
-      }
+      decrementActive(1);
     } catch (err) {
       console.error('Failed to dismiss:', err);
     } finally {
@@ -209,9 +195,7 @@ export function DealFinderTab() {
     try {
       await markPotentialBuyPurchased(id);
       setDeals(prev => prev.filter(d => d.id !== id));
-      if (stats && statusFilter === 'deals') {
-        setStats({ ...stats, deals: stats.deals - 1 });
-      }
+      decrementActive(1);
     } catch (err) {
       console.error('Failed to mark as purchased:', err);
     } finally {
@@ -228,9 +212,7 @@ export function DealFinderTab() {
       const ids = deals.map(d => d.id);
       const result = await dismissPotentialBuysBulk(ids);
       setDeals([]);
-      if (stats && statusFilter === 'deals') {
-        setStats({ ...stats, deals: Math.max(0, stats.deals - result.dismissed) });
-      }
+      decrementActive(result.dismissed);
       // Refresh to get next page of results
       await fetchDeals(1);
     } catch (err) {
@@ -241,16 +223,15 @@ export function DealFinderTab() {
   };
 
   const handleDismissAll = async () => {
-    if (!stats || stats.deals === 0) return;
-    if (!confirm(`Dismiss ALL ${stats.deals} active deals? This cannot be undone.`)) return;
+    if (!activeList || activeCount === 0) return;
+    const what = activeList === 'no-price-guide' ? 'listings with no price guide' : 'active deals';
+    if (!confirm(`Dismiss ALL ${activeCount} ${what}? This cannot be undone.`)) return;
 
     setBulkDismissing('all');
     try {
-      await dismissAllPotentialBuys();
+      await dismissAllPotentialBuys(activeList);
       setDeals([]);
-      if (stats) {
-        setStats({ ...stats, deals: 0 });
-      }
+      decrementActive(activeCount);
     } catch (err) {
       console.error('Failed to dismiss all:', err);
     } finally {
@@ -265,7 +246,7 @@ export function DealFinderTab() {
     try {
       await deleteAllPotentialBuys();
       setDeals([]);
-      setStats(prev => ({ ...(prev ?? { total: 0, deals: 0 }), total: 0, deals: 0, lastRunAt: undefined }));
+      setStats(prev => ({ ...(prev ?? { total: 0, deals: 0 }), total: 0, deals: 0, noPriceGuide: 0, lastRunAt: undefined }));
       setTotalItems(0);
       setTotalPages(1);
       setCurrentPage(1);
@@ -276,11 +257,11 @@ export function DealFinderTab() {
     }
   };
 
-  const switchView = (view: 'deals' | 'missed') => {
-    if ((view === 'missed') === isMissedView) return;
+  const switchView = (next: View) => {
+    if (next === view) return;
     setDeals([]); // show the loading skeleton, not the other tab's cards, until the fetch lands
-    setStatusFilter(view);
-    setSortBy(view === 'missed' ? 'sold-newest' : 'listed-newest');
+    setStatusFilter(next);
+    setSortBy(next === 'missed' ? 'sold-newest' : 'listed-newest');
   };
 
   // Latest of the last full sweep and the last quick check - a quick check that finds
@@ -289,7 +270,7 @@ export function DealFinderTab() {
     .filter((d): d is string => !!d)
     .sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0];
 
-  const hasFilters = !!(searchInput || minPriceInput || maxPriceInput);
+  const hasFilters = !!(searchInput || minPriceInput || maxPriceInput || smallSellersOnly);
 
   return (
     <section className="border border-foreground/15 bg-background">
@@ -336,7 +317,7 @@ export function DealFinderTab() {
       {/* Stat band */}
       {stats && (
         <div className="grid grid-cols-2 border-b border-foreground/15 sm:grid-cols-4">
-          <StatCell value={stats.deals} label="Active deals" onClick={() => switchView('deals')} active={!isMissedView} />
+          <StatCell value={stats.deals} label="Active deals" onClick={() => switchView('deals')} active={view === 'deals'} />
           <StatCell value={stats.missedLast7Days ?? 0} label="Missed · 7 days" onClick={() => switchView('missed')} active={isMissedView} accent />
           <StatCell value={stats.total} label="Scanned" />
           <StatCell
@@ -349,32 +330,15 @@ export function DealFinderTab() {
 
       <div className="px-4 pb-6 sm:px-6">
         {/* Tabs */}
-        <div className="flex gap-6 border-b border-foreground/15" role="tablist">
-          {([
+        <ViewTabs
+          tabs={[
             { value: 'deals', label: 'Deals', count: stats?.deals },
+            { value: 'no-price-guide', label: 'No price guide', count: stats?.noPriceGuide },
             { value: 'missed', label: 'Missed deals', count: stats?.missedLast30Days },
-          ] as const).map(t => {
-            const active = t.value === 'missed' ? isMissedView : !isMissedView;
-            return (
-              <button
-                key={t.value}
-                role="tab"
-                aria-selected={active}
-                onClick={() => switchView(t.value)}
-                className={`font-btn -mb-px flex h-12 cursor-pointer items-center gap-2 border-b-[3px] text-[12px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${
-                  active ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                {t.label}
-                {t.count != null && (
-                  <span className={`px-1.5 py-0.5 font-mono text-[10px] tabular-nums ${active ? 'bg-primary text-primary-foreground' : 'bg-foreground/8 text-foreground/70'}`}>
-                    {t.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
+          ] as const}
+          active={view}
+          onSelect={switchView}
+        />
 
         {/* Messages */}
         {scraperResult && (
@@ -399,14 +363,23 @@ export function DealFinderTab() {
                 Guitars that <strong className="text-foreground">sold on Reverb within 30 minutes</strong> of the deal finder finding them. Removed or ended listings don&apos;t count.
               </p>
               <p className="mt-1.5 font-mono text-xs text-muted-foreground">
-                {stats?.missedLast30Days ?? 0} missed in the last 30 days · {stats?.missedInDealsLast30Days ?? 0} of them were in your Deals list
+                {stats?.missedLast30Days ?? 0} missed in the last 30 days · {stats?.missedInDealsLast30Days ?? 0} of them were in your Deals or No price guide list
               </p>
             </div>
           </div>
         )}
 
+        {isNoPriceView && (
+          <div className="mt-4 flex gap-3 border border-foreground/15 bg-foreground/[0.03] p-3 sm:p-4">
+            <HelpCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
+            <p className="text-sm text-foreground/80">
+              Listings Reverb has <strong className="text-foreground">no market price</strong> for, so the deal finder can&apos;t tell whether they&apos;re a deal. Check these by hand.
+            </p>
+          </div>
+        )}
+
         {/* Toolbar */}
-        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] lg:grid-cols-[minmax(0,1fr)_auto_auto]">
+        <div className="mt-4 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto] lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
           <div className="relative">
             <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <input
@@ -447,8 +420,20 @@ export function DealFinderTab() {
               className={`${inputClass} sm:w-24`}
             />
           </div>
-          <div className="flex items-center gap-1.5 sm:col-span-2 lg:col-span-1">
-            {!isMissedView && (
+          <button
+            type="button"
+            onClick={() => setSmallSellersOnly(v => !v)}
+            aria-pressed={smallSellersOnly}
+            title={`Hide guitars from sellers with more than ${SMALL_SELLER_MAX_REVIEWS} reviews`}
+            className={`font-btn inline-flex h-10 cursor-pointer items-center justify-center gap-1.5 border px-3 text-[11px] whitespace-nowrap transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none ${
+              smallSellersOnly ? 'border-foreground bg-foreground text-background' : 'border-foreground/20 bg-background text-foreground hover:border-foreground'
+            }`}
+          >
+            <Star className="h-3.5 w-3.5" aria-hidden />
+            ≤{SMALL_SELLER_MAX_REVIEWS} reviews
+          </button>
+          <div className="flex items-center gap-1.5 sm:col-span-3 lg:col-span-1">
+            {view === 'deals' && (
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
@@ -468,7 +453,7 @@ export function DealFinderTab() {
             >
               {isMissedView && <option value="sold-newest">Most recently sold</option>}
               <option value="listed-newest">Newest listed</option>
-              <option value="best-deal">Best deal first</option>
+              {!isNoPriceView && <option value="best-deal">Best deal first</option>}
               <option value="price-low">Price: low to high</option>
               <option value="price-high">Price: high to low</option>
               <option value="newest">Date found: newest</option>
@@ -484,14 +469,14 @@ export function DealFinderTab() {
             {totalPages > 1 && ` · page ${currentPage} of ${totalPages}`}
             {hasFilters && (
               <button
-                onClick={() => { setSearchInput(''); setMinPriceInput(''); setMaxPriceInput(''); }}
+                onClick={() => { setSearchInput(''); setMinPriceInput(''); setMaxPriceInput(''); setSmallSellersOnly(false); }}
                 className="ml-3 cursor-pointer text-primary underline-offset-2 hover:underline"
               >
                 Clear filters
               </button>
             )}
           </p>
-          {statusFilter === 'deals' && deals.length > 0 && (
+          {activeList && deals.length > 0 && (
             <div className="flex flex-wrap gap-1.5">
               <button
                 onClick={() => {
@@ -509,11 +494,11 @@ export function DealFinderTab() {
               </button>
               <button
                 onClick={handleDismissAll}
-                disabled={bulkDismissing !== null || loading || !stats?.deals}
+                disabled={bulkDismissing !== null || loading || !activeCount}
                 className={`${ghostBtn} text-primary hover:border-primary`}
               >
                 {bulkDismissing === 'all' ? <Loader2 className="h-3 w-3 animate-spin" /> : <X className="h-3 w-3" />}
-                Dismiss all ({stats?.deals ?? 0})
+                Dismiss all ({activeCount})
               </button>
             </div>
           )}
@@ -521,29 +506,20 @@ export function DealFinderTab() {
 
         {/* List */}
         {loading && deals.length === 0 ? (
-          <div className="space-y-3 pt-4" aria-busy>
-            {[0, 1, 2].map(i => (
-              <div key={i} className="flex gap-4 border border-foreground/10 p-3">
-                <div className="photo-panel h-28 w-24 flex-shrink-0 animate-pulse sm:h-32 sm:w-32" />
-                <div className="flex-1 space-y-2.5 pt-1">
-                  <div className="h-4 w-3/4 animate-pulse bg-foreground/8" />
-                  <div className="h-7 w-28 animate-pulse bg-foreground/8" />
-                  <div className="h-3 w-1/2 animate-pulse bg-foreground/8" />
-                </div>
-              </div>
-            ))}
-          </div>
+          <ListSkeleton />
         ) : deals.length === 0 ? (
           <div className="py-14 text-center">
             <p className="font-heading text-2xl text-foreground uppercase">
-              {isMissedView ? 'Nothing missed yet' : 'No deals right now'}
+              {isMissedView ? 'Nothing missed yet' : isNoPriceView ? 'Nothing without a price guide' : 'No deals right now'}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
               {hasFilters
                 ? 'Try adjusting your search or price filters.'
                 : isMissedView
                   ? 'Guitars that sell within 30 minutes of being found will show up here.'
-                  : 'New listings are checked every 15 minutes. Run a full scan to sweep everything now.'}
+                  : isNoPriceView
+                    ? 'Listings Reverb has no market price for will show up here.'
+                    : 'New listings are checked every 15 minutes. Run a full scan to sweep everything now.'}
             </p>
           </div>
         ) : (
@@ -561,46 +537,7 @@ export function DealFinderTab() {
               ))}
             </ul>
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <nav className="mt-6 flex flex-wrap items-center justify-center gap-1.5 border-t border-foreground/10 pt-5" aria-label="Pages">
-                <button
-                  onClick={() => fetchDeals(currentPage - 1)}
-                  disabled={currentPage <= 1 || loading}
-                  className={ghostBtn}
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  Prev
-                </button>
-                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                  let pageNum: number;
-                  if (totalPages <= 5) pageNum = i + 1;
-                  else if (currentPage <= 3) pageNum = i + 1;
-                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
-                  else pageNum = currentPage - 2 + i;
-                  const current = pageNum === currentPage;
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => fetchDeals(pageNum)}
-                      disabled={loading}
-                      aria-current={current ? 'page' : undefined}
-                      className={`h-9 w-9 cursor-pointer font-mono text-xs tabular-nums transition-colors ${current ? 'bg-foreground text-background' : 'border border-foreground/20 hover:border-foreground'}`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={() => fetchDeals(currentPage + 1)}
-                  disabled={currentPage >= totalPages || loading}
-                  className={ghostBtn}
-                >
-                  Next
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </nav>
-            )}
+            <PageNav currentPage={currentPage} totalPages={totalPages} loading={loading} onPage={(p) => fetchDeals(p)} />
           </>
         )}
 
@@ -617,35 +554,6 @@ export function DealFinderTab() {
         </div>
       </div>
     </section>
-  );
-}
-
-function StatCell({ value, label, onClick, active, accent, small }: {
-  value: number | string;
-  label: string;
-  onClick?: () => void;
-  active?: boolean;
-  accent?: boolean;
-  small?: boolean;
-}) {
-  const body = (
-    <>
-      <span className={`font-heading block leading-none tabular-nums ${small ? 'text-[22px] sm:text-[26px]' : 'text-[30px] sm:text-[36px]'} ${accent && Number(value) > 0 ? 'text-primary' : 'text-foreground'}`}>
-        {value}
-      </span>
-      <span className="label-mono-sm mt-2 block text-muted-foreground">{label}</span>
-    </>
-  );
-  const cls = `relative flex min-h-[92px] flex-col justify-end border-foreground/15 px-4 py-3.5 text-left sm:px-6 [&:nth-child(odd)]:border-r sm:[&:not(:last-child)]:border-r [&:nth-child(-n+2)]:border-b sm:[&:nth-child(-n+2)]:border-b-0`;
-  if (!onClick) return <div className={cls}>{body}</div>;
-  return (
-    <button
-      onClick={onClick}
-      className={`${cls} cursor-pointer transition-colors hover:bg-foreground/[0.03] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring`}
-    >
-      {active && <span className="absolute inset-x-0 top-0 h-[3px] bg-primary" aria-hidden />}
-      {body}
-    </button>
   );
 }
 
@@ -797,7 +705,9 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss }: {
                 Found {formatDate(deal.firstSeenAt)} · sold by {formatDate(deal.soldAt)}
               </span>
               <span className={deal.wasInDeals ? 'text-amber-800' : undefined}>
-                {deal.wasInDeals ? '● Was in your Deals list' : '○ Not flagged as a deal'}
+                {!deal.wasInDeals
+                  ? '○ Not flagged as a deal'
+                  : deal.hasPriceGuide ? '● Was in your Deals list' : '● Was in No price guide'}
               </span>
             </p>
           )}
