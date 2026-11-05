@@ -6,7 +6,7 @@ import { Loader2, ExternalLink, X, Check, RefreshCw, Play, Trash2, Search, Star,
 import { getPotentialBuys, getPotentialBuyStats, dismissPotentialBuy, dismissPotentialBuysBulk, dismissAllPotentialBuys, deleteAllPotentialBuys, markPotentialBuyPurchased, runDealFinder, getDealFinderStatus, quickCheckDealFinder, setPotentialBuyProduct } from '@/lib/api';
 import type { ProductTarget } from '@/lib/api';
 import type { PotentialBuy, PotentialBuyStats } from '@/lib/types/potential-buy';
-import { MedianBadge, RepairFlag, SoldHistory, SoldPriceLine } from './SoldHistory';
+import { MedianBadge, OfferLine, RepairFlag, SoldHistory, SoldPriceLine } from './SoldHistory';
 import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, StatCell, ViewTabs, ListSkeleton, PageNav } from './deal-finder-shared';
 
 const minutesBetween = (from: string, to: string) =>
@@ -660,6 +660,7 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss, onSetProduct 
 
           {/* Sold price + condition */}
           <SoldPriceLine deal={deal} />
+          <OfferLine deal={deal} shipping={deal.shippingPrice} />
 
           {/* Seller */}
           {deal.sellerName && (

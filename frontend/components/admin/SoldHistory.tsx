@@ -5,6 +5,7 @@ import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Too
 import { AlertTriangle, Check, ChevronDown, ExternalLink, Link2, Loader2 } from 'lucide-react';
 import { getProductPrice } from '@/lib/api';
 import type { ProductTarget } from '@/lib/api';
+import { BUY_TAX_RATE, MIN_PROFIT, SELL_FEE_RATE, SELL_SHIPPING, TARGET_PROFIT, suggestOffer } from '@/lib/offer';
 import { monthlyAverages, salesWithin, unreliableLabel } from '@/lib/sold-history';
 import type { MatchSource, ProductPrice, UnreliableReason } from '@/lib/types/product-price';
 import { formatPrice, ghostBtn, inputClass } from './deal-finder-shared';
@@ -130,6 +131,39 @@ export function SoldPriceLine({ deal }: { deal: SoldPricedDeal }) {
         <span className="text-muted-foreground">· Used low {formatPrice(deal.priceGuideLow)}</span>
       )}
       {deal.condition && <span>· {deal.condition}</span>}
+    </p>
+  );
+}
+
+const pct = (rate: number) => `${+(rate * 100).toFixed(2)}%`;
+
+/** "Offer $1,335 · max $1,380": what to offer to clear $250 ($200 at most) reselling at the sold median. */
+export function OfferLine({ deal, shipping }: { deal: SoldPricedDeal; shipping?: number | null }) {
+  if (!deal.priceReliable || deal.soldMedian == null) return null;
+  const s = suggestOffer({ price: deal.price, shipping, median: deal.soldMedian });
+  if (!s) return null;
+
+  const explain =
+    `Buy: price + ${formatPrice(shipping ?? 0)} shipping, plus ${pct(BUY_TAX_RATE)} tax. ` +
+    `Sell at the ${formatPrice(deal.soldMedian)} median, less ${pct(SELL_FEE_RATE)} Reverb fees and ${formatPrice(SELL_SHIPPING)} shipping. ` +
+    `Offer leaves $${TARGET_PROFIT}, max leaves $${MIN_PROFIT}.`;
+  const atAsking = Math.round(s.profitAtAsking);
+  const askingNote = `${formatPrice(Math.abs(atAsking))} ${atAsking >= 0 ? 'profit' : 'loss'} at asking`;
+
+  return (
+    <p className="mt-1.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px]" title={explain}>
+      <span className="label-mono-sm bg-foreground px-1.5 py-0.5 text-background">Offer</span>
+      {s.kind === 'none' ? (
+        <span className="text-muted-foreground">No price leaves ${MIN_PROFIT} profit at this median</span>
+      ) : s.kind === 'asking' ? (
+        <span className="font-medium text-primary">Asking price works · {askingNote}</span>
+      ) : (
+        <>
+          <span className="font-medium text-foreground tabular-nums">{formatPrice(s.offer)}</span>
+          <span className="text-foreground/70 tabular-nums">· max {formatPrice(s.maxOffer)}</span>
+          <span className="text-muted-foreground">· {askingNote}</span>
+        </>
+      )}
     </p>
   );
 }
