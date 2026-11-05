@@ -4,8 +4,9 @@ import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { Loader2, ExternalLink, X, Check, RefreshCw, Play, Trash2, Search, Star, MapPin, Truck, Zap, Clock, BadgeCheck, HelpCircle } from 'lucide-react';
 import { getPotentialBuys, getPotentialBuyStats, dismissPotentialBuy, dismissPotentialBuysBulk, dismissAllPotentialBuys, deleteAllPotentialBuys, markPotentialBuyPurchased, runDealFinder, getDealFinderStatus, quickCheckDealFinder, setPotentialBuyProduct } from '@/lib/api';
+import type { ProductTarget } from '@/lib/api';
 import type { PotentialBuy, PotentialBuyStats } from '@/lib/types/potential-buy';
-import { SoldHistory, SoldPriceLine } from './SoldHistory';
+import { RepairFlag, SoldHistory, SoldPriceLine } from './SoldHistory';
 import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, StatCell, ViewTabs, ListSkeleton, PageNav } from './deal-finder-shared';
 
 const minutesBetween = (from: string, to: string) =>
@@ -179,8 +180,8 @@ export function DealFinderTab() {
   };
 
   // Pasting a product link re-prices the card in place; it moves tabs on the next refresh
-  const handleSetProduct = async (id: string, url: string) => {
-    const updated = await setPotentialBuyProduct(id, url);
+  const handleSetProduct = async (id: string, target: ProductTarget) => {
+    const updated = await setPotentialBuyProduct(id, target);
     setDeals(prev => prev.map(d => (d.id === id ? updated : d)));
   };
 
@@ -540,7 +541,7 @@ export function DealFinderTab() {
                   busy={actionLoading === deal.id}
                   onPurchased={() => handleMarkPurchased(deal.id)}
                   onDismiss={() => handleDismiss(deal.id)}
-                  onSetProduct={(url) => handleSetProduct(deal.id, url)}
+                  onSetProduct={(target) => handleSetProduct(deal.id, target)}
                 />
               ))}
             </ul>
@@ -571,7 +572,7 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss, onSetProduct 
   busy: boolean;
   onPurchased: () => void;
   onDismiss: () => void;
-  onSetProduct: (url: string) => Promise<void>;
+  onSetProduct: (target: ProductTarget) => Promise<void>;
 }) {
   const total = deal.totalPrice ?? deal.price;
   const discount = deal.hasPriceGuide && deal.discountPercent && deal.discountPercent > 0 ? deal.discountPercent : null;
@@ -634,6 +635,8 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss, onSetProduct 
           <span className="label-mono-sm mt-1 text-muted-foreground sm:hidden">
             {deal.listingCreatedAt ? `Listed ${timeAgo(deal.listingCreatedAt)}` : `Found ${timeAgo(deal.firstSeenAt)}`}
           </span>
+
+          <RepairFlag note={deal.repairNote} />
 
           {/* Price */}
           <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">

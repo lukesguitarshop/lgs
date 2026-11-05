@@ -34,3 +34,22 @@ export interface ProductPriceResponse {
   product: ProductPrice;
   stale: boolean;
 }
+
+/** A Reverb listing as the sold-history panel shows it - sold listings included. */
+export interface ReverbListingPreview {
+  id: number;
+  title: string;
+  state: string;
+  condition?: string;
+  listedPrice?: number;
+  currency: string;
+  year?: string;
+  finish?: string;
+  sellerName?: string;
+  publishedAt?: string;
+  /** Seller-written HTML - convert to text before showing. */
+  description?: string;
+  /** The sentence mentioning a headstock or neck repair, when the listing has one. */
+  repairNote?: string;
+  photos: { thumb: string; full?: string }[];
+}

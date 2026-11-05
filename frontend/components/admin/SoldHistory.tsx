@@ -1,12 +1,14 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ChevronDown, ExternalLink, Link2, Loader2 } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, ExternalLink, Link2, Loader2 } from 'lucide-react';
 import { getProductPrice } from '@/lib/api';
+import type { ProductTarget } from '@/lib/api';
 import { monthlyAverages, salesWithin, unreliableLabel } from '@/lib/sold-history';
 import type { MatchSource, ProductPrice, UnreliableReason } from '@/lib/types/product-price';
 import { formatPrice, ghostBtn, inputClass } from './deal-finder-shared';
+import { SoldListingPreview } from './SoldListingPreview';
 
 // Sold-price line and sold-history panel shared by the Reverb and Sweetwater deal finder cards.
 
@@ -47,6 +49,20 @@ const PAGE_SIZE = 10;
 const formatDay = (iso: string) =>
   new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' });
 
+/** Headstock/neck repair found in the listing's title or description, with the sentence that says so. */
+export function RepairFlag({ note }: { note?: string }) {
+  if (!note) return null;
+  return (
+    <p className="mt-1.5 flex items-start gap-1.5 text-[13px] leading-snug" title={note}>
+      <span className="label-mono-sm inline-flex flex-shrink-0 items-center gap-1 bg-primary px-1.5 py-0.5 text-primary-foreground">
+        <AlertTriangle className="h-3 w-3" aria-hidden />
+        Headstock repair
+      </span>
+      <span className="line-clamp-2 italic text-foreground/70">&ldquo;{note}&rdquo;</span>
+    </p>
+  );
+}
+
 /** "Sold median $1,850 · 23 sales, 6 mo · Excellent", with a badge when the price isn't trusted. */
 export function SoldPriceLine({ deal }: { deal: SoldPricedDeal }) {
   const reason = deal.priceReliable ? null : unreliableLabel(deal.unreliableReason);
@@ -86,8 +102,8 @@ export function SoldPriceLine({ deal }: { deal: SoldPricedDeal }) {
  */
 export function SoldHistory({ deal, onSetProduct }: {
   deal: SoldPricedDeal;
-  /** Saves the pasted product link; rejects with an { message } error the panel shows. */
-  onSetProduct: (url: string) => Promise<void>;
+  /** Saves a pasted product link or confirms the current match; rejects with an { message } error the panel shows. */
+  onSetProduct: (target: ProductTarget) => Promise<void>;
 }) {
   const [open, setOpen] = useState(false);
   const [product, setProduct] = useState<ProductPrice | null>(null);
@@ -96,6 +112,7 @@ export function SoldHistory({ deal, onSetProduct }: {
   const [error, setError] = useState<string | null>(null);
   const [months, setMonths] = useState<number>(6);
   const [page, setPage] = useState(0);
+  const [expandedSale, setExpandedSale] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [url, setUrl] = useState('');
   const [saving, setSaving] = useState(false);
@@ -138,7 +155,7 @@ export function SoldHistory({ deal, onSetProduct }: {
     setSaving(true);
     setSaveError(null);
     try {
-      await onSetProduct(url.trim());
+      await onSetProduct({ url: url.trim() });
       setEditing(false);
       setUrl('');
       setOpen(true);
@@ -146,6 +163,23 @@ export function SoldHistory({ deal, onSetProduct }: {
       setSaveError((err as { message?: string })?.message ?? 'Failed to set product');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // A loose match that's actually right only needs a click to be trusted
+  const canConfirm = !!deal.productId && !deal.priceReliable
+    && (deal.unreliableReason === 'text_match' || deal.unreliableReason === 'broad_product');
+  const [confirming, setConfirming] = useState(false);
+  const handleConfirm = async () => {
+    if (!deal.productId) return;
+    setConfirming(true);
+    setSaveError(null);
+    try {
+      await onSetProduct({ productId: deal.productId });
+    } catch (err) {
+      setSaveError((err as { message?: string })?.message ?? 'Failed to confirm the product');
+    } finally {
+      setConfirming(false);
     }
   };
 
@@ -171,6 +205,17 @@ export function SoldHistory({ deal, onSetProduct }: {
         ) : (
           <span className="label-mono-sm text-muted-foreground">No product match</span>
         )}
+        {canConfirm && (
+          <button
+            onClick={handleConfirm}
+            disabled={confirming}
+            title="This match is right - trust its sold price and remember it for this model name"
+            className="label-mono-sm inline-flex cursor-pointer items-center gap-1 text-emerald-800 transition-colors hover:text-emerald-950 disabled:opacity-50"
+          >
+            {confirming ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" aria-hidden />}
+            Right product
+          </button>
+        )}
         <button
           onClick={() => { setEditing(e => !e); setSaveError(null); }}
           className="label-mono-sm inline-flex cursor-pointer items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
@@ -179,6 +224,8 @@ export function SoldHistory({ deal, onSetProduct }: {
           {deal.productId ? 'Wrong product?' : 'Set product'}
         </button>
       </div>
+
+      {saveError && !editing && <p className="mt-1 text-[13px] text-primary">{saveError}</p>}
 
       {editing && (
         <div className="mt-2 border border-foreground/15 p-3">
@@ -315,19 +362,37 @@ export function SoldHistory({ deal, onSetProduct }: {
                       </tr>
                     </thead>
                     <tbody>
-                      {pageSales.map((s, i) => (
-                        <tr key={`${s.listingId ?? i}-${s.soldAt}`} className="border-b border-foreground/5">
-                          <td className="py-1.5 tabular-nums">{formatDay(s.soldAt)}</td>
-                          <td className="py-1.5 text-foreground/80">{s.condition ?? '-'}</td>
-                          <td className="py-1.5 text-right tabular-nums">
-                            {s.listingId ? (
-                              <a href={`https://reverb.com/item/${s.listingId}`} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                                {formatPrice(s.amount)}
-                              </a>
-                            ) : formatPrice(s.amount)}
-                          </td>
-                        </tr>
-                      ))}
+                      {pageSales.map((s, i) => {
+                        const rowKey = `${s.listingId ?? i}-${s.soldAt}`;
+                        const expanded = s.listingId != null && expandedSale === rowKey;
+                        return (
+                          <Fragment key={rowKey}>
+                            <tr
+                              onClick={s.listingId ? () => setExpandedSale(expanded ? null : rowKey) : undefined}
+                              className={`border-b border-foreground/5 ${s.listingId ? 'cursor-pointer hover:bg-foreground/[0.03]' : ''} ${expanded ? 'bg-foreground/[0.03]' : ''}`}
+                              aria-expanded={s.listingId ? expanded : undefined}
+                            >
+                              <td className="py-1.5 tabular-nums">{formatDay(s.soldAt)}</td>
+                              <td className="py-1.5 text-foreground/80">{s.condition ?? '-'}</td>
+                              <td className="py-1.5 text-right tabular-nums">
+                                <span className="inline-flex items-center gap-1">
+                                  <span className={s.listingId ? 'text-primary' : undefined}>{formatPrice(s.amount)}</span>
+                                  {s.listingId && (
+                                    <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expanded ? 'rotate-180' : ''}`} aria-hidden />
+                                  )}
+                                </span>
+                              </td>
+                            </tr>
+                            {expanded && s.listingId && (
+                              <tr className="border-b border-foreground/10">
+                                <td colSpan={3}>
+                                  <SoldListingPreview listingId={s.listingId} soldFor={s.amount} />
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        );
+                      })}
                     </tbody>
                   </table>
                   {pageCount > 1 && (
@@ -339,7 +404,7 @@ export function SoldHistory({ deal, onSetProduct }: {
                   )}
                 </>
               )}
-              <p className="label-mono-sm mt-2 text-muted-foreground">US sales in Good to Mint condition, from Reverb</p>
+              <p className="label-mono-sm mt-2 text-muted-foreground">US sales in Good to Mint condition, from Reverb · click a sale to see the listing</p>
             </>
           ) : null}
         </div>

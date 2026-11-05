@@ -1271,9 +1271,44 @@ public class AdminController : ControllerBase
         return Ok(new { product, stale });
     }
 
+    /// <summary>
+    /// A Reverb listing's details for the sold-history panel - sold listings included, since
+    /// reverb.com hides them behind a "That listing sold" page.
+    /// </summary>
+    [HttpGet("reverb-listings/{listingId:long}")]
+    public async Task<IActionResult> GetReverbListing(long listingId, [FromServices] ReverbDealFinderClient reverb, CancellationToken ct = default)
+    {
+        var listing = await reverb.GetListingAsync(listingId, ct);
+        if (listing == null) return NotFound(new { error = "Reverb no longer has this listing" });
+
+        return Ok(new
+        {
+            id = listing.Id,
+            title = listing.Title,
+            state = listing.State.Slug,
+            condition = listing.Condition?.DisplayName,
+            listedPrice = listing.Price?.Amount,
+            currency = listing.Price?.Currency ?? "USD",
+            year = listing.Year,
+            finish = listing.Finish,
+            sellerName = listing.ShopName?.Trim(),
+            publishedAt = listing.PublishedAt,
+            description = listing.Description,
+            repairNote = RepairDetector.Find(listing.Title, listing.Description),
+            photos = listing.Photos
+                .Select(p => new { thumb = p.Links?.Small?.Href ?? p.Links?.Large?.Href ?? p.Links?.Full?.Href, full = p.Links?.Full?.Href ?? p.Links?.Large?.Href })
+                .Where(p => !string.IsNullOrEmpty(p.thumb))
+                .ToList(),
+        });
+    }
+
     public class SetProductRequest
     {
-        public string Url { get; set; } = string.Empty;
+        /// <summary>A pasted reverb.com/p/... product page.</summary>
+        public string? Url { get; set; }
+
+        /// <summary>Set instead of Url to confirm the listing's current match ("Right product").</summary>
+        public string? ProductId { get; set; }
     }
 
     /// <summary>
@@ -1286,7 +1321,7 @@ public class AdminController : ControllerBase
         var buy = await _mongoDbService.GetPotentialBuyByIdAsync(id, ct);
         if (buy == null) return NotFound();
 
-        var result = await _soldPriceService.SetManualProductAsync(buy.Make, buy.Model, request.Url, ct);
+        var result = await _soldPriceService.SetManualProductAsync(buy.Make, buy.Model, request.Url, ct, request.ProductId);
         if (result == null) return BadRequest(new { error = "That isn't a Reverb product link - paste a reverb.com/p/... page" });
         if (result.Product == null) return StatusCode(422, new { error = "Couldn't find that product on Reverb - check the link" });
 
@@ -1303,7 +1338,7 @@ public class AdminController : ControllerBase
         var buy = await _mongoDbService.GetSweetwaterPotentialBuyByIdAsync(id, ct);
         if (buy == null) return NotFound();
 
-        var result = await _soldPriceService.SetManualProductAsync(buy.Make, buy.Model, request.Url, ct);
+        var result = await _soldPriceService.SetManualProductAsync(buy.Make, buy.Model, request.Url, ct, request.ProductId);
         if (result == null) return BadRequest(new { error = "That isn't a Reverb product link - paste a reverb.com/p/... page" });
         if (result.Product == null) return StatusCode(422, new { error = "Couldn't find that product on Reverb - check the link" });
 

@@ -37,6 +37,8 @@ export interface PotentialBuy {
   /** True when the median is trusted enough to call a deal; hasPriceGuide mirrors it. */
   priceReliable?: boolean;
   unreliableReason?: UnreliableReason;
+  /** The sentence mentioning a headstock or neck repair, when the listing has one. */
+  repairNote?: string;
   isDeal: boolean;
   hasPriceGuide: boolean;
   firstSeenAt: string;

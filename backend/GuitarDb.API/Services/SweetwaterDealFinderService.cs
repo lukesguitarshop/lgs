@@ -208,6 +208,8 @@ public class SweetwaterDealFinderService
             SellerListingCount = listing.SellerListingCount,
             Make = listing.Make,
             Model = listing.Model,
+            // Sweetwater listings only come with a title
+            RepairNote = RepairDetector.Find(listing.Title, null),
             LastCheckedAt = DateTime.UtcNow
         };
 

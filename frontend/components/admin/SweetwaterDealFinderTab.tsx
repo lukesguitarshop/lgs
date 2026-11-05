@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Loader2, ExternalLink, X, Check, RefreshCw, Play, Trash2, Search, MapPin, Truck, HelpCircle, Store } from 'lucide-react';
 import { getSweetwaterPotentialBuys, getSweetwaterPotentialBuyStats, dismissSweetwaterPotentialBuy, dismissSweetwaterPotentialBuysBulk, dismissAllSweetwaterPotentialBuys, deleteAllSweetwaterPotentialBuys, markSweetwaterPotentialBuyPurchased, runSweetwaterDealFinder, getSweetwaterDealFinderStatus, setSweetwaterPotentialBuyProduct } from '@/lib/api';
+import type { ProductTarget } from '@/lib/api';
 import type { SweetwaterPotentialBuy, SweetwaterPotentialBuyStats } from '@/lib/types/sweetwater-potential-buy';
-import { SoldHistory, SoldPriceLine } from './SoldHistory';
+import { RepairFlag, SoldHistory, SoldPriceLine } from './SoldHistory';
 import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, StatCell, ViewTabs, ListSkeleton, PageNav } from './deal-finder-shared';
 
 /**
@@ -146,8 +147,8 @@ export function SweetwaterDealFinderTab() {
   };
 
   // Pasting a product link re-prices the card in place; it moves tabs on the next refresh
-  const handleSetProduct = async (id: string, url: string) => {
-    const updated = await setSweetwaterPotentialBuyProduct(id, url);
+  const handleSetProduct = async (id: string, target: ProductTarget) => {
+    const updated = await setSweetwaterPotentialBuyProduct(id, target);
     setDeals(prev => prev.map(d => (d.id === id ? updated : d)));
   };
 
@@ -471,7 +472,7 @@ export function SweetwaterDealFinderTab() {
                   busy={actionLoading === deal.id}
                   onPurchased={() => handleMarkPurchased(deal.id)}
                   onDismiss={() => handleDismiss(deal.id)}
-                  onSetProduct={(url) => handleSetProduct(deal.id, url)}
+                  onSetProduct={(target) => handleSetProduct(deal.id, target)}
                 />
               ))}
             </ul>
@@ -501,7 +502,7 @@ function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss, onSetProduct }:
   busy: boolean;
   onPurchased: () => void;
   onDismiss: () => void;
-  onSetProduct: (url: string) => Promise<void>;
+  onSetProduct: (target: ProductTarget) => Promise<void>;
 }) {
   const total = deal.totalPrice ?? deal.price;
   const discount = deal.hasPriceGuide && deal.discountPercent && deal.discountPercent > 0 ? deal.discountPercent : null;
@@ -559,6 +560,8 @@ function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss, onSetProduct }:
             </span>
           </div>
           <span className="label-mono-sm mt-1 text-muted-foreground sm:hidden">{listedLabel}</span>
+
+          <RepairFlag note={deal.repairNote} />
 
           {/* Price */}
           <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">

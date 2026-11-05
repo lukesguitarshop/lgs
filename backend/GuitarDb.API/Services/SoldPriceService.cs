@@ -134,18 +134,28 @@ public class SoldPriceService
     }
 
     /// <summary>
-    /// Ties the listing's make + model to a pasted reverb.com/p/... product for good and returns
-    /// the product. Null when the text isn't a product link; no Product when Reverb has no such product.
+    /// Ties the listing's make + model to a pasted reverb.com/p/... product (or confirms its current
+    /// match with <paramref name="confirmProductId"/>) for good and returns the product. Null when
+    /// the text isn't a product link; no Product when Reverb has no such product.
     /// </summary>
-    public async Task<SoldPriceResult?> SetManualProductAsync(string? make, string? model, string url, CancellationToken ct = default)
+    public async Task<SoldPriceResult?> SetManualProductAsync(string? make, string? model, string? url, CancellationToken ct = default, string? confirmProductId = null)
     {
-        var slug = SoldPriceMath.ParseProductSlug(url);
-        if (slug == null) return null;
+        string productId;
+        if (!string.IsNullOrEmpty(confirmProductId))
+        {
+            // "Right product": the listing's current match, confirmed as is
+            if (!confirmProductId.All(char.IsDigit)) return null;
+            productId = confirmProductId;
+        }
+        else
+        {
+            var slug = SoldPriceMath.ParseProductSlug(url);
+            if (slug == null) return null;
 
-        var csp = await _reverb.FindCspBySlugAsync(slug, ct);
-        if (csp == null) return new SoldPriceResult { LookupError = true };
-
-        var productId = csp.Id.ToString();
+            var csp = await _reverb.FindCspBySlugAsync(slug, ct);
+            if (csp == null) return new SoldPriceResult { LookupError = true };
+            productId = csp.Id.ToString();
+        }
         var key = SoldPriceMath.OverrideKey(make, model);
         if (key != null)
         {
@@ -250,7 +260,8 @@ public class SoldPriceService
         buy.UnreliableReason =
             result.MatchSource == MatchSources.TextSearch && !result.StrongTextMatch ? UnreliableReasons.TextMatch :
             product.SaleCount < SoldPriceMath.MinSales ? UnreliableReasons.FewSales :
-            product.IsBroad ? UnreliableReasons.BroadProduct :
+            // A broad product the admin confirmed by hand is their call
+            product.IsBroad && result.MatchSource != MatchSources.Manual ? UnreliableReasons.BroadProduct :
             result.Stale ? UnreliableReasons.Stale :
             null;
 

@@ -171,7 +171,7 @@ export const api = {
 
 // Deal Finder API
 import type { PotentialBuy, PotentialBuyStats, PaginatedPotentialBuys } from './types/potential-buy';
-import type { ProductPriceResponse } from './types/product-price';
+import type { ProductPriceResponse, ReverbListingPreview } from './types/product-price';
 
 export async function getPotentialBuys(
   status?: string,
@@ -226,9 +226,17 @@ export async function getProductPrice(productId: string): Promise<ProductPriceRe
   return api.authGet<ProductPriceResponse>(`/admin/product-prices/${productId}`);
 }
 
-/** Tie a Reverb deal-finder listing (and future ones with the same make + model) to a reverb.com/p/... product. */
-export async function setPotentialBuyProduct(id: string, url: string): Promise<PotentialBuy> {
-  return api.authPost<PotentialBuy>(`/admin/potential-buys/${id}/product`, { url });
+/** A Reverb listing's photos and details, sold ones included (reverb.com hides those). */
+export async function getReverbListing(listingId: string): Promise<ReverbListingPreview> {
+  return api.authGet<ReverbListingPreview>(`/admin/reverb-listings/${listingId}`);
+}
+
+/** A pasted reverb.com/p/... link, or the listing's current product ID to confirm it as right. */
+export type ProductTarget = { url: string } | { productId: string };
+
+/** Tie a Reverb deal-finder listing (and future ones with the same make + model) to a Reverb product. */
+export async function setPotentialBuyProduct(id: string, target: ProductTarget): Promise<PotentialBuy> {
+  return api.authPost<PotentialBuy>(`/admin/potential-buys/${id}/product`, target);
 }
 
 export async function deleteAllPotentialBuys(): Promise<{ success: boolean; message: string; deleted: number }> {
@@ -321,8 +329,8 @@ export async function markSweetwaterPotentialBuyPurchased(id: string): Promise<{
   return api.authPatch<{ message: string }>(`/admin/sweetwater-potential-buys/${id}/purchased`);
 }
 
-export async function setSweetwaterPotentialBuyProduct(id: string, url: string): Promise<SweetwaterPotentialBuy> {
-  return api.authPost<SweetwaterPotentialBuy>(`/admin/sweetwater-potential-buys/${id}/product`, { url });
+export async function setSweetwaterPotentialBuyProduct(id: string, target: ProductTarget): Promise<SweetwaterPotentialBuy> {
+  return api.authPost<SweetwaterPotentialBuy>(`/admin/sweetwater-potential-buys/${id}/product`, target);
 }
 
 export async function deleteAllSweetwaterPotentialBuys(): Promise<{ success: boolean; message: string; deleted: number }> {

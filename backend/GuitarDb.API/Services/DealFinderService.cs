@@ -421,7 +421,8 @@ public class DealFinderService
             SellerSlug = listing.Shop?.Slug,
             SellerPreferred = listing.Shop?.PreferredSeller ?? false,
             Make = listing.Make,
-            Model = listing.Model
+            Model = listing.Model,
+            RepairNote = RepairDetector.Find(listing.Title, listing.Description)
         };
 
         // Shipping to our ZIP. Reverb's public API prices by region, not ZIP, so a

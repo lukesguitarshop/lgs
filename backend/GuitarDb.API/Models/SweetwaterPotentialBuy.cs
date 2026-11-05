@@ -118,6 +118,10 @@ public class SweetwaterPotentialBuy : ISoldPriced
     [BsonElement("unreliable_reason")]
     public string? UnreliableReason { get; set; }
 
+    /// <summary>The sentence mentioning a headstock or neck repair, when the title or description has one.</summary>
+    [BsonElement("repair_note")]
+    public string? RepairNote { get; set; }
+
     [BsonElement("first_seen_at")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime FirstSeenAt { get; set; } = DateTime.UtcNow;

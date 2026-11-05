@@ -61,6 +61,7 @@ public class DealRuleTests
     [InlineData(MatchSources.ListingLink, false, 4, false, false, UnreliableReasons.FewSales)]
     [InlineData(MatchSources.Alias, false, 12, true, false, UnreliableReasons.BroadProduct)]
     [InlineData(MatchSources.Manual, false, 12, false, true, UnreliableReasons.Stale)]
+    [InlineData(MatchSources.Manual, false, 3, false, false, UnreliableReasons.FewSales)]
     public void Untrusted_prices_show_but_are_never_deals(string source, bool strong, int sales, bool broad, bool stale, string reason)
     {
         var buy = Buy(1000);
@@ -70,6 +71,16 @@ public class DealRuleTests
         Assert.False(buy.HasPriceGuide);
         Assert.Equal(reason, buy.UnreliableReason);
         Assert.Equal(2000m, buy.SoldMedian);
+    }
+
+    [Fact]
+    public void Broad_product_confirmed_by_hand_is_trusted()
+    {
+        var buy = Buy(1000);
+        SoldPriceService.Apply(buy, Match(Product(broad: true), MatchSources.Manual), canShip: true, thresholdPercent: 80);
+
+        Assert.True(buy.PriceReliable);
+        Assert.True(buy.IsDeal);
     }
 
     [Fact]

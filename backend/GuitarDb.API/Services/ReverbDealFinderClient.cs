@@ -152,6 +152,32 @@ public class ReverbDealFinderClient
         }
     }
 
+    /// <summary>
+    /// A listing by ID, sold ones included - reverb.com replaces a sold listing's page with
+    /// "That listing sold", but the API still returns its photos, condition and description.
+    /// Null when it doesn't exist or the lookup failed.
+    /// </summary>
+    public async Task<ReverbListing?> GetListingAsync(long listingId, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{BaseUrl}/listings/{listingId}", cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Listing lookup returned HTTP {Status} for {Id}", (int)response.StatusCode, listingId);
+                return null;
+            }
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return JsonSerializer.Deserialize<ReverbListing>(content, _jsonOptions);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Listing lookup failed for {Id}", listingId);
+            return null;
+        }
+    }
+
     /// <summary>A Reverb product by ID or slug, or null when it doesn't exist or the lookup failed.</summary>
     public async Task<CspResponse?> GetCspAsync(string idOrSlug, CancellationToken cancellationToken = default)
     {
