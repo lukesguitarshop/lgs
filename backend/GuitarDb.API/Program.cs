@@ -100,6 +100,7 @@ builder.Services.AddHostedService<DeliveryTrackingService>();
 builder.Services.AddHostedService<ScheduledDealFinderService>();
 builder.Services.AddHostedService<IncrementalDealFinderService>();
 builder.Services.AddHostedService<SweetwaterIntervalScanService>();
+builder.Services.AddHostedService<DealRuleRefreshService>();
 
 // Configure JWT Authentication
 var jwtSecretKey = builder.Configuration["Jwt:SecretKey"]

@@ -2636,6 +2636,28 @@ public class MongoDbService
         await _potentialBuysCollection.ReplaceOneAsync(x => x.Id == potentialBuy.Id, potentialBuy, cancellationToken: ct);
     }
 
+    // ===== Deal rule refresh =====
+
+    /// <summary>Active Reverb listings priced from sold history (not dismissed, bought or sold).</summary>
+    public async Task<List<PotentialBuy>> GetActiveSoldPricedPotentialBuysAsync(CancellationToken ct = default) =>
+        await _potentialBuysCollection
+            .Find(x => x.SoldMedian != null && !x.Dismissed && !x.Purchased && x.SoldAt == null)
+            .ToListAsync(ct);
+
+    public async Task SetPotentialBuyIsDealAsync(string id, bool isDeal, CancellationToken ct = default) =>
+        await _potentialBuysCollection.UpdateOneAsync(x => x.Id == id,
+            Builders<PotentialBuy>.Update.Set(x => x.IsDeal, isDeal), cancellationToken: ct);
+
+    /// <summary>Active Sweetwater listings priced from sold history.</summary>
+    public async Task<List<SweetwaterPotentialBuy>> GetActiveSoldPricedSweetwaterPotentialBuysAsync(CancellationToken ct = default) =>
+        await _sweetwaterPotentialBuysCollection
+            .Find(x => x.SoldMedian != null && !x.Dismissed && !x.Purchased)
+            .ToListAsync(ct);
+
+    public async Task SetSweetwaterPotentialBuyIsDealAsync(string id, bool isDeal, CancellationToken ct = default) =>
+        await _sweetwaterPotentialBuysCollection.UpdateOneAsync(x => x.Id == id,
+            Builders<SweetwaterPotentialBuy>.Update.Set(x => x.IsDeal, isDeal), cancellationToken: ct);
+
     // ===== Sold-price product cache =====
 
     public async Task<ProductPrice?> GetProductPriceAsync(string productId, CancellationToken ct = default) =>

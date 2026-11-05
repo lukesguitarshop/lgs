@@ -272,10 +272,19 @@ public class SoldPriceService
 
         buy.PriceReliable = buy.UnreliableReason == null;
         buy.HasPriceGuide = buy.PriceReliable;
-        buy.IsDeal = buy.PriceReliable
-            && delivered <= median * thresholdPercent / 100m
-            && median <= budgetCap
-            && canShip;
+        buy.IsDeal = QualifiesAsDeal(buy, canShip, thresholdPercent, budgetCap);
+    }
+
+    /// <summary>
+    /// The deal rule on a listing's stored sold price: trusted median, delivered at or under the
+    /// threshold share of it, median within budget, and it ships to us. Also re-run on every
+    /// startup (<see cref="DealRuleRefreshService"/>) so a threshold change moves listings at once.
+    /// </summary>
+    public static bool QualifiesAsDeal(ISoldPriced buy, bool canShip, decimal thresholdPercent, decimal budgetCap = 3500)
+    {
+        if (!buy.PriceReliable || buy.SoldMedian is not { } median || median <= 0) return false;
+        var delivered = buy.TotalPrice ?? buy.Price;
+        return delivered <= median * thresholdPercent / 100m && median <= budgetCap && canShip;
     }
 
     private async Task<(List<CspResponse> Results, bool Failed)> SearchCachedAsync(string query, CancellationToken ct)

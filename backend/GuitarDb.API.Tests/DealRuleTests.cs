@@ -135,4 +135,18 @@ public class DealRuleTests
     {
         Assert.Equal(strong, ProductMatcher.IsStrongMatch(model, null, new ProductCandidate("1", productTitle, "Fender"), "Fender"));
     }
+
+    [Fact]
+    public void Stored_price_is_re_judged_at_a_new_threshold()
+    {
+        // Les Paul Studio Deluxe II: $824 delivered against a $950 median - 13% below
+        var buy = new PotentialBuy { Price = 770, TotalPrice = 824, SoldMedian = 950, PriceReliable = true };
+
+        Assert.False(SoldPriceService.QualifiesAsDeal(buy, canShip: true, thresholdPercent: 80));
+        Assert.True(SoldPriceService.QualifiesAsDeal(buy, canShip: true, thresholdPercent: 110));
+        Assert.False(SoldPriceService.QualifiesAsDeal(buy, canShip: false, thresholdPercent: 110));
+
+        buy.PriceReliable = false;
+        Assert.False(SoldPriceService.QualifiesAsDeal(buy, canShip: true, thresholdPercent: 110));
+    }
 }
