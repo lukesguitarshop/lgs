@@ -2064,6 +2064,13 @@ public class MongoDbService
             ActivePotentialBuyFilter(),
             Builders<PotentialBuy>.Filter.Eq(x => x.HasPriceGuide, false));
 
+    /// <summary>What the Priced list shows: active listings with a trusted sold price that aren't deals.</summary>
+    private static FilterDefinition<PotentialBuy> ActivePricedFilter() =>
+        Builders<PotentialBuy>.Filter.And(
+            ActivePotentialBuyFilter(),
+            Builders<PotentialBuy>.Filter.Eq(x => x.HasPriceGuide, true),
+            Builders<PotentialBuy>.Filter.Eq(x => x.IsDeal, false));
+
     /// <summary>
     /// Listings first seen recently and not yet seen sold - the quick check re-reads
     /// these from Reverb to catch the ones that sell before anyone looks.
@@ -2111,6 +2118,9 @@ public class MongoDbService
                 break;
             case "no-price-guide":
                 filter = ActiveNoPriceGuideFilter();
+                break;
+            case "priced":
+                filter = ActivePricedFilter();
                 break;
             case "missed":
                 filter = Builders<PotentialBuy>.Filter.Eq(x => x.MissedDeal, true);
@@ -2190,6 +2200,8 @@ public class MongoDbService
             ActivePotentialBuyDealsFilter(), cancellationToken: ct);
         var noPriceGuide = await _potentialBuysCollection.CountDocumentsAsync(
             ActiveNoPriceGuideFilter(), cancellationToken: ct);
+        var priced = await _potentialBuysCollection.CountDocumentsAsync(
+            ActivePricedFilter(), cancellationToken: ct);
         var lastChecked = await _potentialBuysCollection
             .Find(_ => true)
             .SortByDescending(x => x.LastCheckedAt)
@@ -2210,6 +2222,7 @@ public class MongoDbService
             Total = (int)total,
             Deals = (int)deals,
             NoPriceGuide = (int)noPriceGuide,
+            Priced = (int)priced,
             LastRunAt = lastChecked?.LastCheckedAt,
             MissedLast7Days = (int)missed7,
             MissedLast30Days = (int)missed30,
@@ -2436,6 +2449,13 @@ public class MongoDbService
                     Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, false),
                     Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, false));
                 break;
+            case "priced":
+                filter = Builders<SweetwaterPotentialBuy>.Filter.And(
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.HasPriceGuide, true),
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.IsDeal, false),
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, false),
+                    Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Purchased, false));
+                break;
             case "dismissed":
                 filter = Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.Dismissed, true);
                 break;
@@ -2509,6 +2529,8 @@ public class MongoDbService
             x => x.IsDeal && !x.Dismissed && !x.Purchased, cancellationToken: ct);
         var noPriceGuide = await _sweetwaterPotentialBuysCollection.CountDocumentsAsync(
             x => !x.HasPriceGuide && !x.Dismissed && !x.Purchased, cancellationToken: ct);
+        var priced = await _sweetwaterPotentialBuysCollection.CountDocumentsAsync(
+            x => x.HasPriceGuide && !x.IsDeal && !x.Dismissed && !x.Purchased, cancellationToken: ct);
         var lastChecked = await _sweetwaterPotentialBuysCollection
             .Find(_ => true)
             .SortByDescending(x => x.LastCheckedAt)
@@ -2520,6 +2542,7 @@ public class MongoDbService
             Total = (int)total,
             Deals = (int)deals,
             NoPriceGuide = (int)noPriceGuide,
+            Priced = (int)priced,
             LastRunAt = lastChecked?.LastCheckedAt
         };
     }

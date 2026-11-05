@@ -15,7 +15,7 @@ const minutesBetween = (from: string, to: string) =>
 /** Sellers with more reviews than this are established shops, not the private sellers deals come from. */
 const SMALL_SELLER_MAX_REVIEWS = 100;
 
-type View = 'deals' | 'no-price-guide' | 'missed';
+type View = 'deals' | 'priced' | 'no-price-guide' | 'missed';
 
 export function DealFinderTab() {
   const [deals, setDeals] = useState<PotentialBuy[]>([]);
@@ -40,7 +40,8 @@ export function DealFinderTab() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const perPage = 20;
-  const view: View = statusFilter === 'missed' || statusFilter === 'no-price-guide' ? statusFilter : 'deals';
+  const view: View = statusFilter === 'missed' || statusFilter === 'no-price-guide' || statusFilter === 'priced' ? statusFilter : 'deals';
+  const isPricedView = view === 'priced';
   const isMissedView = view === 'missed';
   const isNoPriceView = view === 'no-price-guide';
   // The list on screen when it's one you work through (not dismissed/purchased/missed)
@@ -269,7 +270,7 @@ export function DealFinderTab() {
     if (next === view) return;
     setDeals([]); // show the loading skeleton, not the other tab's cards, until the fetch lands
     setStatusFilter(next);
-    setSortBy(next === 'missed' ? 'sold-newest' : 'listed-newest');
+    setSortBy(next === 'missed' ? 'sold-newest' : next === 'priced' ? 'best-deal' : 'listed-newest');
   };
 
   // Latest of the last full sweep and the last quick check - a quick check that finds
@@ -341,6 +342,7 @@ export function DealFinderTab() {
         <ViewTabs
           tabs={[
             { value: 'deals', label: 'Deals', count: stats?.deals },
+            { value: 'priced', label: 'Priced', count: stats?.priced },
             { value: 'no-price-guide', label: 'No price guide', count: stats?.noPriceGuide },
             { value: 'missed', label: 'Missed deals', count: stats?.missedLast30Days },
           ] as const}
@@ -518,13 +520,15 @@ export function DealFinderTab() {
         ) : deals.length === 0 ? (
           <div className="py-14 text-center">
             <p className="font-heading text-2xl text-foreground uppercase">
-              {isMissedView ? 'Nothing missed yet' : isNoPriceView ? 'Nothing without a price guide' : 'No deals right now'}
+              {isMissedView ? 'Nothing missed yet' : isPricedView ? 'Nothing priced yet' : isNoPriceView ? 'Nothing without a price guide' : 'No deals right now'}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
               {hasFilters
                 ? 'Try adjusting your search or price filters.'
                 : isMissedView
                   ? 'Guitars that sell within 30 minutes of being found will show up here.'
+                  : isPricedView
+                    ? "Guitars with a trusted sold price that aren't deals will show up here."
                   : isNoPriceView
                     ? 'Listings without a trusted sold price will show up here.'
                     : 'New listings are checked every 15 minutes. Run a full scan to sweep everything now.'}

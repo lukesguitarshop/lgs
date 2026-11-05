@@ -15,7 +15,7 @@ import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, St
  */
 const SMALL_SELLER_MAX_LISTINGS = 25;
 
-type View = 'deals' | 'no-price-guide';
+type View = 'deals' | 'priced' | 'no-price-guide';
 
 export function SweetwaterDealFinderTab() {
   const [deals, setDeals] = useState<SweetwaterPotentialBuy[]>([]);
@@ -38,7 +38,8 @@ export function SweetwaterDealFinderTab() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const perPage = 20;
-  const view: View = statusFilter === 'no-price-guide' ? 'no-price-guide' : 'deals';
+  const view: View = statusFilter === 'no-price-guide' || statusFilter === 'priced' ? statusFilter : 'deals';
+  const isPricedView = view === 'priced';
   const isNoPriceView = view === 'no-price-guide';
   // The list on screen when it's one you work through (not dismissed/purchased)
   const activeList = statusFilter === 'deals' || statusFilter === 'no-price-guide' ? statusFilter : null;
@@ -234,7 +235,7 @@ export function SweetwaterDealFinderTab() {
     if (next === view) return;
     setDeals([]); // show the loading skeleton, not the other tab's cards, until the fetch lands
     setStatusFilter(next);
-    setSortBy('listed-newest');
+    setSortBy(next === 'priced' ? 'best-deal' : 'listed-newest');
   };
 
   const hasFilters = !!(searchInput || minPriceInput || maxPriceInput || smallSellersOnly);
@@ -291,6 +292,7 @@ export function SweetwaterDealFinderTab() {
         <ViewTabs
           tabs={[
             { value: 'deals', label: 'Deals', count: stats?.deals },
+            { value: 'priced', label: 'Priced', count: stats?.priced },
             { value: 'no-price-guide', label: 'No price guide', count: stats?.noPriceGuide },
           ] as const}
           active={view}
@@ -452,11 +454,13 @@ export function SweetwaterDealFinderTab() {
         ) : deals.length === 0 ? (
           <div className="py-14 text-center">
             <p className="font-heading text-2xl text-foreground uppercase">
-              {isNoPriceView ? 'Nothing without a price guide' : 'No deals right now'}
+              {isPricedView ? 'Nothing priced yet' : isNoPriceView ? 'Nothing without a price guide' : 'No deals right now'}
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
               {hasFilters
                 ? 'Try adjusting your search or filters.'
+                : isPricedView
+                  ? "Guitars with a trusted sold price that aren't deals will show up here."
                 : isNoPriceView
                   ? 'Listings without a trusted sold price will show up here.'
                   : 'Gear Exchange is checked every 30 minutes. Run a full scan to sweep it now.'}

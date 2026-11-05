@@ -127,7 +127,7 @@ public static class ProductMatcher
         "upgraded", "upgrades", "black", "white", "red", "blue", "green", "yellow", "orange", "pink",
         "purple", "silver", "sunburst", "burst", "natural", "cherry", "tobacco",
         "goldtop", "honeyburst", "metallic", "blonde", "butterscotch", "antique", "finish",
-        "series", "solidbody", "hollowbody", "plek'd", "plekd", "figured",
+        "series", "solidbody", "hollowbody", "plek'd", "plekd", "signature", "collection",
     };
 
     /// <summary>Catalog products that aren't guitars (cases, parts, accessories) - never a match for a guitar listing.</summary>
@@ -245,43 +245,63 @@ public static class ProductMatcher
     /// <summary>
     /// How well a catalog product fits the listing, roughly 0-1.15: mostly the share of the
     /// product's words found in the listing, some for the share of the listing's words in
-    /// the product, a bonus or penalty for the listing year against the product's year
+    /// the product, a bonus or penalty for the listing's years against the product's year
     /// range, and penalties for flag mismatches (left-handed, Custom Shop, Relic...).
     /// </summary>
-    public static double Score(string listingText, int? listingYear, ProductCandidate candidate, string? make) =>
-        Evaluate(listingText, listingYear, candidate, make).Score;
+    public static double Score(string listingText, YearSpan? years, ProductCandidate candidate, string? make) =>
+        Evaluate(listingText, years, candidate, make).Score;
 
     /// <summary>
     /// A text match good enough to price deals from: every word of the product name is in the
-    /// listing, at least two words are shared, at least 75% of the listing's words are in the
-    /// product name, nothing conflicts (year outside the product's range, left-handed, Custom
-    /// Shop...), and a product limited to a year range only counts when the listing has a year.
+    /// listing, at least two words are shared, at least half the listing's words are in the
+    /// product name (sellers add colors and extras), and nothing conflicts (year outside the
+    /// product's range, left-handed, Custom Shop...). A product tied to a year range needs the
+    /// listing's year inside it when the search also found the same model from other years.
     /// </summary>
-    public static bool IsStrongMatch(string listingText, int? listingYear, ProductCandidate candidate, string? make)
+    public static bool IsStrongMatch(string listingText, YearSpan? years, ProductCandidate candidate, string? make, bool hasYearSiblings = true)
     {
-        var e = Evaluate(listingText, listingYear, candidate, make);
+        var e = Evaluate(listingText, years, candidate, make);
         return e.ProductCoverage >= 1.0
             && e.Shared >= 2
-            && e.ListingCoverage >= 0.75
+            && e.ListingCoverage >= 0.5
             && !e.Conflict
-            && !(e.HasYearRange && listingYear == null);
+            && !(e.HasYearRange && !e.YearsInside && hasYearSiblings);
     }
 
     /// <summary>
     /// Whether the seller's own text names this product: at least 75% of the product's words
-    /// appear in it, no flag or year conflicts, and a year-ranged product needs a listing year.
-    /// Guards learned aliases - "Les Paul" alone must not become an alias for "Les Paul Junior".
+    /// appear in it, no flag or year conflicts, and a year-ranged product needs the listing's
+    /// year inside the range. Guards learned aliases - "Les Paul" alone must not become an
+    /// alias for "Les Paul Junior".
     /// </summary>
-    public static bool NamesProduct(string sellerText, int? listingYear, ProductCandidate candidate, string? make)
+    public static bool NamesProduct(string sellerText, YearSpan? years, ProductCandidate candidate, string? make)
     {
-        var e = Evaluate(sellerText, listingYear, candidate, make);
-        // A product tied to years ("SG Standard 1991 - 2012") only names an undated listing's text loosely
-        return e.ProductCoverage >= 0.75 && !e.Conflict && !(e.HasYearRange && listingYear == null);
+        var e = Evaluate(sellerText, years, candidate, make);
+        return e.ProductCoverage >= 0.75 && !e.Conflict && !(e.HasYearRange && !e.YearsInside);
     }
 
-    private record Evaluation(double Score, double ProductCoverage, double ListingCoverage, bool Conflict, int Shared = 0, bool HasYearRange = false);
+    /// <summary>
+    /// Whether the search also found this model from other years - "Les Paul Studio 1998 - 2011"
+    /// next to "Les Paul Studio (2019 - 2024)" - so the listing's year has to decide between them.
+    /// </summary>
+    public static bool HasYearSiblings(ProductCandidate best, IEnumerable<ProductCandidate> candidates, string? make)
+    {
+        var core = YearlessName(best, make);
+        return candidates.Any(c => c.Id != best.Id && YearlessName(c, make) == core);
+    }
 
-    private static Evaluation Evaluate(string listingText, int? listingYear, ProductCandidate candidate, string? make)
+    private static string YearlessName(ProductCandidate c, string? make)
+    {
+        var core = StripBrand(c.Title, c.Brand ?? make);
+        core = YearRange.Replace(core, " ");
+        core = TrailingYear.Replace(core.Trim(), " ");
+        core = Regex.Replace(core, @"\([^)]*\)", " ");
+        return Normalize(core);
+    }
+
+    private record Evaluation(double Score, double ProductCoverage, double ListingCoverage, bool Conflict, int Shared = 0, bool HasYearRange = false, bool YearsInside = false);
+
+    private static Evaluation Evaluate(string listingText, YearSpan? years, ProductCandidate candidate, string? make)
     {
         var core = StripBrand(candidate.Title, candidate.Brand ?? make);
         // A year range ("1986 - 2000") or a single model year ("Cabronita Telecaster 2019")
@@ -292,29 +312,45 @@ public static class ProductMatcher
         var listingTokens = Tokens(Clean(listingText, make)).Distinct().ToHashSet();
         if (productTokens.Count == 0 || listingTokens.Count == 0) return new Evaluation(0, 0, 0, true);
 
+        // "American Vintage II 1975 Telecaster" names the '75 model; years are cleaned out, so
+        // give the product's two-digit year tokens a chance to match
+        foreach (Match y in Year.Matches(listingText))
+        {
+            var twoDigit = y.Value[2..];
+            if (productTokens.Contains(twoDigit)) listingTokens.Add(twoDigit);
+        }
+
         var shared = productTokens.Count(listingTokens.Contains);
         var productCoverage = (double)shared / productTokens.Count;
         var listingCoverage = (double)shared / listingTokens.Count;
         var score = 0.7 * productCoverage + 0.3 * listingCoverage;
         var conflict = false;
+        var inside = false;
 
-        if (listingYear.HasValue && rangeMatch.Success)
+        if (years is { } span && rangeMatch.Success)
         {
-            var years = Regex.Matches(rangeMatch.Value, @"\d{4}");
-            var from = int.Parse(years[0].Value);
-            // "2019 - Present" runs to now; a single model year allows the next year too
-            var to = years.Count > 1 ? int.Parse(years[1].Value)
-                : rangeMatch.Value.Contains('-') ? DateTime.UtcNow.Year
-                : from + 1;
-            if (listingYear >= from && listingYear <= to)
+            var found = Regex.Matches(rangeMatch.Value, @"\d{4}");
+            var from = int.Parse(found[0].Value);
+            // "2019 - Present" runs to now; a single model year ("SG Standard 2018") is that year,
+            // with a year either side tolerated (model years straddle calendar years)
+            var singleYear = found.Count == 1 && !rangeMatch.Value.Contains('-');
+            var to = found.Count > 1 ? int.Parse(found[1].Value)
+                : singleYear ? from
+                : DateTime.UtcNow.Year;
+            var slack = singleYear ? 1 : 0;
+
+            if (span.From >= from && span.To <= to)
             {
                 score += 0.15;
+                inside = true;
             }
-            else
+            else if (span.To < from - slack || span.From > to + slack)
             {
                 score -= 0.3;
                 conflict = true;
             }
+            // A decade that only partly overlaps the range, or a year next to a model year,
+            // neither helps nor rules it out
         }
 
         var listingNorm = $" {Normalize(listingText)} ";
@@ -330,26 +366,54 @@ public static class ProductMatcher
             }
         }
 
-        return new Evaluation(score, productCoverage, listingCoverage, conflict, shared, rangeMatch.Success);
+        return new Evaluation(score, productCoverage, listingCoverage, conflict, shared, rangeMatch.Success, inside);
     }
 
     /// <summary>
     /// The best-scoring candidate from the listing's brand, or null when the best is below
-    /// <see cref="MinScore"/> or a different product scores within <see cref="TieMargin"/> of it.
+    /// <see cref="MinScore"/> or a different product scores within <see cref="TieMargin"/> of it -
+    /// unless the description settles the tie (see <see cref="BreakTie"/>).
     /// </summary>
-    public static ProductCandidate? PickBest(string listingText, int? listingYear, string make, IEnumerable<ProductCandidate> candidates)
+    public static ProductCandidate? PickBest(string listingText, YearSpan? years, string make, IEnumerable<ProductCandidate> candidates, string? description = null)
     {
         var scored = candidates
             .Where(c => string.IsNullOrEmpty(c.Brand) || c.Brand.Equals(make, StringComparison.OrdinalIgnoreCase))
             .Where(c => !IsAccessory(c.Title))
-            .Select(c => (Candidate: c, Score: Score(listingText, listingYear, c, make)))
+            .Select(c => (Candidate: c, Score: Score(listingText, years, c, make)))
             .OrderByDescending(x => x.Score)
             .ToList();
 
         if (scored.Count == 0 || scored[0].Score < MinScore) return null;
-        if (scored.Count > 1 && scored[0].Score - scored[1].Score < TieMargin && scored[1].Candidate.Id != scored[0].Candidate.Id)
-            return null;
 
-        return scored[0].Candidate;
+        var tied = scored
+            .Where(x => scored[0].Score - x.Score < TieMargin)
+            .Select(x => x.Candidate)
+            .DistinctBy(c => c.Id)
+            .ToList();
+        if (tied.Count == 1) return tied[0];
+
+        return BreakTie(tied, description, make);
+    }
+
+    /// <summary>
+    /// Settles a tie with the seller's description: the one tied product whose own words - the
+    /// ones the other tied products don't share ("HSS", "II", "Koa") - all appear in it.
+    /// Silence settles nothing: the plain model never wins just because "HSS" isn't mentioned.
+    /// </summary>
+    public static ProductCandidate? BreakTie(IReadOnlyList<ProductCandidate> tied, string? description, string? make)
+    {
+        if (string.IsNullOrWhiteSpace(description) || tied.Count < 2) return null;
+
+        var descTokens = Tokens(Clean(Regex.Replace(description, "<[^>]+>", " "), make)).ToHashSet();
+        var tokens = tied.ToDictionary(c => c.Id, c => Tokens(Clean(StripBrand(c.Title, c.Brand ?? make), make)).ToHashSet());
+
+        var winners = tied.Where(c =>
+        {
+            var others = tied.Where(o => o.Id != c.Id).SelectMany(o => tokens[o.Id]).ToHashSet();
+            var own = tokens[c.Id].Where(t => !others.Contains(t)).ToList();
+            return own.Count > 0 && own.All(descTokens.Contains);
+        }).ToList();
+
+        return winners.Count == 1 ? winners[0] : null;
     }
 }

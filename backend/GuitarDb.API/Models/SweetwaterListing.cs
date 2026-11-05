@@ -25,4 +25,6 @@ public class SweetwaterListing
     public string Model { get; set; } = string.Empty;
     public string? Finish { get; set; }
     public int? Year { get; set; }
+    public int? MadeYear { get; set; }
+    public string? MadeDecade { get; set; }
 }

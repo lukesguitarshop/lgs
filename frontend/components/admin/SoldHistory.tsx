@@ -29,7 +29,16 @@ export interface SoldPricedDeal {
   unreliableReason?: UnreliableReason;
   priceGuideLow?: number;
   priceGuideHigh?: number;
+  detectedYear?: string;
+  yearSource?: string;
 }
+
+const YEAR_SOURCE_LABELS: Record<string, string> = {
+  listing: 'the listing',
+  title: 'the title',
+  serial: 'the serial number',
+  description: 'the description',
+};
 
 const MATCH_LABELS: Record<MatchSource, string> = {
   manual: 'your fix',
@@ -283,7 +292,12 @@ export function SoldHistory({ deal, onSetProduct }: {
                     <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" aria-hidden />
                   </a>
                   {deal.matchSource && (
-                    <p className="label-mono-sm mt-0.5 text-muted-foreground">Matched by {MATCH_LABELS[deal.matchSource]}</p>
+                    <p className="label-mono-sm mt-0.5 text-muted-foreground">
+                      Matched by {MATCH_LABELS[deal.matchSource]}
+                      {deal.detectedYear
+                        ? <> · year {deal.detectedYear} from {YEAR_SOURCE_LABELS[deal.yearSource ?? ''] ?? deal.yearSource}</>
+                        : <> · no year found</>}
+                    </p>
                   )}
                 </div>
                 {product.median != null && (

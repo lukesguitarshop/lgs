@@ -39,6 +39,10 @@ export interface PotentialBuy {
   unreliableReason?: UnreliableReason;
   /** The sentence mentioning a headstock or neck repair, when the listing has one. */
   repairNote?: string;
+  /** When the guitar was made as the matcher read it ("2015", "2010s"). */
+  detectedYear?: string;
+  /** Where detectedYear came from: listing, title, serial or description. */
+  yearSource?: string;
   isDeal: boolean;
   hasPriceGuide: boolean;
   firstSeenAt: string;
@@ -55,6 +59,8 @@ export interface PotentialBuyStats {
   total: number;
   deals: number;
   noPriceGuide?: number;
+  /** Active listings with a trusted sold price that aren't deals. */
+  priced?: number;
   lastRunAt?: string;
   missedLast7Days?: number;
   missedLast30Days?: number;

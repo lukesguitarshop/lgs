@@ -10,7 +10,12 @@ public class SoldPriceQuery
     public string Make { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;
     public string? Title { get; set; }
-    public int? Year { get; set; }
+
+    /// <summary>The seller's description (Reverb) - settles ties between close products.</summary>
+    public string? Description { get; set; }
+
+    /// <summary>When the guitar was made, from <see cref="ListingFacts.FindYears"/> - a year or a span like a decade.</summary>
+    public YearSpan? Years { get; set; }
 
     /// <summary>Reverb listings only - lets the matcher read the listing's own product link.</summary>
     public long? ReverbListingId { get; set; }
@@ -284,7 +289,7 @@ public class SoldPriceService
     }
 
     private static bool NamesProduct(SoldPriceQuery query, ProductPrice product) =>
-        ProductMatcher.NamesProduct(query.Model, query.Year, new ProductCandidate(product.ProductId, product.Title, product.Brand), query.Make);
+        ProductMatcher.NamesProduct(query.Model, query.Years, new ProductCandidate(product.ProductId, product.Title, product.Brand), query.Make);
 
     private async Task<SoldPriceResult> PriceAsync(SoldPriceResult result, string productId, string matchSource, CancellationToken ct, bool forceRefresh = false)
     {
@@ -333,11 +338,12 @@ public class SoldPriceService
             var candidates = results.Select(c => new ProductCandidate(c.Id.ToString(), c.Title, c.Brand?.Name)).ToList();
             // Score against the model field first - titles add colors and extras that blur close
             // products into ties - and fall back to model + title when the model alone can't decide
-            var best = (strongText == query.Model ? ProductMatcher.PickBest(query.Model, query.Year, query.Make, candidates) : null)
-                ?? ProductMatcher.PickBest(listingText, query.Year, query.Make, candidates);
+            var best = (strongText == query.Model ? ProductMatcher.PickBest(query.Model, query.Years, query.Make, candidates, query.Description) : null)
+                ?? ProductMatcher.PickBest(listingText, query.Years, query.Make, candidates, query.Description);
             _logger.LogDebug("Text search {Query}: {Count} results, picked {Title}", q, results.Count, best?.Title ?? "none");
             if (best != null)
-                return (best, ProductMatcher.IsStrongMatch(strongText, query.Year, best, query.Make), false);
+                return (best, ProductMatcher.IsStrongMatch(strongText, query.Years, best, query.Make,
+                    hasYearSiblings: ProductMatcher.HasYearSiblings(best, candidates, query.Make)), false);
         }
 
         return (null, false, anyFailed);

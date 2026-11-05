@@ -451,12 +451,19 @@ public class DealFinderService
 
         // Reuse the product link an earlier sweep read, so the single-listing endpoint is hit once per listing
         var existing = await _mongoDbService.GetPotentialBuyByReverbListingIdAsync(listing.Id, ct);
+        // The year decides between products split by year range; undated listings get it from
+        // the title, a serial number or the description
+        var (years, yearSource) = ListingFacts.FindYears(listing.Make, listing.Model, listing.Year, listing.Title, listing.Description);
+        potentialBuy.DetectedYear = years?.ToString();
+        potentialBuy.YearSource = yearSource;
+
         var priceResult = await _soldPriceService.ResolveAsync(new SoldPriceQuery
         {
             Make = listing.Make,
             Model = listing.Model,
             Title = listing.Title,
-            Year = listing.ParsedYear,
+            Description = listing.Description,
+            Years = years,
             ReverbListingId = listing.Id,
             KnownListingProductId = existing?.ListingProductId,
             ListingLinkChecked = existing?.ListingLinkChecked ?? false,

@@ -17,6 +17,12 @@ public class SweetwaterScraperClient
     private const string AlgoliaAppId = "E2O5C5M9LS";
     private const string AlgoliaApiKey = "013abf8e573fc605f7b8d69f15711113";
     private const string AlgoliaIndex = "production_listings";
+
+    private static readonly List<string> GuitarCategories = new()
+    {
+        "cat_lvl_1:Guitars >> Electric Guitars",
+        "cat_lvl_1:Guitars >> Acoustic Guitars",
+    };
     private const int HitsPerPage = 50;
 
     public SweetwaterScraperClient(
@@ -59,7 +65,9 @@ public class SweetwaterScraperClient
                     hitsPerPage = HitsPerPage,
                     page,
                     numericFilters = new[] { $"price<={priceMax}" },
-                    facetFilters = new[] { brandFilters },
+                    // Guitars only, like the Reverb scan - parts, amps, pedals and accessories
+                    // share these brands and can never match a guitar's sold price
+                    facetFilters = new[] { brandFilters, GuitarCategories },
                     // user_id isn't in the index's default attributes - ask for everything
                     attributesToRetrieve = new[] { "*" }
                 };
@@ -254,7 +262,9 @@ public class SweetwaterScraperClient
             Make = hit.Brand ?? "",
             Model = model,
             Finish = finish,
-            Year = year
+            Year = year,
+            MadeYear = hit.MadeYear is > 0 ? hit.MadeYear : null,
+            MadeDecade = string.IsNullOrWhiteSpace(hit.MadeDecade) ? null : hit.MadeDecade
         };
     }
 
@@ -349,6 +359,15 @@ public class AlgoliaHit
 
     [JsonPropertyName("user_id")]
     public long? UserId { get; set; }
+
+    /// <summary>Year the seller says it was made - set on some listings.</summary>
+    [JsonPropertyName("made_year")]
+    [JsonNumberHandling(JsonNumberHandling.AllowReadingFromString)]
+    public int? MadeYear { get; set; }
+
+    /// <summary>"2010s" - set on more listings than made_year.</summary>
+    [JsonPropertyName("made_decade")]
+    public string? MadeDecade { get; set; }
 
     [JsonPropertyName("location")]
     public string? Location { get; set; }

@@ -136,6 +136,14 @@ public class PotentialBuy : ISoldPriced
     [BsonElement("repair_note")]
     public string? RepairNote { get; set; }
 
+    /// <summary>When the guitar was made as the matcher read it ("2015", "2010s") and where from.</summary>
+    [BsonElement("detected_year")]
+    public string? DetectedYear { get; set; }
+
+    /// <summary>listing, title, serial or description.</summary>
+    [BsonElement("year_source")]
+    public string? YearSource { get; set; }
+
     [BsonElement("first_seen_at")]
     [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
     public DateTime FirstSeenAt { get; set; } = DateTime.UtcNow;
@@ -173,6 +181,8 @@ public class PotentialBuyStats
     public int Total { get; set; }
     public int Deals { get; set; }
     public int NoPriceGuide { get; set; }
+    /// <summary>Active listings with a trusted sold price that aren't deals.</summary>
+    public int Priced { get; set; }
     public DateTime? LastRunAt { get; set; }
     public int MissedLast7Days { get; set; }
     public int MissedLast30Days { get; set; }

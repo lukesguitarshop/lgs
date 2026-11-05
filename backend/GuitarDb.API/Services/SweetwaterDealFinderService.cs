@@ -214,12 +214,16 @@ public class SweetwaterDealFinderService
         };
 
         // Sweetwater listings have no Reverb product link: manual fix, learned alias, then text search
+        var (years, yearSource) = ListingFacts.FindYears(listing.Make, listing.Model, null, listing.Title, null, listing.MadeYear, listing.MadeDecade);
+        potentialBuy.DetectedYear = years?.ToString();
+        potentialBuy.YearSource = yearSource;
+
         var priceResult = await _soldPriceService.ResolveAsync(new SoldPriceQuery
         {
             Make = listing.Make,
             Model = listing.Model,
             Title = listing.Title,
-            Year = listing.Year,
+            Years = years,
         }, ct);
 
         // Judged on what it costs delivered, like Reverb
