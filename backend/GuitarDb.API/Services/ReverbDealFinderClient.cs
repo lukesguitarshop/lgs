@@ -123,80 +123,103 @@ public class ReverbDealFinderClient
     }
 
     /// <summary>
-    /// Resolves a make/model to market price data via the CSP (Comparison Shopping Page)
-    /// search API. The /priceguide API was retired by Reverb (403) in July 2026; CSPs
-    /// expose used_low_price / new_low_price instead of an estimated value range.
+    /// The Reverb product (comparison shopping page) the seller tied the listing to. Only the
+    /// single-listing endpoint returns it; the bulk search leaves it out. Failed is true when
+    /// the lookup itself failed, as opposed to the listing having no product.
     /// </summary>
-    public async Task<CspPriceResult> SearchCspPriceAsync(
-        string make,
-        string model,
-        CancellationToken cancellationToken = default)
+    public async Task<(string? ProductId, bool Failed)> GetListingProductIdAsync(long listingId, CancellationToken cancellationToken = default)
     {
-        var query = Uri.EscapeDataString($"{make} {model}".Trim());
-        var url = $"{BaseUrl}/csps?query={query}&per_page=24";
+        try
+        {
+            var response = await _httpClient.GetAsync($"{BaseUrl}/listings/{listingId}", cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+                return (null, false);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Listing product lookup returned HTTP {Status} for {Id}", (int)response.StatusCode, listingId);
+                return (null, true);
+            }
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            var listing = JsonSerializer.Deserialize<ReverbListing>(content, _jsonOptions);
+            var productId = listing?.ComparisonShoppingPageId;
+            return (string.IsNullOrWhiteSpace(productId) ? null : productId, false);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Listing product lookup failed for {Id}", listingId);
+            return (null, true);
+        }
+    }
+
+    /// <summary>A Reverb product by ID or slug, or null when it doesn't exist or the lookup failed.</summary>
+    public async Task<CspResponse?> GetCspAsync(string idOrSlug, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var response = await _httpClient.GetAsync($"{BaseUrl}/csps/{Uri.EscapeDataString(idOrSlug)}", cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogWarning("Product lookup returned HTTP {Status} for {Product}", (int)response.StatusCode, idOrSlug);
+                return null;
+            }
+
+            var content = await response.Content.ReadAsStringAsync(cancellationToken);
+            return JsonSerializer.Deserialize<CspResponse>(content, _jsonOptions);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogWarning(ex, "Product lookup failed for {Product}", idOrSlug);
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// A Reverb product from its reverb.com/p/ slug. The API has no slug lookup, so this
+    /// searches the slug's words and takes the result whose slug matches exactly.
+    /// </summary>
+    public async Task<CspResponse?> FindCspBySlugAsync(string slug, CancellationToken cancellationToken = default)
+    {
+        var words = slug.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        var queries = new[]
+        {
+            string.Join(' ', words),
+            // Year ranges in slugs ("1986-2000", "present") can trip Reverb's all-words search
+            string.Join(' ', words.Where(w => !System.Text.RegularExpressions.Regex.IsMatch(w, @"^((19|20)\d{2}|present)$"))),
+        };
+
+        foreach (var query in queries.Distinct())
+        {
+            var (results, _) = await SearchCspsAsync(query, cancellationToken);
+            var match = results.FirstOrDefault(c => c.Slug.Equals(slug, StringComparison.OrdinalIgnoreCase));
+            if (match != null) return await GetCspAsync(match.Id.ToString(), cancellationToken) ?? match;
+        }
+
+        return null;
+    }
+
+    /// <summary>Reverb catalog search. Failed is true on an HTTP error rather than no results.</summary>
+    public async Task<(List<CspResponse> Results, bool Failed)> SearchCspsAsync(string query, CancellationToken cancellationToken = default)
+    {
+        var url = $"{BaseUrl}/csps?query={Uri.EscapeDataString(query)}&per_page=24";
 
         try
         {
             var response = await _httpClient.GetAsync(url, cancellationToken);
             if (!response.IsSuccessStatusCode)
             {
-                _logger.LogWarning("CSP search returned HTTP {Status} for {Make} {Model}",
-                    (int)response.StatusCode, make, model);
-                return new CspPriceResult { LookupError = true };
+                _logger.LogWarning("Product search returned HTTP {Status} for {Query}", (int)response.StatusCode, query);
+                return (new List<CspResponse>(), true);
             }
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
             var searchResponse = JsonSerializer.Deserialize<CspSearchResponse>(content, _jsonOptions);
-
-            var candidates = (searchResponse?.ComparisonShoppingPages ?? new List<CspResponse>())
-                .Where(c => c.UsedLowPrice?.Amount > 0)
-                .ToList();
-
-            if (candidates.Count == 0)
-            {
-                _logger.LogDebug("No CSPs with used prices found for {Make} {Model}", make, model);
-                return new CspPriceResult();
-            }
-
-            var brandMatches = candidates
-                .Where(c => c.Brand != null && c.Brand.Name.Equals(make, StringComparison.OrdinalIgnoreCase))
-                .ToList();
-
-            // CSP titles usually include the brand, e.g. "Fender American Professional II Stratocaster"
-            var fullName = $"{make} {model}".Trim();
-
-            // Priority 1: exact title match
-            var exact = brandMatches.FirstOrDefault(c =>
-                c.Title.Equals(fullName, StringComparison.OrdinalIgnoreCase) ||
-                c.Title.Equals(model, StringComparison.OrdinalIgnoreCase));
-            if (exact != null)
-                return ToResult(exact, PriceGuideMatchType.Csp);
-
-            // Priority 2: CSP title contains the listing's model name
-            var contains = brandMatches.FirstOrDefault(c =>
-                c.Title.Contains(model, StringComparison.OrdinalIgnoreCase));
-            if (contains != null)
-                return ToResult(contains, PriceGuideMatchType.Model);
-
-            // Priority 3: listing model contains the CSP title (minus brand prefix),
-            // e.g. model "Les Paul Standard '60s Figured Top" vs CSP "Gibson Les Paul Standard '60s"
-            var reverse = brandMatches.FirstOrDefault(c =>
-            {
-                var coreTitle = c.Title.StartsWith(make, StringComparison.OrdinalIgnoreCase)
-                    ? c.Title[make.Length..].Trim()
-                    : c.Title;
-                return coreTitle.Length >= 5 && model.Contains(coreTitle, StringComparison.OrdinalIgnoreCase);
-            });
-            if (reverse != null)
-                return ToResult(reverse, PriceGuideMatchType.Model);
-
-            // Fallback: record the first result's prices but flag as unreliable so it's never a deal
-            return ToResult(brandMatches.FirstOrDefault() ?? candidates.First(), PriceGuideMatchType.Fallback);
+            return (searchResponse?.ComparisonShoppingPages ?? new List<CspResponse>(), false);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex, "CSP search failed for {Make} {Model}", make, model);
-            return new CspPriceResult { LookupError = true };
+            _logger.LogWarning(ex, "Product search failed for {Query}", query);
+            return (new List<CspResponse>(), true);
         }
     }
 
@@ -252,73 +275,6 @@ public class ReverbDealFinderClient
             _logger.LogWarning(ex, "Listing state lookup failed for {Id}", listingId);
             return null;
         }
-    }
-
-    private static CspPriceResult ToResult(CspResponse csp, PriceGuideMatchType matchType) => new()
-    {
-        CspId = csp.Id.ToString(),
-        CspTitle = csp.Title,
-        UsedLowPrice = csp.UsedLowPrice?.Amount,
-        NewLowPrice = csp.NewLowPrice?.Amount,
-        MatchType = matchType
-    };
-}
-
-public class PriceGuideCache
-{
-    private readonly ReverbDealFinderClient _apiClient;
-    private readonly ILogger<PriceGuideCache> _logger;
-    private readonly int _cacheMinutes;
-    private readonly Dictionary<string, CachedPriceGuideResult> _resultCache = new();
-
-    public PriceGuideCache(
-        ReverbDealFinderClient apiClient,
-        IConfiguration configuration,
-        ILogger<PriceGuideCache> logger)
-    {
-        _apiClient = apiClient;
-        _logger = logger;
-        _cacheMinutes = configuration.GetValue<int>("DealFinder:PriceGuideCacheMinutes", 1440);
-    }
-
-    public async Task<CspPriceResult> SearchAsync(
-        string make,
-        string model,
-        CancellationToken ct = default)
-    {
-        var cacheKey = $"csp:{make.ToLowerInvariant()}:{model.ToLowerInvariant()}";
-
-        if (_resultCache.TryGetValue(cacheKey, out var cached))
-        {
-            if (cached.ExpiresAt > DateTime.UtcNow)
-            {
-                _logger.LogDebug("CSP price search cached for {Make} {Model}", make, model);
-                return cached.Data;
-            }
-            _resultCache.Remove(cacheKey);
-        }
-
-        var result = await _apiClient.SearchCspPriceAsync(make, model, ct);
-
-        // Don't cache transient HTTP failures; do cache legitimate "no match" results
-        if (!result.LookupError)
-        {
-            _resultCache[cacheKey] = new CachedPriceGuideResult
-            {
-                Data = result,
-                ExpiresAt = DateTime.UtcNow.AddMinutes(_cacheMinutes)
-            };
-        }
-
-        return result;
-    }
-
-    public int CacheSize => _resultCache.Count;
-
-    private class CachedPriceGuideResult
-    {
-        public CspPriceResult Data { get; set; } = null!;
-        public DateTime ExpiresAt { get; set; }
     }
 }
 

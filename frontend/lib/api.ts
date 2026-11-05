@@ -171,6 +171,7 @@ export const api = {
 
 // Deal Finder API
 import type { PotentialBuy, PotentialBuyStats, PaginatedPotentialBuys } from './types/potential-buy';
+import type { ProductPriceResponse } from './types/product-price';
 
 export async function getPotentialBuys(
   status?: string,
@@ -218,6 +219,16 @@ export async function markPotentialBuyPurchased(id: string): Promise<{ message: 
 
 export async function deletePotentialBuy(id: string): Promise<{ message: string }> {
   return api.authDelete<{ message: string }>(`/admin/potential-buys/${id}`);
+}
+
+/** A Reverb product's cached sold history, for the deal finders' sold-history panel. */
+export async function getProductPrice(productId: string): Promise<ProductPriceResponse> {
+  return api.authGet<ProductPriceResponse>(`/admin/product-prices/${productId}`);
+}
+
+/** Tie a Reverb deal-finder listing (and future ones with the same make + model) to a reverb.com/p/... product. */
+export async function setPotentialBuyProduct(id: string, url: string): Promise<PotentialBuy> {
+  return api.authPost<PotentialBuy>(`/admin/potential-buys/${id}/product`, { url });
 }
 
 export async function deleteAllPotentialBuys(): Promise<{ success: boolean; message: string; deleted: number }> {
@@ -308,6 +319,10 @@ export async function dismissAllSweetwaterPotentialBuys(status?: 'deals' | 'no-p
 
 export async function markSweetwaterPotentialBuyPurchased(id: string): Promise<{ message: string }> {
   return api.authPatch<{ message: string }>(`/admin/sweetwater-potential-buys/${id}/purchased`);
+}
+
+export async function setSweetwaterPotentialBuyProduct(id: string, url: string): Promise<SweetwaterPotentialBuy> {
+  return api.authPost<SweetwaterPotentialBuy>(`/admin/sweetwater-potential-buys/${id}/product`, { url });
 }
 
 export async function deleteAllSweetwaterPotentialBuys(): Promise<{ success: boolean; message: string; deleted: number }> {

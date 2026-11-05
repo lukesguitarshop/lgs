@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GuitarDb.API", "backend\Gui
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GuitarDb.Scraper", "backend\GuitarDb.Scraper\GuitarDb.Scraper.csproj", "{58715318-C0F6-4F96-96D9-6109441ECB2F}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GuitarDb.API.Tests", "backend\GuitarDb.API.Tests\GuitarDb.API.Tests.csproj", "{61732229-6018-445D-89AB-4959C78A1586}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -43,6 +45,18 @@ Global
 		{58715318-C0F6-4F96-96D9-6109441ECB2F}.Release|x64.Build.0 = Release|Any CPU
 		{58715318-C0F6-4F96-96D9-6109441ECB2F}.Release|x86.ActiveCfg = Release|Any CPU
 		{58715318-C0F6-4F96-96D9-6109441ECB2F}.Release|x86.Build.0 = Release|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Debug|x64.Build.0 = Debug|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Debug|x86.Build.0 = Debug|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Release|Any CPU.Build.0 = Release|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Release|x64.ActiveCfg = Release|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Release|x64.Build.0 = Release|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Release|x86.ActiveCfg = Release|Any CPU
+		{61732229-6018-445D-89AB-4959C78A1586}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -50,5 +64,6 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{14591258-7308-4FEE-8C04-B11B56D236B5} = {1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}
 		{58715318-C0F6-4F96-96D9-6109441ECB2F} = {1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}
+		{61732229-6018-445D-89AB-4959C78A1586} = {1AE8ACA6-933B-BF2A-3671-3E2EAC007D16}
 	EndGlobalSection
 EndGlobal

@@ -21,6 +21,7 @@ public class AdminController : ControllerBase
     private readonly DealFinderService _dealFinderService;
     private readonly SweetwaterDealFinderService _sweetwaterDealFinderService;
     private readonly AuthService _authService;
+    private readonly SoldPriceService _soldPriceService;
 
     public AdminController(
         ILogger<AdminController> logger,
@@ -31,9 +32,11 @@ public class AdminController : ControllerBase
         EmailService emailService,
         DealFinderService dealFinderService,
         SweetwaterDealFinderService sweetwaterDealFinderService,
-        AuthService authService)
+        AuthService authService,
+        SoldPriceService soldPriceService)
     {
         _authService = authService;
+        _soldPriceService = soldPriceService;
         _logger = logger;
         _configuration = configuration;
         _mongoDbService = mongoDbService;
@@ -1253,6 +1256,63 @@ public class AdminController : ControllerBase
         if (!success) return NotFound();
         return Ok(new { message = "Deleted" });
     }
+
+    /// <summary>
+    /// A Reverb product's cached sold history for the deal finders' sold-history panel.
+    /// Fetched from Reverb when it isn't cached yet.
+    /// </summary>
+    [HttpGet("product-prices/{productId}")]
+    public async Task<IActionResult> GetProductPrice(string productId, CancellationToken ct = default)
+    {
+        if (!Regex.IsMatch(productId, @"^\d+$")) return BadRequest(new { error = "Invalid product ID" });
+
+        var (product, stale, _) = await _soldPriceService.GetProductAsync(productId, ct);
+        if (product == null) return NotFound(new { error = "Couldn't load sold history for this product from Reverb" });
+        return Ok(new { product, stale });
+    }
+
+    public class SetProductRequest
+    {
+        public string Url { get; set; } = string.Empty;
+    }
+
+    /// <summary>
+    /// Tie a Reverb deal-finder listing (and every future listing with the same make + model
+    /// text) to a pasted reverb.com/p/... product, then re-price it.
+    /// </summary>
+    [HttpPost("potential-buys/{id}/product")]
+    public async Task<IActionResult> SetPotentialBuyProduct(string id, [FromBody] SetProductRequest request, CancellationToken ct = default)
+    {
+        var buy = await _mongoDbService.GetPotentialBuyByIdAsync(id, ct);
+        if (buy == null) return NotFound();
+
+        var result = await _soldPriceService.SetManualProductAsync(buy.Make, buy.Model, request.Url, ct);
+        if (result == null) return BadRequest(new { error = "That isn't a Reverb product link - paste a reverb.com/p/... page" });
+        if (result.Product == null) return StatusCode(422, new { error = "Couldn't find that product on Reverb - check the link" });
+
+        SoldPriceService.Apply(buy, result, canShip: buy.ShippingPrice != null, DealThresholdPercent);
+        buy.PriceGuideId = buy.ProductId;
+        await _mongoDbService.ReplacePotentialBuyAsync(buy, ct);
+        return Ok(buy);
+    }
+
+    /// <summary>Same as <see cref="SetPotentialBuyProduct"/> for a Sweetwater listing.</summary>
+    [HttpPost("sweetwater-potential-buys/{id}/product")]
+    public async Task<IActionResult> SetSweetwaterPotentialBuyProduct(string id, [FromBody] SetProductRequest request, CancellationToken ct = default)
+    {
+        var buy = await _mongoDbService.GetSweetwaterPotentialBuyByIdAsync(id, ct);
+        if (buy == null) return NotFound();
+
+        var result = await _soldPriceService.SetManualProductAsync(buy.Make, buy.Model, request.Url, ct);
+        if (result == null) return BadRequest(new { error = "That isn't a Reverb product link - paste a reverb.com/p/... page" });
+        if (result.Product == null) return StatusCode(422, new { error = "Couldn't find that product on Reverb - check the link" });
+
+        SoldPriceService.Apply(buy, result, canShip: true, DealThresholdPercent);
+        await _mongoDbService.ReplaceSweetwaterPotentialBuyAsync(buy, ct);
+        return Ok(buy);
+    }
+
+    private decimal DealThresholdPercent => _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 80);
 
     /// <summary>
     /// Run the deal finder scraper

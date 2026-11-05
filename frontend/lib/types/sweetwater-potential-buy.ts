@@ -1,3 +1,5 @@
+import type { MatchSource, UnreliableReason } from './product-price';
+
 export interface SweetwaterPotentialBuy {
   id: string;
   listingTitle: string;
@@ -20,6 +22,19 @@ export interface SweetwaterPotentialBuy {
   priceGuideLow?: number;
   priceGuideHigh?: number;
   discountPercent?: number;
+  make?: string;
+  model?: string;
+  productId?: string;
+  productTitle?: string;
+  productUrl?: string;
+  /** Median sold price (Good to Mint, US) over soldWindowMonths. */
+  soldMedian?: number;
+  soldSaleCount?: number;
+  soldWindowMonths?: number;
+  matchSource?: MatchSource;
+  /** True when the median is trusted enough to call a deal; hasPriceGuide mirrors it. */
+  priceReliable?: boolean;
+  unreliableReason?: UnreliableReason;
   isDeal: boolean;
   hasPriceGuide: boolean;
   firstSeenAt: string;

@@ -6,7 +6,7 @@ namespace GuitarDb.API.Services;
 public class SweetwaterDealFinderService
 {
     private readonly SweetwaterScraperClient _scraperClient;
-    private readonly PriceGuideCache _priceGuideCache;
+    private readonly SoldPriceService _soldPriceService;
     private readonly MongoDbService _mongoDbService;
     private readonly IConfiguration _configuration;
     private readonly ILogger<SweetwaterDealFinderService> _logger;
@@ -15,13 +15,13 @@ public class SweetwaterDealFinderService
 
     public SweetwaterDealFinderService(
         SweetwaterScraperClient scraperClient,
-        PriceGuideCache priceGuideCache,
+        SoldPriceService soldPriceService,
         MongoDbService mongoDbService,
         IConfiguration configuration,
         ILogger<SweetwaterDealFinderService> logger)
     {
         _scraperClient = scraperClient;
-        _priceGuideCache = priceGuideCache;
+        _soldPriceService = soldPriceService;
         _mongoDbService = mongoDbService;
         _configuration = configuration;
         _logger = logger;
@@ -71,7 +71,7 @@ public class SweetwaterDealFinderService
                 };
             }
 
-            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 100);
+            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 80);
             int totalWithPriceGuide = 0, totalWithoutPriceGuide = 0, totalDealsFound = 0, totalErrors = 0, totalLookupErrors = 0;
 
             // Collect all makes from all filter sets and fetch once
@@ -144,7 +144,7 @@ public class SweetwaterDealFinderService
             if (result.ListingsChecked >= 20 && totalWithPriceGuide == 0 && totalLookupErrors > result.ListingsChecked / 2)
             {
                 result.Success = false;
-                result.Message = $"Price data lookups are failing ({totalLookupErrors}/{result.ListingsChecked} errors) — the Reverb CSP API may have changed";
+                result.Message = $"Price data lookups are failing ({totalLookupErrors}/{result.ListingsChecked} errors) — Reverb's product or sold-history (gql.reverb.com priceRecordsSearch) API may have changed";
                 result.Error = result.Message;
                 _logger.LogError("{Message}", result.Message);
                 return result;
@@ -184,7 +184,7 @@ public class SweetwaterDealFinderService
         }
     }
 
-    private async Task<(SweetwaterPotentialBuy Buy, CspPriceResult PriceResult)> ProcessListingAsync(
+    private async Task<(SweetwaterPotentialBuy Buy, SoldPriceResult PriceResult)> ProcessListingAsync(
         SweetwaterListing listing, decimal dealThresholdPercent, CancellationToken ct)
     {
         var potentialBuy = new SweetwaterPotentialBuy
@@ -206,38 +206,37 @@ public class SweetwaterDealFinderService
             SellerSlug = listing.SellerSlug,
             SellerLocation = listing.SellerLocation,
             SellerListingCount = listing.SellerListingCount,
+            Make = listing.Make,
+            Model = listing.Model,
             LastCheckedAt = DateTime.UtcNow
         };
 
-        // Same as Reverb: judge the deal on what it costs delivered
-        var delivered = potentialBuy.TotalPrice ?? potentialBuy.Price;
-
-        // Benchmark against Reverb market prices via the CSP API
-        var priceResult = await _priceGuideCache.SearchAsync(listing.Make, listing.Model, ct);
-
-        if (priceResult.HasPrice)
+        // Sweetwater listings have no Reverb product link: manual fix, learned alias, then text search
+        var priceResult = await _soldPriceService.ResolveAsync(new SoldPriceQuery
         {
-            var usedLow = priceResult.UsedLowPrice!.Value;
+            Make = listing.Make,
+            Model = listing.Model,
+            Title = listing.Title,
+            Year = listing.Year,
+        }, ct);
 
-            potentialBuy.HasPriceGuide = true;
-            potentialBuy.PriceGuideLow = usedLow;                    // lowest current used ask on Reverb
-            potentialBuy.PriceGuideHigh = priceResult.NewLowPrice;   // lowest current new ask (may be null)
-            potentialBuy.DiscountPercent = (usedLow - delivered) / usedLow * 100;
+        // Judged on what it costs delivered, like Reverb
+        SoldPriceService.Apply(potentialBuy, priceResult, canShip: true, dealThresholdPercent);
 
-            var isBelowMarket = delivered <= usedLow * dealThresholdPercent / 100m;
-            var isWithinBudget = usedLow <= 3500;
-            potentialBuy.IsDeal = isBelowMarket && isWithinBudget && priceResult.IsReliable;
-
-            string matchLabel = potentialBuy.IsDeal ? "DEAL!" : (priceResult.IsReliable ? "     " : "SKIP ");
+        if (potentialBuy.SoldMedian.HasValue)
+        {
+            var matchLabel = potentialBuy.IsDeal ? "DEAL!" : (potentialBuy.PriceReliable ? "     " : "SKIP ");
             _logger.LogInformation(
-                "[SW] {Deal} {Title}: ${Price} delivered vs used low ${UsedLow} (new: ${NewLow}) [{MatchType}: {CspTitle}]",
+                "[SW] {Deal} {Title}: ${Price} delivered vs sold median ${Median} ({Sales} sales, {Window} mo) [{Source}: {Product}] {Reason}",
                 matchLabel,
                 listing.Title.Length > 50 ? listing.Title[..50] + "..." : listing.Title,
-                delivered,
-                usedLow,
-                priceResult.NewLowPrice,
-                priceResult.MatchType,
-                priceResult.CspTitle);
+                potentialBuy.TotalPrice ?? potentialBuy.Price,
+                potentialBuy.SoldMedian,
+                potentialBuy.SoldSaleCount,
+                potentialBuy.SoldWindowMonths,
+                potentialBuy.MatchSource,
+                potentialBuy.ProductTitle,
+                potentialBuy.UnreliableReason);
         }
 
         return (potentialBuy, priceResult);

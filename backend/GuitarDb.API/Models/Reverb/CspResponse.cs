@@ -30,33 +30,41 @@ public class CspResponse
 
     [JsonPropertyName("new_low_price")]
     public ReverbPrice? NewLowPrice { get; set; }
+
+    [JsonPropertyName("_links")]
+    public CspLinks? Links { get; set; }
+
+    /// <summary>
+    /// Reverb's catalog variant IDs, read from the cp_ids[] in the product's listings link -
+    /// what the sold-history query takes.
+    /// </summary>
+    [JsonIgnore]
+    public List<string> CanonicalProductIds
+    {
+        get
+        {
+            var href = Links?.Listings?.Href;
+            if (string.IsNullOrEmpty(href)) return new List<string>();
+            return System.Text.RegularExpressions.Regex
+                .Matches(Uri.UnescapeDataString(href), @"cp_ids\[\]=(\d+)")
+                .Select(m => m.Groups[1].Value)
+                .Distinct()
+                .ToList();
+        }
+    }
+}
+
+public class CspLinks
+{
+    [JsonPropertyName("web")]
+    public ReverbLink? Web { get; set; }
+
+    [JsonPropertyName("listings")]
+    public ReverbLink? Listings { get; set; }
 }
 
 public class CspBrand
 {
     [JsonPropertyName("name")]
     public string Name { get; set; } = string.Empty;
-}
-
-/// <summary>
-/// Result of resolving a listing to Reverb market price data via the CSP
-/// (Comparison Shopping Page) API. Replaces the retired /priceguide endpoint:
-/// UsedLowPrice is the lowest current used asking price for the model, not a
-/// transaction-based estimate range.
-/// </summary>
-public class CspPriceResult
-{
-    public string? CspId { get; set; }
-    public string? CspTitle { get; set; }
-    public decimal? UsedLowPrice { get; set; }
-    public decimal? NewLowPrice { get; set; }
-    public PriceGuideMatchType MatchType { get; set; } = PriceGuideMatchType.Fallback;
-
-    /// <summary>True when the lookup failed (HTTP error), as opposed to legitimately finding no match.</summary>
-    public bool LookupError { get; set; }
-
-    public bool HasPrice => UsedLowPrice > 0;
-
-    public bool IsReliable => MatchType != PriceGuideMatchType.YearOnly &&
-                              MatchType != PriceGuideMatchType.Fallback;
 }

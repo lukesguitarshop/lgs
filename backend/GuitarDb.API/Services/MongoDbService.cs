@@ -1,6 +1,7 @@
 ﻿using GuitarDb.API.Helpers;
 using GuitarDb.API.Models;
 using MongoDB.Driver;
+using MongoDB.Bson;
 
 namespace GuitarDb.API.Services;
 
@@ -27,6 +28,8 @@ public class MongoDbService
     private readonly IMongoCollection<StoreCredit> _storeCreditsCollection;
     private readonly IMongoCollection<UserActivity> _userActivitiesCollection;
     private readonly IMongoCollection<ScheduledJobRun> _scheduledJobRunsCollection;
+    private readonly IMongoCollection<ProductPrice> _productPricesCollection;
+    private readonly IMongoCollection<ProductOverride> _productOverridesCollection;
     private readonly ILogger<MongoDbService> _logger;
 
     public MongoDbService(IConfiguration configuration, ILogger<MongoDbService> logger)
@@ -62,6 +65,8 @@ public class MongoDbService
         _storeCreditsCollection = database.GetCollection<StoreCredit>("store_credits");
         _userActivitiesCollection = database.GetCollection<UserActivity>("user_activities");
         _scheduledJobRunsCollection = database.GetCollection<ScheduledJobRun>("scheduled_job_runs");
+        _productPricesCollection = database.GetCollection<ProductPrice>("product_prices");
+        _productOverridesCollection = database.GetCollection<ProductOverride>("product_overrides");
 
         CreateIndexesAsync().GetAwaiter().GetResult();
     }
@@ -301,6 +306,14 @@ public class MongoDbService
             await _sweetwaterPotentialBuysCollection.Indexes.CreateOneAsync(
                 new CreateIndexModel<SweetwaterPotentialBuy>(swListingIdIndex, new CreateIndexOptions { Name = "sweetwater_listing_id_idx", Unique = true })
             );
+
+            // Sold-price product cache and make/model -> product overrides
+            await _productPricesCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<ProductPrice>(Builders<ProductPrice>.IndexKeys.Ascending(x => x.ProductId),
+                    new CreateIndexOptions { Name = "product_id_idx", Unique = true }));
+            await _productOverridesCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<ProductOverride>(Builders<ProductOverride>.IndexKeys.Ascending(x => x.Key),
+                    new CreateIndexOptions { Name = "key_idx", Unique = true }));
 
             // Trade-in indexes
             var tradeInUserIndex = Builders<TradeInRequest>.IndexKeys.Ascending(t => t.UserId);
@@ -2576,6 +2589,54 @@ public class MongoDbService
         var filter = Builders<SweetwaterPotentialBuy>.Filter.Eq(x => x.SweetwaterListingId, potentialBuy.SweetwaterListingId);
         var options = new ReplaceOptions { IsUpsert = true };
         await _sweetwaterPotentialBuysCollection.ReplaceOneAsync(filter, potentialBuy, options, ct);
+    }
+
+    public async Task<SweetwaterPotentialBuy?> GetSweetwaterPotentialBuyByIdAsync(string id, CancellationToken ct = default)
+    {
+        if (!ObjectId.TryParse(id, out _)) return null;
+        return await _sweetwaterPotentialBuysCollection.Find(x => x.Id == id).FirstOrDefaultAsync(ct);
+    }
+
+    public async Task ReplaceSweetwaterPotentialBuyAsync(SweetwaterPotentialBuy potentialBuy, CancellationToken ct = default)
+    {
+        await _sweetwaterPotentialBuysCollection.ReplaceOneAsync(x => x.Id == potentialBuy.Id, potentialBuy, cancellationToken: ct);
+    }
+
+    public async Task<PotentialBuy?> GetPotentialBuyByIdAsync(string id, CancellationToken ct = default)
+    {
+        if (!ObjectId.TryParse(id, out _)) return null;
+        return await _potentialBuysCollection.Find(x => x.Id == id).FirstOrDefaultAsync(ct);
+    }
+
+    public async Task ReplacePotentialBuyAsync(PotentialBuy potentialBuy, CancellationToken ct = default)
+    {
+        await _potentialBuysCollection.ReplaceOneAsync(x => x.Id == potentialBuy.Id, potentialBuy, cancellationToken: ct);
+    }
+
+    // ===== Sold-price product cache =====
+
+    public async Task<ProductPrice?> GetProductPriceAsync(string productId, CancellationToken ct = default) =>
+        await _productPricesCollection.Find(x => x.ProductId == productId).FirstOrDefaultAsync(ct);
+
+    public async Task UpsertProductPriceAsync(ProductPrice product, CancellationToken ct = default)
+    {
+        product.Id = null;
+        var existing = await GetProductPriceAsync(product.ProductId, ct);
+        if (existing != null) product.Id = existing.Id;
+        await _productPricesCollection.ReplaceOneAsync(x => x.ProductId == product.ProductId, product,
+            new ReplaceOptions { IsUpsert = true }, ct);
+    }
+
+    public async Task<ProductOverride?> GetProductOverrideAsync(string key, CancellationToken ct = default) =>
+        await _productOverridesCollection.Find(x => x.Key == key).FirstOrDefaultAsync(ct);
+
+    public async Task UpsertProductOverrideAsync(ProductOverride productOverride, CancellationToken ct = default)
+    {
+        var existing = await GetProductOverrideAsync(productOverride.Key, ct);
+        productOverride.Id = existing?.Id;
+        productOverride.UpdatedAt = DateTime.UtcNow;
+        await _productOverridesCollection.ReplaceOneAsync(x => x.Key == productOverride.Key, productOverride,
+            new ReplaceOptions { IsUpsert = true }, ct);
     }
 
     public async Task<long> DeleteStaleSweetwaterPotentialBuysAsync(DateTime scraperRunStartTime, CancellationToken ct = default)

@@ -67,7 +67,11 @@ builder.Services.AddHttpClient<ReverbDealFinderClient>(client =>
 {
     client.Timeout = TimeSpan.FromMinutes(10);
 });
-builder.Services.AddSingleton<PriceGuideCache>();
+builder.Services.AddHttpClient<ReverbSoldHistoryClient>(client =>
+{
+    client.Timeout = TimeSpan.FromMinutes(2);
+});
+builder.Services.AddSingleton<SoldPriceService>();
 builder.Services.AddSingleton<SellerCache>();
 builder.Services.AddSingleton<DealFinderService>();
 

@@ -3,8 +3,9 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { Loader2, ExternalLink, X, Check, RefreshCw, Play, Trash2, Search, MapPin, Truck, HelpCircle, Store } from 'lucide-react';
-import { getSweetwaterPotentialBuys, getSweetwaterPotentialBuyStats, dismissSweetwaterPotentialBuy, dismissSweetwaterPotentialBuysBulk, dismissAllSweetwaterPotentialBuys, deleteAllSweetwaterPotentialBuys, markSweetwaterPotentialBuyPurchased, runSweetwaterDealFinder, getSweetwaterDealFinderStatus } from '@/lib/api';
+import { getSweetwaterPotentialBuys, getSweetwaterPotentialBuyStats, dismissSweetwaterPotentialBuy, dismissSweetwaterPotentialBuysBulk, dismissAllSweetwaterPotentialBuys, deleteAllSweetwaterPotentialBuys, markSweetwaterPotentialBuyPurchased, runSweetwaterDealFinder, getSweetwaterDealFinderStatus, setSweetwaterPotentialBuyProduct } from '@/lib/api';
 import type { SweetwaterPotentialBuy, SweetwaterPotentialBuyStats } from '@/lib/types/sweetwater-potential-buy';
+import { SoldHistory, SoldPriceLine } from './SoldHistory';
 import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, StatCell, ViewTabs, ListSkeleton, PageNav } from './deal-finder-shared';
 
 /**
@@ -142,6 +143,12 @@ export function SweetwaterDealFinderTab() {
     } finally {
       setScraperRunning(false);
     }
+  };
+
+  // Pasting a product link re-prices the card in place; it moves tabs on the next refresh
+  const handleSetProduct = async (id: string, url: string) => {
+    const updated = await setSweetwaterPotentialBuyProduct(id, url);
+    setDeals(prev => prev.map(d => (d.id === id ? updated : d)));
   };
 
   const handleDismiss = async (id: string) => {
@@ -308,7 +315,7 @@ export function SweetwaterDealFinderTab() {
           <div className="mt-4 flex gap-3 border border-foreground/15 bg-foreground/[0.03] p-3 sm:p-4">
             <HelpCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary" />
             <p className="text-sm text-foreground/80">
-              Listings Reverb has <strong className="text-foreground">no market price</strong> for, so the deal finder can&apos;t tell whether they&apos;re a deal. Check these by hand.
+              Listings without a <strong className="text-foreground">trusted sold price</strong> on Reverb (no product match, too few sales, or a loose text match), so the deal finder can&apos;t tell whether they&apos;re a deal. Check these by hand, or use Set product to fix the match.
             </p>
           </div>
         )}
@@ -450,7 +457,7 @@ export function SweetwaterDealFinderTab() {
               {hasFilters
                 ? 'Try adjusting your search or filters.'
                 : isNoPriceView
-                  ? 'Listings Reverb has no market price for will show up here.'
+                  ? 'Listings without a trusted sold price will show up here.'
                   : 'Gear Exchange is checked every 30 minutes. Run a full scan to sweep it now.'}
             </p>
           </div>
@@ -464,6 +471,7 @@ export function SweetwaterDealFinderTab() {
                   busy={actionLoading === deal.id}
                   onPurchased={() => handleMarkPurchased(deal.id)}
                   onDismiss={() => handleDismiss(deal.id)}
+                  onSetProduct={(url) => handleSetProduct(deal.id, url)}
                 />
               ))}
             </ul>
@@ -488,11 +496,12 @@ export function SweetwaterDealFinderTab() {
   );
 }
 
-function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss }: {
+function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss, onSetProduct }: {
   deal: SweetwaterPotentialBuy;
   busy: boolean;
   onPurchased: () => void;
   onDismiss: () => void;
+  onSetProduct: (url: string) => Promise<void>;
 }) {
   const total = deal.totalPrice ?? deal.price;
   const discount = deal.hasPriceGuide && deal.discountPercent && deal.discountPercent > 0 ? deal.discountPercent : null;
@@ -527,7 +536,7 @@ function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss }: {
             <span className="font-heading absolute top-0 left-0 bg-primary px-2 py-1 text-[17px] leading-none text-primary-foreground">
               −{discount.toFixed(0)}%
             </span>
-          ) : !deal.hasPriceGuide ? (
+          ) : deal.soldMedian == null ? (
             <span className="label-mono-sm absolute inset-x-0 bottom-0 bg-foreground px-2 py-1.5 text-center text-background">
               No price data
             </span>
@@ -574,18 +583,8 @@ function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss }: {
             ) : null}
           </div>
 
-          {/* Market + condition */}
-          <p className="mt-1.5 text-[13px] text-foreground/70">
-            {deal.hasPriceGuide && deal.priceGuideLow ? (
-              <>
-                Used low <span className="font-medium text-foreground">{formatPrice(deal.priceGuideLow)}</span>
-                {deal.priceGuideHigh ? <> · New <span className="font-medium text-foreground">{formatPrice(deal.priceGuideHigh)}</span></> : null}
-              </>
-            ) : (
-              <span className="text-muted-foreground">No market price on Reverb</span>
-            )}
-            {deal.condition && <> · {deal.condition}</>}
-          </p>
+          {/* Sold price + condition */}
+          <SoldPriceLine deal={deal} />
 
           {/* Seller */}
           {(deal.sellerName || deal.sellerLocation) && (
@@ -640,6 +639,11 @@ function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss }: {
             Dismiss
           </button>
         </div>
+
+          {/* Sold history - under the details, full width on phones */}
+          <div className="col-span-2 sm:col-span-1 sm:col-start-2">
+            <SoldHistory deal={deal} onSetProduct={onSetProduct} />
+          </div>
       </div>
     </li>
   );
