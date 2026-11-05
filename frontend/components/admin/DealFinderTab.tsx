@@ -6,7 +6,7 @@ import { Loader2, ExternalLink, X, Check, RefreshCw, Play, Trash2, Search, Star,
 import { getPotentialBuys, getPotentialBuyStats, dismissPotentialBuy, dismissPotentialBuysBulk, dismissAllPotentialBuys, deleteAllPotentialBuys, markPotentialBuyPurchased, runDealFinder, getDealFinderStatus, quickCheckDealFinder, setPotentialBuyProduct } from '@/lib/api';
 import type { ProductTarget } from '@/lib/api';
 import type { PotentialBuy, PotentialBuyStats } from '@/lib/types/potential-buy';
-import { RepairFlag, SoldHistory, SoldPriceLine } from './SoldHistory';
+import { MedianBadge, RepairFlag, SoldHistory, SoldPriceLine } from './SoldHistory';
 import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, StatCell, ViewTabs, ListSkeleton, PageNav } from './deal-finder-shared';
 
 const minutesBetween = (from: string, to: string) =>
@@ -579,7 +579,8 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss, onSetProduct 
   onSetProduct: (target: ProductTarget) => Promise<void>;
 }) {
   const total = deal.totalPrice ?? deal.price;
-  const discount = deal.hasPriceGuide && deal.discountPercent && deal.discountPercent > 0 ? deal.discountPercent : null;
+  // Below (positive) or above (negative) the sold median - shown for every trusted price
+  const discount = deal.hasPriceGuide && deal.discountPercent != null ? deal.discountPercent : null;
   const soldInMinutes = deal.soldAt ? minutesBetween(deal.firstSeenAt, deal.soldAt) : null;
   const fewReviews = deal.sellerFeedbackCount != null && deal.sellerFeedbackCount < 5;
 
@@ -611,9 +612,7 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss, onSetProduct 
               Sold in {soldInMinutes}m
             </span>
           ) : discount != null ? (
-            <span className="font-heading absolute top-0 left-0 bg-primary px-2 py-1 text-[17px] leading-none text-primary-foreground">
-              −{discount.toFixed(0)}%
-            </span>
+            <MedianBadge percent={discount} />
           ) : deal.soldMedian == null ? (
             <span className="label-mono-sm absolute inset-x-0 bottom-0 bg-foreground px-2 py-1.5 text-center text-background">
               No price data

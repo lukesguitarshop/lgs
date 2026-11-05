@@ -71,7 +71,7 @@ public class SweetwaterDealFinderService
                 };
             }
 
-            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 80);
+            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 110);
             int totalWithPriceGuide = 0, totalWithoutPriceGuide = 0, totalDealsFound = 0, totalErrors = 0, totalLookupErrors = 0;
 
             // Collect all makes from all filter sets and fetch once

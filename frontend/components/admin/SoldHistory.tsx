@@ -31,6 +31,30 @@ export interface SoldPricedDeal {
   priceGuideHigh?: number;
   detectedYear?: string;
   yearSource?: string;
+  /** How far under the sold median the delivered price is; negative means over it. */
+  discountPercent?: number;
+}
+
+/** "20% below median", "5% above median" or "at median" - positive percent is below. */
+export function medianComparison(percent: number) {
+  const rounded = Math.round(Math.abs(percent));
+  if (rounded === 0) return { short: 'At median', long: 'at median', below: true };
+  return percent > 0
+    ? { short: `${rounded}% below`, long: `${rounded}% below median`, below: true }
+    : { short: `${rounded}% above`, long: `${rounded}% above median`, below: false };
+}
+
+/** Corner badge on a card photo: how the delivered price compares to the sold median. */
+export function MedianBadge({ percent }: { percent: number }) {
+  const { short, below } = medianComparison(percent);
+  return (
+    <span
+      className={`font-heading absolute top-0 left-0 px-2 py-1 text-[15px] leading-none uppercase ${below ? 'bg-primary text-primary-foreground' : 'bg-foreground text-background'}`}
+      title="Delivered price compared with the median sold price"
+    >
+      {short}
+    </span>
+  );
 }
 
 const YEAR_SOURCE_LABELS: Record<string, string> = {
@@ -83,6 +107,11 @@ export function SoldPriceLine({ deal }: { deal: SoldPricedDeal }) {
           <span>
             Sold median <span className="font-medium text-foreground">{formatPrice(deal.soldMedian)}</span>
           </span>
+          {deal.discountPercent != null && (
+            <span className={`font-medium ${deal.discountPercent >= 0 ? 'text-primary' : 'text-foreground'}`}>
+              · {medianComparison(deal.discountPercent).long}
+            </span>
+          )}
           <span className="text-muted-foreground">
             · {deal.soldSaleCount ?? 0} {deal.soldSaleCount === 1 ? 'sale' : 'sales'}, {deal.soldWindowMonths} mo
           </span>

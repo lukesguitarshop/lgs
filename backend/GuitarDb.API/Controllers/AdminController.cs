@@ -1347,7 +1347,7 @@ public class AdminController : ControllerBase
         return Ok(buy);
     }
 
-    private decimal DealThresholdPercent => _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 80);
+    private decimal DealThresholdPercent => _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 110);
 
     /// <summary>
     /// Run the deal finder scraper

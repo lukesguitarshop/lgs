@@ -6,7 +6,7 @@ import { Loader2, ExternalLink, X, Check, RefreshCw, Play, Trash2, Search, MapPi
 import { getSweetwaterPotentialBuys, getSweetwaterPotentialBuyStats, dismissSweetwaterPotentialBuy, dismissSweetwaterPotentialBuysBulk, dismissAllSweetwaterPotentialBuys, deleteAllSweetwaterPotentialBuys, markSweetwaterPotentialBuyPurchased, runSweetwaterDealFinder, getSweetwaterDealFinderStatus, setSweetwaterPotentialBuyProduct } from '@/lib/api';
 import type { ProductTarget } from '@/lib/api';
 import type { SweetwaterPotentialBuy, SweetwaterPotentialBuyStats } from '@/lib/types/sweetwater-potential-buy';
-import { RepairFlag, SoldHistory, SoldPriceLine } from './SoldHistory';
+import { MedianBadge, RepairFlag, SoldHistory, SoldPriceLine } from './SoldHistory';
 import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, StatCell, ViewTabs, ListSkeleton, PageNav } from './deal-finder-shared';
 
 /**
@@ -509,7 +509,8 @@ function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss, onSetProduct }:
   onSetProduct: (target: ProductTarget) => Promise<void>;
 }) {
   const total = deal.totalPrice ?? deal.price;
-  const discount = deal.hasPriceGuide && deal.discountPercent && deal.discountPercent > 0 ? deal.discountPercent : null;
+  // Below (positive) or above (negative) the sold median - shown for every trusted price
+  const discount = deal.hasPriceGuide && deal.discountPercent != null ? deal.discountPercent : null;
   const isShop = deal.sellerListingCount != null && deal.sellerListingCount > SMALL_SELLER_MAX_LISTINGS;
   const listedLabel = deal.listingCreatedAt ? `Listed ${timeAgo(deal.listingCreatedAt)}` : `Found ${timeAgo(deal.firstSeenAt)}`;
 
@@ -538,9 +539,7 @@ function SweetwaterDealRow({ deal, busy, onPurchased, onDismiss, onSetProduct }:
             <span className="label-mono-sm absolute inset-0 flex items-center justify-center text-foreground/45">No photo</span>
           )}
           {discount != null ? (
-            <span className="font-heading absolute top-0 left-0 bg-primary px-2 py-1 text-[17px] leading-none text-primary-foreground">
-              −{discount.toFixed(0)}%
-            </span>
+            <MedianBadge percent={discount} />
           ) : deal.soldMedian == null ? (
             <span className="label-mono-sm absolute inset-x-0 bottom-0 bg-foreground px-2 py-1.5 text-center text-background">
               No price data

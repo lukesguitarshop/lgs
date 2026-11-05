@@ -26,7 +26,7 @@ Both deal finders (Reverb and Sweetwater) leave a large share of listings with n
 | Benchmark | Median sold price across Good, Very Good, Excellent and Mint, US sellers |
 | Window | Last 6 months. Fewer than 5 sales → widen to 12, then 24. Still fewer than 5 → low confidence |
 | Storage | Shared per-product cache in Mongo (not per listing, not fetched live) |
-| Deal threshold | Delivered price ≤ 80% of median (`DealFinder:DealThresholdPercent` = 80) |
+| Deal threshold | Delivered price ≤ 110% of median (`DealFinder:DealThresholdPercent` = 110) - offers bring them down; first set to 80%, raised 2026-11-05 because 80% almost never fired |
 | Manual fixes | "Set product" / "Wrong product?" by pasting a `reverb.com/p/...` link |
 | Text-match fixes | Learned aliases + query cascade with scoring. AI fallback deferred |
 

@@ -78,7 +78,7 @@ public class DealFinderService
 
             var filterSets = GetFilterSets();
 
-            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 80);
+            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 110);
             int totalWithPriceGuide = 0, totalWithoutPriceGuide = 0, totalDealsFound = 0, totalErrors = 0, totalLookupErrors = 0;
 
             // Process each filter set
@@ -245,7 +245,7 @@ public class DealFinderService
         {
             var maxPages = _configuration.GetValue<int>("DealFinder:Incremental:MaxPagesPerSet", 3);
             var overlapMinutes = _configuration.GetValue<int>("DealFinder:Incremental:OverlapMinutes", 10);
-            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 80);
+            var dealThresholdPercent = _configuration.GetValue<decimal>("DealFinder:DealThresholdPercent", 110);
 
             // Overlap re-reads a few minutes of already-seen listings so clock skew or a
             // listing published mid-run can't slip between two checks. Already-seen
