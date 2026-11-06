@@ -10,6 +10,7 @@ import { monthlyAverages, salesWithin, unreliableLabel } from '@/lib/sold-histor
 import type { MatchSource, ProductPrice, UnreliableReason } from '@/lib/types/product-price';
 import { formatPrice, ghostBtn, inputClass } from './deal-finder-shared';
 import { SoldListingPreview } from './SoldListingPreview';
+import { appLink } from '@/lib/app-links';
 
 // Sold-price line and sold-history panel shared by the Reverb and Sweetwater deal finder cards.
 
@@ -346,7 +347,7 @@ export function SoldHistory({ deal, onSetProduct }: {
               <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
                 <div className="min-w-0">
                   <a
-                    href={product.webUrl ?? deal.productUrl}
+                    href={appLink(product.webUrl ?? deal.productUrl)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center gap-1 text-[14px] font-semibold text-foreground hover:text-primary"

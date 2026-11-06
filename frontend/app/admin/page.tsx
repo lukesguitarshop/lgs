@@ -25,6 +25,7 @@ import { NewMessageModal } from '@/components/admin/NewMessageModal';
 import { SweetwaterExportModal } from '@/components/admin/SweetwaterExportModal';
 import { EbayExportModal } from '@/components/admin/EbayExportModal';
 import { htmlToPlainText, getFullQualityUrl } from '@/lib/html-text';
+import { appLink } from '@/lib/app-links';
 import { buyerDisplayName, isHandedOver, isInPersonOrder, paymentLabel } from '@/lib/orders';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
@@ -164,17 +165,24 @@ const BULK_UPLOAD_PAGES = [
 // My-listings page on each marketplace, opened when a guitar is disabled so it
 // can be taken down everywhere else too.
 const MARKETPLACE_LISTINGS_PAGES = [
-  'https://www.ebay.com/mys/active',
-  'https://www.sweetwater.com/used/account/listings?%2Faccount%2Flistings=',
-  'https://www.facebook.com/marketplace/you/selling?referral_surface=seller_hub&status[0]=IN_STOCK',
-  'https://reverb.com/my/selling/listings?state=live',
+  { name: 'eBay', url: 'https://www.ebay.com/mys/active' },
+  { name: 'Sweetwater', url: 'https://www.sweetwater.com/used/account/listings?%2Faccount%2Flistings=' },
+  { name: 'Facebook', url: 'https://www.facebook.com/marketplace/you/selling?referral_surface=seller_hub&status[0]=IN_STOCK' },
+  { name: 'Reverb', url: 'https://reverb.com/my/selling/listings?state=live' },
 ];
+
+// Phones and tablets block all but one pop-up per tap, so there the marketplace
+// pages are offered as links to tap instead of being opened automatically.
+const isPhoneOrTablet = () =>
+  window.matchMedia('(pointer: coarse), (max-width: 767px)').matches;
 
 export default function AdminPage() {
   const { isAdmin, isLoading, isAuthenticated, setShowLoginModal } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
-  const [deactivatePrompt, setDeactivatePrompt] = useState<{ transactionId: string } | null>(null);
+  const [deactivatePrompt, setDeactivatePrompt] = useState<
+    { transactionId: string | null; showMarketplaceLinks: boolean } | null
+  >(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScraperResponse | null>(null);
   const [listings, setListings] = useState<AdminListing[]>([]);
@@ -841,8 +849,10 @@ export default function AdminPage() {
   const toggleListing = async (id: string) => {
     // Disabling: open each marketplace's listings page so it can be taken down
     // there too. Must run before any await, or the browser blocks the tabs.
-    if (listings.find(l => l.id === id)?.disabled === false) {
-      for (const url of MARKETPLACE_LISTINGS_PAGES) window.open(url, '_blank', 'noopener');
+    // On phones the pages are offered as links in the dialog below instead.
+    const onPhone = isPhoneOrTablet();
+    if (!onPhone && listings.find(l => l.id === id)?.disabled === false) {
+      for (const { url } of MARKETPLACE_LISTINGS_PAGES) window.open(url, '_blank', 'noopener');
     }
     setTogglingId(id);
     try {
@@ -853,11 +863,15 @@ export default function AdminPage() {
       await refreshSoldPageCache();
       // Only when deactivating (active -> disabled), offer to edit the linked transaction.
       if (response.disabled) {
+        let transactionId: string | null = null;
         try {
           const txn = await api.authGet<{ id: string }>(`/admin/transactions/by-listing/${id}`);
-          setDeactivatePrompt({ transactionId: txn.id });
+          transactionId = txn.id;
         } catch {
           showToast('No finance transaction found for this listing', 'info');
+        }
+        if (transactionId || onPhone) {
+          setDeactivatePrompt({ transactionId, showMarketplaceLinks: onPhone });
         }
       }
     } catch (err) {
@@ -2342,26 +2356,57 @@ export default function AdminPage() {
       >
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle>Edit this listing&apos;s transaction?</DialogTitle>
+            <DialogTitle>
+              {deactivatePrompt?.transactionId ? 'Edit this listing’s transaction?' : 'Listing deactivated'}
+            </DialogTitle>
           </DialogHeader>
-          <p className="text-sm text-gray-600 py-2">
-            The listing was deactivated. Would you like to edit its transaction in Finances?
-          </p>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeactivatePrompt(null)}>
-              No
-            </Button>
-            <Button
-              className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
-              onClick={() => {
-                const txnId = deactivatePrompt?.transactionId;
-                setDeactivatePrompt(null);
-                if (txnId) router.push(`/finances?editTxn=${txnId}`);
-              }}
-            >
-              Yes, edit transaction
-            </Button>
-          </DialogFooter>
+          {deactivatePrompt?.showMarketplaceLinks && (
+            <div className="py-2">
+              <p className="text-sm text-gray-600 mb-2">Take it down on the other marketplaces:</p>
+              <div className="grid grid-cols-2 gap-2">
+                {MARKETPLACE_LISTINGS_PAGES.map(({ name, url }) => (
+                  <a
+                    key={name}
+                    href={appLink(url)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-1.5 rounded border border-gray-300 px-3 py-2.5 text-sm font-medium text-gray-800 hover:bg-gray-50"
+                  >
+                    {name}
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+          {deactivatePrompt?.transactionId ? (
+            <>
+              <p className="text-sm text-gray-600 py-2">
+                The listing was deactivated. Would you like to edit its transaction in Finances?
+              </p>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeactivatePrompt(null)}>
+                  No
+                </Button>
+                <Button
+                  className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+                  onClick={() => {
+                    const txnId = deactivatePrompt?.transactionId;
+                    setDeactivatePrompt(null);
+                    if (txnId) router.push(`/finances?editTxn=${txnId}`);
+                  }}
+                >
+                  Yes, edit transaction
+                </Button>
+              </DialogFooter>
+            </>
+          ) : (
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDeactivatePrompt(null)}>
+                Done
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -8,6 +8,7 @@ import type { ProductTarget } from '@/lib/api';
 import type { PotentialBuy, PotentialBuyStats } from '@/lib/types/potential-buy';
 import { MedianBadge, OfferLine, RepairFlag, SoldHistory, SoldPriceLine } from './SoldHistory';
 import { formatPrice, formatDate, timeAgo, inputClass, selectClass, ghostBtn, StatCell, ViewTabs, ListSkeleton, PageNav } from './deal-finder-shared';
+import { appLink } from '@/lib/app-links';
 
 const minutesBetween = (from: string, to: string) =>
   Math.max(1, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 60000));
@@ -589,7 +590,7 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss, onSetProduct 
       <div className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-x-5">
         {/* Photo */}
         <a
-          href={deal.reverbLink ?? undefined}
+          href={appLink(deal.reverbLink)}
           target="_blank"
           rel="noopener noreferrer"
           className="photo-panel relative h-32 w-24 overflow-hidden border border-foreground/15 sm:row-span-2 sm:h-40 sm:w-36"
@@ -624,7 +625,7 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss, onSetProduct 
         <div className="flex min-w-0 flex-col">
           <div className="flex items-start justify-between gap-3">
             <a
-              href={deal.reverbLink ?? undefined}
+              href={appLink(deal.reverbLink)}
               target="_blank"
               rel="noopener noreferrer"
               className="line-clamp-2 text-[15px] leading-snug font-semibold text-foreground transition-colors hover:text-primary sm:text-base"
@@ -667,7 +668,7 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss, onSetProduct 
             <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[13px]">
               {deal.sellerSlug ? (
                 <a
-                  href={`https://reverb.com/shop/${deal.sellerSlug}`}
+                  href={appLink(`https://reverb.com/shop/${deal.sellerSlug}`)}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="font-medium text-foreground underline decoration-foreground/25 underline-offset-2 hover:decoration-foreground"
@@ -724,7 +725,7 @@ function DealRow({ deal, missedView, busy, onPurchased, onDismiss, onSetProduct 
           <div className="col-span-2 flex items-center gap-1.5 pt-3 sm:col-span-1 sm:col-start-2 [&>*]:flex-1 sm:[&>*]:flex-none [&>*]:justify-center">
             {deal.reverbLink && (
               <a
-                href={deal.reverbLink}
+                href={appLink(deal.reverbLink)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className={`font-btn inline-flex h-9 items-center gap-1.5 px-3 text-[11px] transition-colors focus-visible:ring-1 focus-visible:ring-ring focus-visible:outline-none ${missedView ? 'border border-foreground/20 hover:border-foreground' : 'bg-foreground text-background hover:bg-foreground/85'}`}
