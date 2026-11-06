@@ -2,6 +2,8 @@
 const ANDROID_APPS: Record<string, string> = {
   'reverb.com': 'com.reverb.app',
   'sweetwater.com': 'com.sweetwater.sweetwater',
+  'ebay.com': 'com.ebay.mobile',
+  'facebook.com': 'com.facebook.katana',
 };
 
 /**
