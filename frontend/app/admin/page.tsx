@@ -161,6 +161,15 @@ const BULK_UPLOAD_PAGES = [
   'https://www.ebay.com/sh/reports/uploads',
 ];
 
+// My-listings page on each marketplace, opened when a guitar is disabled so it
+// can be taken down everywhere else too.
+const MARKETPLACE_LISTINGS_PAGES = [
+  'https://www.ebay.com/mys/active',
+  'https://www.sweetwater.com/used/account/listings?%2Faccount%2Flistings=',
+  'https://www.facebook.com/marketplace/you/selling?referral_surface=seller_hub&status[0]=IN_STOCK',
+  'https://reverb.com/my/selling/listings?state=live',
+];
+
 export default function AdminPage() {
   const { isAdmin, isLoading, isAuthenticated, setShowLoginModal } = useAuth();
   const { showToast } = useToast();
@@ -830,6 +839,11 @@ export default function AdminPage() {
   };
 
   const toggleListing = async (id: string) => {
+    // Disabling: open each marketplace's listings page so it can be taken down
+    // there too. Must run before any await, or the browser blocks the tabs.
+    if (listings.find(l => l.id === id)?.disabled === false) {
+      for (const url of MARKETPLACE_LISTINGS_PAGES) window.open(url, '_blank', 'noopener');
+    }
     setTogglingId(id);
     try {
       const response = await api.authPatch<{ id: string; disabled: boolean }>(`/admin/listings/${id}/toggle-disabled`);
