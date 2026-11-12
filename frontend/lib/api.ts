@@ -4,9 +4,19 @@ import { getToken } from './auth';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000/api';
 
-export interface ApiError {
-  message: string;
+/**
+ * Thrown for every failed API call. It is a real Error so callers' usual
+ * `err instanceof Error ? err.message : fallback` shows the server's message
+ * (e.g. "Email already registered") instead of the generic fallback.
+ */
+export class ApiError extends Error {
   status?: number;
+
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
 }
 
 /**
@@ -54,11 +64,7 @@ async function fetchApi<T>(
       } catch {
         // Response body is not JSON, use default message
       }
-      const error: ApiError = {
-        message: errorMessage,
-        status: response.status,
-      };
-      throw error;
+      throw new ApiError(errorMessage, response.status);
     }
 
     // 204 carries no body; calling .json() on it throws. Endpoints use it to mean
@@ -70,12 +76,14 @@ async function fetchApi<T>(
 
     return response.json();
   } catch (error) {
-    if (error instanceof Error) {
-      throw {
-        message: error.message,
-      } as ApiError;
+    if (error instanceof ApiError) throw error;
+    // fetch() itself rejects with a TypeError when the request never got an
+    // answer (offline, server down, blocked by CORS). Its own text ("Failed to
+    // fetch", "Load failed") means nothing to a shopper.
+    if (error instanceof TypeError) {
+      throw new ApiError("Couldn't reach the server. Check your connection and try again.");
     }
-    throw error;
+    throw new ApiError(error instanceof Error ? error.message : String(error));
   }
 }
 
