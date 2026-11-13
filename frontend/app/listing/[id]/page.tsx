@@ -1,14 +1,18 @@
-import { notFound } from 'next/navigation';
+import Link from 'next/link';
+import { notFound, permanentRedirect } from 'next/navigation';
 import ListingDetail from './ListingDetail';
 import { ProductJsonLd } from './ProductJsonLd';
 import { BreadcrumbJsonLd } from './BreadcrumbJsonLd';
 import {
+  brandPath,
   extractBrand,
   feedCondition,
   formatPrice,
   getSiteUrl,
   isPurchasable,
+  listingIdFromParam,
   listingMetaDescription,
+  listingPath,
 } from '@/lib/seo';
 
 interface Listing {
@@ -63,25 +67,44 @@ interface PageProps {
 }
 
 export default async function ListingPage({ params }: PageProps) {
-  const { id } = await params;
-  const listing = await getListing(id);
+  // The segment is "<title-words>-<id>" now, and still the bare id on every link made
+  // before that (emails, old Google results, the cart). Either way the id is the key.
+  const { id: segment } = await params;
+  const listing = await getListing(listingIdFromParam(segment));
 
   if (!listing) {
     notFound();
   }
+
+  // One address per guitar: anything else (bare id, an old or mistyped title) is sent
+  // permanently to the current one, so Google never sees the same page twice.
+  const canonicalPath = listingPath(listing.id, listing.listing_title);
+  if (`/listing/${segment}` !== canonicalPath) {
+    permanentRedirect(canonicalPath);
+  }
+
+  const brand = extractBrand(listing.listing_title);
 
   return (
     <>
       <ProductJsonLd listing={listing} />
       <BreadcrumbJsonLd listing={listing} />
       <ListingDetail listing={listing} />
+      {brand && (
+        <p className="mx-auto max-w-[1320px] px-5 pb-10 text-[15px] text-foreground/70">
+          More from this maker:{' '}
+          <Link href={brandPath(brand)} className="underline hover:text-primary">
+            used {brand} guitars
+          </Link>
+        </p>
+      )}
     </>
   );
 }
 
 export async function generateMetadata({ params }: PageProps) {
-  const { id } = await params;
-  const listing = await getListing(id);
+  const { id: segment } = await params;
+  const listing = await getListing(listingIdFromParam(segment));
   const siteUrl = getSiteUrl();
 
   // Bare titles: the root layout's template appends " | Luke's Guitar Shop" once.
@@ -101,7 +124,7 @@ export async function generateMetadata({ params }: PageProps) {
     openGraph: {
       title: `${listing.listing_title} - ${priceFormatted}`,
       description,
-      url: `${siteUrl}/listing/${listing.id}`,
+      url: `${siteUrl}${listingPath(listing.id, listing.listing_title)}`,
       siteName: "Luke's Guitar Shop",
       images: listing.images.length > 0 ? [
         {
@@ -119,7 +142,7 @@ export async function generateMetadata({ params }: PageProps) {
       images: listing.images.length > 0 ? [listing.images[0]] : undefined,
     },
     alternates: {
-      canonical: `${siteUrl}/listing/${listing.id}`,
+      canonical: `${siteUrl}${listingPath(listing.id, listing.listing_title)}`,
     },
     robots: {
       index: !listing.disabled,

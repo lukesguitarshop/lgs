@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { formatPrice } from '@/lib/format';
+import { listingPath } from '@/lib/seo';
 
 export interface FeaturedListing {
   id: string;
@@ -29,7 +30,7 @@ export default function FeaturedGuitar({ listing }: FeaturedGuitarProps) {
 
   return (
     <Link
-      href={`/listing/${listing.id}`}
+      href={listingPath(listing.id, listing.listing_title)}
       className="receipt group block transition-colors hover:border-primary cursor-pointer md:-rotate-2"
     >
       <span className="receipt-rule block" />

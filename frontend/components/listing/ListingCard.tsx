@@ -9,6 +9,7 @@ import { logAddToCart } from '@/lib/activity';
 import { trackAddToCart } from '@/lib/analytics';
 import { formatPrice } from '@/lib/format';
 import { cn } from '@/lib/utils';
+import { listingPath } from '@/lib/seo';
 
 /** The card's own view of a listing. Callers map their API shape onto this. */
 export interface ListingCardData {
@@ -100,7 +101,7 @@ export function ListingCard({
     'font-btn flex h-12 items-center justify-center px-3 text-center text-[13px] transition-colors md:h-[42px] md:text-xs md:font-bold md:tracking-wider';
 
   return (
-    <Link href={`/listing/${listing.id}`} className={cn('group block h-full', className)}>
+    <Link href={listingPath(listing.id, listing.title)} className={cn('group block h-full', className)}>
       <article className="flex h-full flex-col md:border md:border-border md:bg-card">
         <div className="photo-panel relative aspect-[4/5] w-full overflow-hidden border border-foreground/15 md:aspect-square md:border-0">
           {photoCount > 0 ? (

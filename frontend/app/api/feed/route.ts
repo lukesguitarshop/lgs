@@ -7,6 +7,7 @@ import {
   feedCondition,
   getSiteUrl,
   isPurchasable,
+  listingPath,
   productDescription,
 } from '@/lib/seo';
 
@@ -66,7 +67,7 @@ function buildItem(listing: Listing, siteUrl: string): string {
     tag('id', listing.id),
     tag('title', listing.listing_title.replace(/\*/g, '').replace(/\s+/g, ' ').trim().slice(0, 150)),
     tag('description', description.slice(0, 5000)),
-    tag('link', `${siteUrl}/listing/${listing.id}`),
+    tag('link', `${siteUrl}${listingPath(listing.id, listing.listing_title)}`),
     tag('image_link', listing.images[0]),
     ...listing.images.slice(1, 11).map((img) => tag('additional_image_link', img)),
     tag('availability', isPurchasable(listing) ? 'in_stock' : 'out_of_stock'),

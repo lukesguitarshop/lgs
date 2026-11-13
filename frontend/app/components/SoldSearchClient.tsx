@@ -16,6 +16,7 @@ import {
   ChevronDown,
   Check,
 } from 'lucide-react';
+import { listingPath } from '@/lib/seo';
 
 export interface SoldListing {
   id: string;
@@ -445,7 +446,7 @@ export default function SoldSearchClient({ initialListings }: SoldSearchClientPr
               {paginatedListings.map((listing, index) => (
                 <Link
                   key={listing.id}
-                  href={`/listing/${listing.id}`}
+                  href={listingPath(listing.id, listing.listing_title)}
                   className="grid grid-cols-[88px_1fr] items-start gap-3.5 border-b border-foreground/12 px-5 py-3.5 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                 >
                   <div className="photo-panel relative aspect-[4/5] overflow-hidden border border-foreground/15">
@@ -653,7 +654,7 @@ export default function SoldSearchClient({ initialListings }: SoldSearchClientPr
 
 function SoldCard({ listing, priority = false }: { listing: SoldListing; priority?: boolean }) {
   return (
-    <Link href={`/listing/${listing.id}`} className="block h-full">
+    <Link href={listingPath(listing.id, listing.listing_title)} className="block h-full">
       <Card className="overflow-hidden h-full flex flex-col cursor-pointer">
         <div className="relative aspect-square bg-gradient-to-br from-muted to-muted/50">
           {listing.images && listing.images.length > 0 ? (

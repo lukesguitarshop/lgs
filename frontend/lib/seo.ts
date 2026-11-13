@@ -13,7 +13,7 @@ export function getSiteUrl(): string {
 /** Google's taxonomy ID for "... > Musical Instruments > String Instruments > Guitars". */
 export const GOOGLE_PRODUCT_CATEGORY_ID = 80;
 
-const KNOWN_BRANDS = [
+export const KNOWN_BRANDS = [
   'Paul Reed Smith', 'Fender', 'Gibson', 'Epiphone', 'Martin', 'Taylor', 'PRS',
   'Ibanez', 'Jackson', 'ESP', 'LTD', 'Schecter', 'Gretsch', 'Rickenbacker',
   'Yamaha', 'Squier', 'Guild', 'Ovation', 'Takamine', 'Washburn', 'Dean',
@@ -23,7 +23,8 @@ const KNOWN_BRANDS = [
   'Danelectro', 'Harmony', 'Kay', 'Silvertone', 'Teisco', 'Kramer', 'Peavey',
   'Sterling', 'Strandberg', 'Mayones', 'Tom Anderson', 'Knaggs', 'Duesenberg',
   'Hagstrom', 'Hofner', 'Framus', 'National', 'Dobro', 'Cort', 'Tokai',
-  'Greco', 'Burny', 'FGN', 'Fujigen', 'Novo', 'Nash', 'Harmony',
+  'Greco', 'Burny', 'FGN', 'Fujigen', 'Novo', 'Nash', 'Kiesel', 'Carvin',
+  'Solar', 'Legator', 'Aristides', 'Caparison', 'Chapman', 'Sire',
 ];
 
 function escapeRegExp(text: string): string {
@@ -160,4 +161,52 @@ export function listingMetaDescription(listing: DescribableListing): string {
     productDescription(listing.description) ||
     `${listing.listing_title}, photographed in full and available now at ${SITE_NAME}.`;
   return truncate(`${lead}. ${body}`, 158);
+}
+
+/** Lowercase words joined by dashes: "Gibson Les Paul '60s" -> "gibson-les-paul-60s". */
+export function slugify(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/['’`*]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80)
+    .replace(/-+$/, '');
+}
+
+const LISTING_ID = /[0-9a-f]{24}$/i;
+
+/**
+ * The address of a listing page: "/listing/<title-as-words>-<id>".
+ *
+ * The id stays in the address on purpose. It is what the page actually looks the
+ * guitar up by, so two guitars with the same title can never collide, a retitled
+ * listing keeps working, and every old "/listing/<id>" link still resolves (the page
+ * redirects it here). The words are for people and for Google.
+ */
+export function listingPath(id: string, title?: string | null): string {
+  const slug = title ? slugify(title) : '';
+  return slug ? `/listing/${slug}-${id}` : `/listing/${id}`;
+}
+
+/** The listing id inside a "/listing/..." path segment, with or without the words. */
+export function listingIdFromParam(param: string): string {
+  const match = LISTING_ID.exec(param);
+  return match ? match[0] : param;
+}
+
+export function brandSlug(brand: string): string {
+  return slugify(brand);
+}
+
+export function brandPath(brand: string): string {
+  return `/guitars/${brandSlug(brand)}`;
+}
+
+/** The brand a "/guitars/<slug>" address names, or null for an unknown slug. */
+export function brandFromSlug(slug: string): string | null {
+  return KNOWN_BRANDS.find((brand) => brandSlug(brand) === slug.toLowerCase()) ?? null;
 }

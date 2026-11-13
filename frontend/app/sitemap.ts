@@ -1,4 +1,11 @@
 import { MetadataRoute } from 'next';
+import { brandPath, listingPath } from '@/lib/seo';
+import {
+  getSoldListings,
+  isIndexableBrand,
+  summarizeBrands,
+  type CatalogListing,
+} from '@/lib/catalog';
 
 interface Listing {
   id: string;
@@ -76,11 +83,26 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const listingPages: MetadataRoute.Sitemap = listings
     .filter((listing) => !listing.disabled)
     .map((listing) => ({
-      url: `${siteUrl}/listing/${listing.id}`,
+      url: `${siteUrl}${listingPath(listing.id, listing.listing_title)}`,
       lastModified: new Date(listing.scraped_at),
       changeFrequency: 'weekly' as const,
       priority: 0.8,
     }));
 
-  return [...staticPages, ...listingPages];
+  // Brand pages, limited to the ones with enough on them to be worth indexing.
+  const active = listings.filter((listing) => !listing.disabled) as unknown as CatalogListing[];
+  const brands = summarizeBrands(active, await getSoldListings()).filter(isIndexableBrand);
+  const brandPages: MetadataRoute.Sitemap =
+    brands.length === 0
+      ? []
+      : [
+          { url: `${siteUrl}/guitars`, changeFrequency: 'weekly', priority: 0.7 },
+          ...brands.map((summary) => ({
+            url: `${siteUrl}${brandPath(summary.brand)}`,
+            changeFrequency: 'weekly' as const,
+            priority: summary.inStock > 0 ? 0.8 : 0.5,
+          })),
+        ];
+
+  return [...staticPages, ...brandPages, ...listingPages];
 }

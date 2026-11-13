@@ -8,6 +8,11 @@ import {
   listingMetaDescription,
   productDescription,
   truncate,
+  brandFromSlug,
+  brandPath,
+  listingIdFromParam,
+  listingPath,
+  slugify,
 } from './seo';
 
 describe('extractBrand', () => {
@@ -109,5 +114,51 @@ describe('listingMetaDescription', () => {
     expect(out.startsWith('Excellent condition · $549 · Free insured shipping. 2019 PRS')).toBe(true);
     expect(out.length).toBeLessThanOrEqual(158);
     expect(out.endsWith('…')).toBe(true);
+  });
+});
+
+describe('slugify', () => {
+  it('turns a title into dash-separated words', () => {
+    expect(slugify("Gibson Les Paul Standard '60s 2022 - Sixties Cherry")).toBe(
+      'gibson-les-paul-standard-60s-2022-sixties-cherry',
+    );
+    expect(slugify('Fender *Limited Edition* American Professional')).toBe(
+      'fender-limited-edition-american-professional',
+    );
+    expect(slugify('G&L ASAT')).toBe('g-and-l-asat');
+  });
+});
+
+describe('listing addresses', () => {
+  const id = '6af73800ca3db6b2d8da6f22';
+
+  it('puts the words before the id', () => {
+    expect(listingPath(id, 'PRS SE Standard 24 2019 - Translucent Blue')).toBe(
+      `/listing/prs-se-standard-24-2019-translucent-blue-${id}`,
+    );
+  });
+
+  it('falls back to the bare id without a title', () => {
+    expect(listingPath(id)).toBe(`/listing/${id}`);
+    expect(listingPath(id, '***')).toBe(`/listing/${id}`);
+  });
+
+  it('recovers the id from old and new addresses', () => {
+    expect(listingIdFromParam(id)).toBe(id);
+    expect(listingIdFromParam(`prs-se-standard-24-2019-translucent-blue-${id}`)).toBe(id);
+    // A title ending in hex-looking words must not eat into the id.
+    expect(listingIdFromParam(`fender-deadbeef-cafe-${id}`)).toBe(id);
+    expect(listingIdFromParam('nonexistent-id-12345')).toBe('nonexistent-id-12345');
+  });
+});
+
+describe('brand addresses', () => {
+  it('round-trips a brand through its slug', () => {
+    expect(brandPath('Fender')).toBe('/guitars/fender');
+    expect(brandPath("D'Angelico")).toBe('/guitars/dangelico');
+    expect(brandFromSlug('fender')).toBe('Fender');
+    expect(brandFromSlug('music-man')).toBe('Music Man');
+    expect(brandFromSlug('g-and-l')).toBe('G&L');
+    expect(brandFromSlug('not-a-brand')).toBeNull();
   });
 });

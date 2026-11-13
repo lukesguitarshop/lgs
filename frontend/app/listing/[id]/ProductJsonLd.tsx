@@ -4,6 +4,7 @@ import {
   extractColor,
   getSiteUrl,
   isPurchasable,
+  listingPath,
   productDescription,
   schemaCondition,
 } from '@/lib/seo';
@@ -30,7 +31,7 @@ export function ProductJsonLd({ listing }: { listing: Listing }) {
   const siteUrl = getSiteUrl();
   const brand = extractBrand(listing.listing_title);
   const color = extractColor(listing.listing_title);
-  const url = `${siteUrl}/listing/${listing.id}`;
+  const url = `${siteUrl}${listingPath(listing.id, listing.listing_title)}`;
 
   const jsonLd = {
     '@context': 'https://schema.org',

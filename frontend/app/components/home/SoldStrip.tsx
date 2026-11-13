@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { formatPrice } from '@/lib/format';
+import { listingPath } from '@/lib/seo';
 
 export interface SoldStripListing {
   id: string;
@@ -63,7 +64,7 @@ export default function SoldStrip({ listings, totalSold }: SoldStripProps) {
                 Sold
               </span>
               <Link
-                href={`/listing/${listing.id}`}
+                href={listingPath(listing.id, listing.listing_title)}
                 className="min-w-0 flex-[1_1_260px] text-[clamp(14.5px,1.3vw,16px)] leading-[1.4] text-foreground transition-colors hover:text-primary cursor-pointer"
               >
                 {listing.listing_title}
@@ -90,7 +91,7 @@ export default function SoldStrip({ listings, totalSold }: SoldStripProps) {
         <ol className="m-0 flex list-none gap-2.5 overflow-x-auto scroll-pl-5 px-5 pb-1 snap-x snap-mandatory scrollbar-none">
           {listings.map(listing => (
             <li key={listing.id} className="w-[120px] shrink-0 snap-start">
-              <Link href={`/listing/${listing.id}`} className="block">
+              <Link href={listingPath(listing.id, listing.listing_title)} className="block">
                 <span className="photo-panel relative block aspect-[4/5] border border-foreground/15">
                   {listing.images?.[0] && (
                     <Image
