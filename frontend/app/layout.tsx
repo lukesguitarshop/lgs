@@ -41,44 +41,47 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+const defaultTitle = "Luke's Guitar Shop | Used & Vintage Guitars, Free Shipping";
+const defaultDescription =
+  "Hand-picked used Fender, Gibson and PRS guitars from a one-person Ohio shop. 14+ photos of the exact guitar, every flaw disclosed, free insured shipping.";
+
+// The favicon is not declared here: Next picks up app/favicon.ico, app/icon.png and
+// app/apple-icon.png on its own. Declaring another one gives Google two to choose from.
 export const metadata: Metadata = {
   title: {
-    default: "Luke's Guitar Shop | Quality Guitars at Great Prices",
+    default: defaultTitle,
     template: "%s | Luke's Guitar Shop",
   },
-  description: "Shop quality used guitars at Luke's Guitar Shop. Free shipping on all orders. Fender, Gibson, Martin, Taylor, and more.",
-  keywords: ["guitar", "guitars", "used guitars", "guitar shop", "buy guitar", "Fender", "Gibson", "Martin", "Taylor", "electric guitar", "acoustic guitar"],
+  description: defaultDescription,
+  applicationName: "Luke's Guitar Shop",
   authors: [{ name: "Luke's Guitar Shop" }],
   creator: "Luke's Guitar Shop",
   publisher: "Luke's Guitar Shop",
-  icons: {
-    icon: "/images/logo-transparent.png",
-  },
   metadataBase: new URL(siteUrl),
-  alternates: {
-    canonical: "/",
-  },
+  // No canonical here: a canonical set in the root layout is inherited by every page,
+  // which told Google that /sold, /shop-info and the rest were copies of the homepage.
+  // Each indexable page declares its own.
   openGraph: {
     type: "website",
     locale: "en_US",
     url: siteUrl,
     siteName: "Luke's Guitar Shop",
-    title: "Luke's Guitar Shop | Quality Guitars at Great Prices",
-    description: "Shop quality used guitars at Luke's Guitar Shop. Free shipping on all orders.",
+    title: defaultTitle,
+    description: defaultDescription,
     images: [
       {
-        url: "/images/logo-transparent.png",
+        url: "/images/og-image.png",
         width: 1200,
         height: 630,
-        alt: "Luke's Guitar Shop",
+        alt: "Luke's Guitar Shop — used and vintage guitars, free insured shipping",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Luke's Guitar Shop | Quality Guitars at Great Prices",
-    description: "Shop quality used guitars at Luke's Guitar Shop. Free shipping on all orders.",
-    images: ["/images/logo-transparent.png"],
+    title: defaultTitle,
+    description: defaultDescription,
+    images: ["/images/og-image.png"],
   },
   robots: {
     index: true,
@@ -102,14 +105,13 @@ function OrganizationJsonLd() {
     "@type": "Organization",
     name: "Luke's Guitar Shop",
     url: siteUrl,
-    logo: `${siteUrl}/images/logo-transparent.png`,
-    description: "Quality used guitars at great prices. Free shipping on all orders.",
+    logo: `${siteUrl}/images/logo-square.png`,
+    description: "Used and vintage guitars from a one-person shop in Ohio. Every flaw disclosed, free insured shipping.",
     contactPoint: {
       "@type": "ContactPoint",
       contactType: "customer service",
       email: "lukesguitarshop@gmail.com",
     },
-    sameAs: [],
   };
 
   return (
@@ -125,6 +127,7 @@ function WebSiteJsonLd() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "Luke's Guitar Shop",
+    alternateName: ["Lukes Guitar Shop", "lukesguitarshop.com"],
     url: siteUrl,
     potentialAction: {
       "@type": "SearchAction",
@@ -150,10 +153,10 @@ function LocalBusinessJsonLd() {
     "@type": "Store",
     name: "Luke's Guitar Shop",
     url: siteUrl,
-    logo: `${siteUrl}/images/logo-transparent.png`,
-    description: "Quality used guitars at great prices. Free shipping on all orders.",
+    logo: `${siteUrl}/images/logo-square.png`,
+    description: "Used and vintage guitars from a one-person shop in Ohio. Every flaw disclosed, free insured shipping.",
     priceRange: "$$",
-    image: `${siteUrl}/images/logo-transparent.png`,
+    image: `${siteUrl}/images/og-image.png`,
     email: "lukesguitarshop@gmail.com",
     paymentAccepted: ["Credit Card", "PayPal"],
     currenciesAccepted: "USD",

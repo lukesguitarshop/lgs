@@ -37,5 +37,8 @@ export default async function SoldPage() {
 
 export const metadata = {
   title: 'Sold guitars',
-  description: 'Browse guitars that have been sold from Luke\'s Guitar Shop.',
+  description:
+    "Every guitar Luke's Guitar Shop has sold, with its photos and the price it went for.",
+  alternates: { canonical: '/sold' },
+  openGraph: { url: '/sold' },
 };

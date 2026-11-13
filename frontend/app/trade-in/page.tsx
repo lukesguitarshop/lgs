@@ -2,7 +2,13 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Clock, Shield, Zap } from 'lucide-react';
 
-export const metadata = { title: 'Trade in your guitar' };
+export const metadata = {
+  title: 'Trade in your guitar',
+  description:
+    'Send photos of your guitar and get two offers within a day: cash, or a higher amount in store credit.',
+  alternates: { canonical: '/trade-in' },
+  openGraph: { url: '/trade-in' },
+};
 
 const promises = [
   {

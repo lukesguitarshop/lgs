@@ -2,7 +2,9 @@ import { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: "Shop info",
-  description: "Learn more about Luke's Guitar Shop - quality pre-owned guitars since 2022. View our return policy and shop info.",
+  description: "Shipping, returns and customer reviews for Luke's Guitar Shop, a one-person used guitar shop in Ohio selling since 2022.",
+  alternates: { canonical: '/shop-info' },
+  openGraph: { url: '/shop-info' },
 };
 
 export default function ShopInfoLayout({

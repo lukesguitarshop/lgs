@@ -16,7 +16,7 @@ async function getListings(): Promise<Listing[]> {
 
   try {
     const res = await fetch(`${apiBaseUrl}/listings`, {
-      next: { revalidate: 3600 },
+      next: { revalidate: 300 },
     });
 
     if (!res.ok) {
@@ -48,6 +48,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(),
       changeFrequency: 'weekly',
       priority: 0.7,
+    },
+    {
+      url: `${siteUrl}/sold`,
+      lastModified: new Date(),
+      changeFrequency: 'weekly',
+      priority: 0.6,
+    },
+    {
+      url: `${siteUrl}/trade-in`,
+      changeFrequency: 'monthly',
+      priority: 0.6,
+    },
+    {
+      url: `${siteUrl}/contact`,
+      changeFrequency: 'monthly',
+      priority: 0.4,
     },
   ];
 

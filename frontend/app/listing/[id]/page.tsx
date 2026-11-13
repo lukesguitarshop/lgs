@@ -2,6 +2,14 @@ import { notFound } from 'next/navigation';
 import ListingDetail from './ListingDetail';
 import { ProductJsonLd } from './ProductJsonLd';
 import { BreadcrumbJsonLd } from './BreadcrumbJsonLd';
+import {
+  extractBrand,
+  feedCondition,
+  formatPrice,
+  getSiteUrl,
+  isPurchasable,
+  listingMetaDescription,
+} from '@/lib/seo';
 
 interface Listing {
   id: string;
@@ -74,7 +82,7 @@ export default async function ListingPage({ params }: PageProps) {
 export async function generateMetadata({ params }: PageProps) {
   const { id } = await params;
   const listing = await getListing(id);
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lukesguitarshop.com';
+  const siteUrl = getSiteUrl();
 
   // Bare titles: the root layout's template appends " | Luke's Guitar Shop" once.
   if (!listing) {
@@ -83,28 +91,21 @@ export async function generateMetadata({ params }: PageProps) {
     };
   }
 
-  const plainDescription = listing.description?.replace(/<[^>]*>/g, '').slice(0, 160) ||
-    `${listing.listing_title} - Available now at Luke's Guitar Shop. Free shipping!`;
-  const priceFormatted = new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: listing.currency || 'USD',
-    minimumFractionDigits: 0,
-  }).format(listing.price);
+  const description = listingMetaDescription(listing);
+  const priceFormatted = formatPrice(listing.price, listing.currency);
+  const brand = extractBrand(listing.listing_title);
 
   return {
     title: listing.listing_title,
-    description: plainDescription,
-    keywords: ['guitar', 'used guitar', 'buy guitar', listing.condition, listing.listing_title].filter(Boolean),
+    description,
     openGraph: {
       title: `${listing.listing_title} - ${priceFormatted}`,
-      description: plainDescription,
+      description,
       url: `${siteUrl}/listing/${listing.id}`,
       siteName: "Luke's Guitar Shop",
       images: listing.images.length > 0 ? [
         {
           url: listing.images[0],
-          width: 1200,
-          height: 630,
           alt: listing.listing_title,
         }
       ] : undefined,
@@ -114,7 +115,7 @@ export async function generateMetadata({ params }: PageProps) {
     twitter: {
       card: 'summary_large_image',
       title: `${listing.listing_title} - ${priceFormatted}`,
-      description: plainDescription,
+      description,
       images: listing.images.length > 0 ? [listing.images[0]] : undefined,
     },
     alternates: {
@@ -123,6 +124,14 @@ export async function generateMetadata({ params }: PageProps) {
     robots: {
       index: !listing.disabled,
       follow: true,
+    },
+    // Read by Facebook, Pinterest and others to show price and stock on a shared link.
+    other: {
+      'product:price:amount': listing.price.toFixed(2),
+      'product:price:currency': listing.currency || 'USD',
+      'product:availability': isPurchasable(listing) ? 'in stock' : 'out of stock',
+      'product:condition': feedCondition(listing.condition),
+      ...(brand && { 'product:brand': brand }),
     },
   };
 }

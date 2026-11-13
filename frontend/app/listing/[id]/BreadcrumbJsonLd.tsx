@@ -21,7 +21,7 @@ export function BreadcrumbJsonLd({ listing }: { listing: Listing }) {
         '@type': 'ListItem',
         position: 2,
         name: 'Guitars',
-        item: `${siteUrl}/?category=guitars`,
+        item: `${siteUrl}/#inventory`,
       },
       {
         '@type': 'ListItem',
