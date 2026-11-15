@@ -238,3 +238,47 @@
     transition: background-color 150ms, border-color 150ms, color 150ms;
   }
 }
+
+/* Brand pages. Entrance motion and the outlined backdrop word; all of it is decoration,
+   so it is switched off for anyone who has asked their device for less motion. */
+@layer utilities {
+  .rise {
+    animation: rise 620ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .bar-grow {
+    transform-origin: bottom;
+    animation: bar-grow 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  .bar-grow-x {
+    transform-origin: left;
+    animation: bar-grow-x 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  }
+  /* A giant outlined word behind a navy hero. Stroke only, so it reads as texture. */
+  .ghost-word {
+    color: transparent;
+    -webkit-text-stroke: 1px hsl(var(--background) / 0.13);
+  }
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(16px);
+    }
+  }
+  @keyframes bar-grow {
+    from {
+      transform: scaleY(0);
+    }
+  }
+  @keyframes bar-grow-x {
+    from {
+      transform: scaleX(0);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .rise,
+    .bar-grow,
+    .bar-grow-x {
+      animation: none;
+    }
+  }
+}

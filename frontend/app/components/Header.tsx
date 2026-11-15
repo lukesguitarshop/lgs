@@ -15,6 +15,7 @@ import { cn } from '@/lib/utils';
 /** Homepage sections are anchors; everything else is a real route. */
 const navLinks = [
   { href: '/#inventory', label: 'Listings', primary: true },
+  { href: '/guitars', label: 'Shop by brand', primary: false },
   { href: '/sold', label: 'Sold', primary: false },
   { href: '/#about', label: 'About', primary: false },
   { href: '/shop-info', label: 'Shop info', primary: false },
@@ -28,6 +29,8 @@ const navLinks = [
 /** The sheet's headline group: where people actually go, with the size to match. */
 const shopLinks = [
   { href: '/#inventory', label: 'Listings', count: 'listings' as const },
+  // No count: the brand index is a way in, not a pile of things.
+  { href: '/guitars', label: 'Shop by brand', count: null },
   { href: '/sold', label: 'Sold', count: 'sold' as const },
   { href: '/favorites', label: 'Favourites', count: 'favourites' as const },
 ];
@@ -399,7 +402,7 @@ export default function Header() {
                 <div className="label-mono pb-2.5 text-primary">Shop</div>
                 {shopLinks.map(link => {
                   // A bare "0" beside a nav row reads as a failure, not as "none yet".
-                  const count = menuCounts[link.count] || null;
+                  const count = (link.count && menuCounts[link.count]) || null;
                   const live = link.count === 'favourites' && !!count;
                   return (
                     <Link
