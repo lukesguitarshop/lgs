@@ -28,80 +28,133 @@ public class TradeInsController : ControllerBase
 
     private string? GetUserId() => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
+    // The browser resizes photos before sending, so this is a backstop: 8 photos at the
+    // per-photo limit plus form overhead.
+    private const long MaxSubmitBytes = 85 * 1024 * 1024;
+
     [HttpPost]
-    [RequestSizeLimit(25 * 1024 * 1024)]
-    [RequestFormLimits(MultipartBodyLengthLimit = 25 * 1024 * 1024)]
+    [RequestSizeLimit(MaxSubmitBytes)]
+    [RequestFormLimits(MultipartBodyLengthLimit = MaxSubmitBytes)]
     public async Task<IActionResult> Submit([FromForm] SubmitTradeInRequest request)
     {
         var userId = GetUserId();
         if (userId == null) return Unauthorized(new { error = "Invalid token" });
 
+        // Everything is checked before anything is written. A request used to be saved
+        // first and its photos checked after, so one rejected photo left an empty
+        // trade-in behind every time the customer retried.
         if (string.IsNullOrWhiteSpace(request.Brand) ||
             string.IsNullOrWhiteSpace(request.Model) ||
             string.IsNullOrWhiteSpace(request.Condition))
         {
             return BadRequest(new { error = "Brand, model, and condition are required" });
         }
-        if (request.Brand.Length > 100)
+        var brand = request.Brand.Trim();
+        var model = request.Model.Trim();
+        var notes = request.Notes?.Trim() ?? string.Empty;
+        if (brand.Length > 100)
             return BadRequest(new { error = "Brand must be 100 characters or fewer" });
-        if (request.Model.Length > 100)
+        if (model.Length > 100)
             return BadRequest(new { error = "Model must be 100 characters or fewer" });
-        if (request.Notes != null && request.Notes.Length > 1000)
+        if (notes.Length > 1000)
             return BadRequest(new { error = "Notes must be 1000 characters or fewer" });
-        var allowedConditions = new[] { "Mint", "Excellent", "Very Good", "Good", "Fair" };
-        if (!allowedConditions.Contains(request.Condition))
-        {
+        if (!TradeInRules.Conditions.Contains(request.Condition))
             return BadRequest(new { error = "Invalid condition" });
-        }
-        if (request.Photos == null || request.Photos.Count == 0)
-        {
+
+        var images = request.Photos ?? new List<IFormFile>();
+        if (images.Count == 0)
             return BadRequest(new { error = "At least one photo is required" });
+        if (images.Count > TradeInRules.MaxPhotos)
+            return BadRequest(new { error = $"You can add up to {TradeInRules.MaxPhotos} photos" });
+        foreach (var image in images)
+        {
+            if (image.Length == 0)
+                return BadRequest(new { error = $"{image.FileName} is empty. Remove it and try again." });
+            if (image.Length > TradeInRules.MaxPhotoBytes)
+                return BadRequest(new { error = $"{image.FileName} is over 10MB. Remove it or pick a smaller photo." });
+            if (!TradeInRules.PhotoContentTypes.Contains((image.ContentType ?? string.Empty).ToLowerInvariant()))
+                return BadRequest(new { error = $"{image.FileName} isn't a JPEG, PNG, GIF, or WebP photo." });
         }
 
         var user = await _mongoDbService.GetUserByIdAsync(userId);
         if (user == null) return Unauthorized(new { error = "User not found" });
 
-        var tradeIn = await _mongoDbService.CreateTradeInRequestAsync(new TradeInRequest
-        {
-            UserId = userId,
-            Email = user.Email ?? string.Empty,
-            Brand = request.Brand.Trim(),
-            Model = request.Model.Trim(),
-            Condition = request.Condition,
-            Notes = request.Notes?.Trim() ?? string.Empty
-        });
+        // A double-tap, or a retry after a slow upload that actually went through,
+        // lands on the request that already exists.
+        var duplicate = await _mongoDbService.FindRecentDuplicateTradeInAsync(
+            userId, brand, model, request.Condition, DateTime.UtcNow.AddMinutes(-10));
+        if (duplicate != null) return Ok(new { id = duplicate.Id });
 
-        // Save photos under a folder named by the request id
+        // Photos go up first, under an id chosen now; the record is inserted once, complete.
+        var id = MongoDB.Bson.ObjectId.GenerateNewId().ToString();
         var photos = new List<TradeInPhoto>();
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/gif", "image/webp" };
-        var imagesToProcess = request.Photos.Take(8).ToList();
-        foreach (var image in imagesToProcess)
+        try
         {
-            if (image.Length > 5 * 1024 * 1024)
-                return BadRequest(new { error = "Each photo must be under 5MB" });
-            if (!allowedTypes.Contains(image.ContentType.ToLower()))
-                return BadRequest(new { error = "Photos must be JPEG, PNG, GIF, or WebP" });
-
-            var ext = Path.GetExtension(image.FileName);
-            var fileName = $"{Guid.NewGuid()}{ext}";
-            var key = $"trade-ins/{tradeIn.Id}/{fileName}";
-
-            using var imageStream = image.OpenReadStream();
-            var photoUrl = await _fileStorage.UploadAsync(key, imageStream, image.ContentType);
-
-            photos.Add(new TradeInPhoto
+            foreach (var image in images)
             {
-                Url = photoUrl,
-                OriginalFileName = image.FileName
+                var key = $"trade-ins/{id}/{Guid.NewGuid()}{Path.GetExtension(image.FileName)}";
+                using var imageStream = image.OpenReadStream();
+                var photoUrl = await _fileStorage.UploadAsync(key, imageStream, image.ContentType);
+                photos.Add(new TradeInPhoto { Url = photoUrl, OriginalFileName = image.FileName });
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Photo upload failed for trade-in submission by user {UserId}", userId);
+            await CleanUpPhotosAsync(id);
+            return StatusCode(500, new { error = "Your photos didn't upload. Nothing was submitted, so please try again." });
+        }
+
+        TradeInRequest tradeIn;
+        try
+        {
+            tradeIn = await _mongoDbService.CreateTradeInRequestAsync(new TradeInRequest
+            {
+                Id = id,
+                UserId = userId,
+                Email = user.Email ?? string.Empty,
+                Brand = brand,
+                Model = model,
+                Condition = request.Condition,
+                Notes = notes,
+                Photos = photos
             });
         }
-        tradeIn.Photos = photos;
-        await _mongoDbService.UpdateTradeInRequestAsync(tradeIn);
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Saving trade-in submission failed for user {UserId}", userId);
+            await CleanUpPhotosAsync(id);
+            return StatusCode(500, new { error = "Something went wrong saving your trade-in. Nothing was submitted, so please try again." });
+        }
 
-        // Fire-and-forget email notification
+        // Fire-and-forget email notifications
         _ = _emailService.SendTradeInSubmittedAsync(tradeIn.Email, tradeIn.Id!, tradeIn.Brand, tradeIn.Model);
+        _ = _emailService.SendTradeInSubmittedAdminAsync(tradeIn.Id!, tradeIn.Brand, tradeIn.Model,
+            tradeIn.Condition, tradeIn.Photos.Count, tradeIn.Email);
 
         return Ok(new { id = tradeIn.Id });
+    }
+
+    private async Task CleanUpPhotosAsync(string id)
+    {
+        try { await _fileStorage.DeletePrefixAsync($"trade-ins/{id}/"); }
+        catch (Exception ex) { _logger.LogWarning(ex, "Failed to clean up photos for abandoned trade-in {Id}", id); }
+    }
+
+    [HttpPost("{id}/cancel")]
+    public async Task<IActionResult> Cancel(string id)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized(new { error = "Invalid token" });
+
+        var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
+        if (req == null || req.UserId != userId) return NotFound(new { error = "Trade-in not found" });
+        if (!TradeInRules.CanCustomerCancel(req))
+            return BadRequest(new { error = "This trade-in can't be cancelled any more. Send me a message and I'll sort it out." });
+
+        req.Status = TradeInStatus.Cancelled;
+        await _mongoDbService.UpdateTradeInRequestAsync(req);
+        return Ok(MapToDto(req));
     }
 
     [HttpGet("me")]
@@ -198,7 +251,8 @@ public class TradeInsController : ControllerBase
             Model = req.Model,
             Condition = req.Condition,
             Notes = req.Notes,
-            Status = req.Status,
+            Status = TradeInRules.EffectiveStatus(req),
+            CanCancel = TradeInRules.CanCustomerCancel(req),
             Photos = req.Photos.Select(p => new TradeInPhotoDto { Url = p.Url }).ToList(),
             ActiveOffer = activeDto,
             Shipping = new TradeInShippingDto

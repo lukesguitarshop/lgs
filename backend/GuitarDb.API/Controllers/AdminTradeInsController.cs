@@ -28,6 +28,9 @@ public class AdminTradeInsController : ControllerBase
 
     private string? GetAdminId() => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
 
+    private IActionResult Refuse(string action, TradeInRequest req) =>
+        BadRequest(new { error = $"Can't {action} a trade-in that is {TradeInRules.EffectiveStatus(req)}" });
+
     [HttpGet]
     public async Task<IActionResult> List([FromQuery] string? status)
     {
@@ -39,7 +42,9 @@ public class AdminTradeInsController : ControllerBase
             Brand = r.Brand,
             Model = r.Model,
             Condition = r.Condition,
-            Status = r.Status,
+            Status = TradeInRules.EffectiveStatus(r),
+            PhotoCount = r.Photos.Count,
+            ThumbnailUrl = r.Photos.FirstOrDefault()?.Url,
             CreatedAt = r.CreatedAt
         }));
     }
@@ -60,7 +65,9 @@ public class AdminTradeInsController : ControllerBase
             Model = req.Model,
             Condition = req.Condition,
             Notes = req.Notes,
-            Status = req.Status,
+            Status = TradeInRules.EffectiveStatus(req),
+            CanCancel = TradeInRules.CanAdminCancel(req),
+            CanOffer = TradeInRules.CanOffer(req),
             Photos = req.Photos.Select(p => new TradeInPhotoDto { Url = p.Url }).ToList(),
             ActiveOffer = active == null ? null : new TradeInOfferDto
             {
@@ -113,6 +120,7 @@ public class AdminTradeInsController : ControllerBase
 
         var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
         if (req == null) return NotFound(new { error = "Not found" });
+        if (!TradeInRules.CanOffer(req)) return Refuse("send an offer on", req);
 
         req.Offers.Add(new TradeInOffer
         {
@@ -137,6 +145,7 @@ public class AdminTradeInsController : ControllerBase
     {
         var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
         if (req == null) return NotFound(new { error = "Not found" });
+        if (!TradeInRules.CanUploadLabel(req)) return Refuse("upload a label for", req);
         if (label == null || label.Length == 0) return BadRequest(new { error = "Label file required" });
         if (label.ContentType != "application/pdf") return BadRequest(new { error = "Label must be a PDF" });
         if (label.Length > 10 * 1024 * 1024) return BadRequest(new { error = "Label must be under 10MB" });
@@ -156,6 +165,7 @@ public class AdminTradeInsController : ControllerBase
     {
         var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
         if (req == null) return NotFound(new { error = "Not found" });
+        if (!TradeInRules.CanReceive(req)) return Refuse("mark received", req);
         req.Shipping.ReceivedAt = DateTime.UtcNow;
         req.Status = TradeInStatus.Received;
         await _mongoDbService.UpdateTradeInRequestAsync(req);
@@ -168,10 +178,12 @@ public class AdminTradeInsController : ControllerBase
     {
         var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
         if (req == null) return NotFound(new { error = "Not found" });
+        if (!TradeInRules.CanInspect(req)) return Refuse("mark inspected", req);
         req.Shipping.InspectedAt = DateTime.UtcNow;
-        req.Shipping.InspectionNotes = request.Notes;
+        req.Shipping.InspectionNotes = request?.Notes;
         req.Status = TradeInStatus.Inspected;
         await _mongoDbService.UpdateTradeInRequestAsync(req);
+        _ = _emailService.SendTradeInInspectedAsync(req.Email, req.Id!, req.Brand, req.Model);
         return Ok(new { id = req.Id });
     }
 
@@ -180,6 +192,7 @@ public class AdminTradeInsController : ControllerBase
     {
         var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
         if (req == null) return NotFound(new { error = "Not found" });
+        if (!TradeInRules.CanComplete(req)) return Refuse("complete", req);
 
         var accepted = req.Offers.LastOrDefault(o => o.AcceptedAt != null);
         if (accepted == null) return BadRequest(new { error = "No accepted offer" });
@@ -202,6 +215,9 @@ public class AdminTradeInsController : ControllerBase
         var accepted = req.Offers.LastOrDefault(o => o.AcceptedAt != null);
         if (accepted == null || accepted.AcceptedType != TradeInOfferType.Cash)
             return BadRequest(new { error = "Not a cash trade-in" });
+        if (req.Payout.PaidAt != null)
+            return BadRequest(new { error = "This trade-in is already marked paid" });
+        if (!TradeInRules.CanMarkPaid(req)) return Refuse("mark paid", req);
 
         req.Payout.PaidAt = DateTime.UtcNow;
         req.Payout.PaypalTransactionId = request.PaypalTransactionId;
@@ -216,6 +232,7 @@ public class AdminTradeInsController : ControllerBase
     {
         var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
         if (req == null) return NotFound(new { error = "Not found" });
+        if (!TradeInRules.CanAdminCancel(req)) return Refuse("cancel", req);
         req.Status = TradeInStatus.Cancelled;
         await _mongoDbService.UpdateTradeInRequestAsync(req);
         return Ok(new { id = req.Id });
@@ -229,8 +246,7 @@ public class AdminTradeInsController : ControllerBase
 
         if (request.Condition != null)
         {
-            var allowed = new[] { "Mint", "Excellent", "Very Good", "Good", "Fair" };
-            if (!allowed.Contains(request.Condition))
+            if (!TradeInRules.Conditions.Contains(request.Condition))
                 return BadRequest(new { error = "Invalid condition" });
             req.Condition = request.Condition;
         }

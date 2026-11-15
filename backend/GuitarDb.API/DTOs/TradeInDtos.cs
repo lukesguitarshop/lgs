@@ -26,6 +26,7 @@ public class TradeInRequestDto
     public string Condition { get; set; } = string.Empty;
     public string Notes { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public bool CanCancel { get; set; }
     public List<TradeInPhotoDto> Photos { get; set; } = new();
     public TradeInOfferDto? ActiveOffer { get; set; }
     public TradeInShippingDto? Shipping { get; set; }
@@ -71,11 +72,14 @@ public class AdminTradeInListItemDto
     public string Model { get; set; } = string.Empty;
     public string Condition { get; set; } = string.Empty;
     public string Status { get; set; } = string.Empty;
+    public int PhotoCount { get; set; }
+    public string? ThumbnailUrl { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
 public class AdminTradeInDetailDto : TradeInRequestDto
 {
+    public bool CanOffer { get; set; }
     public string Email { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
     public List<TradeInOfferDto> AllOffers { get; set; } = new();

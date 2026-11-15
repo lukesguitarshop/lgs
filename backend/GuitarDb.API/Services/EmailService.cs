@@ -885,6 +885,31 @@ public class EmailService
         await SendEmailAsync(toEmail, subject, body);
     }
 
+    public async Task SendTradeInSubmittedAdminAsync(string requestId, string brand, string model, string condition, int photoCount, string userEmail)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(_sellerEmail)) return;
+        var guitar = System.Net.WebUtility.HtmlEncode($"{brand} {model}");
+        var subject = $"New trade-in: {brand} {model}";
+        var body = $@"
+<h2>New trade-in request</h2>
+<p><strong>{guitar}</strong> ({condition}), {photoCount} photo{(photoCount == 1 ? "" : "s")}.</p>
+<p>From <strong>{System.Net.WebUtility.HtmlEncode(userEmail)}</strong>. They've been told to expect an offer within 24 hours.</p>
+<p><a href=""{_frontendUrl}/admin/trade-ins/{requestId}"" style=""{ButtonStyle}"">Review and send an offer</a></p>";
+        await SendEmailAsync(_sellerEmail, subject, body);
+    }
+
+    public async Task SendTradeInInspectedAsync(string toEmail, string requestId, string brand, string model)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+        var guitar = System.Net.WebUtility.HtmlEncode($"{brand} {model}");
+        var subject = "Your guitar passed inspection";
+        var body = $@"
+<h2>Inspection complete</h2>
+<p>We've finished inspecting your <strong>{guitar}</strong>. Your payout is being processed now, and you'll get one more email when it's sent.</p>
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""{ButtonStyle}"">View your trade-in</a></p>";
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
     public async Task SendTradeInOfferReadyAsync(string toEmail, string requestId, string brand, string model, decimal cashOffer, decimal creditOffer, DateTime expiresAt)
     {
         if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;

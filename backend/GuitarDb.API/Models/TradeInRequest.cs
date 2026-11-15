@@ -166,6 +166,49 @@ public static class TradeInStatus
     public const string Rejected = "rejected";
 }
 
+/// <summary>
+/// The one place that says which action is allowed in which status. Both the customer
+/// and admin controllers ask here, so a trade-in can't be moved out of order.
+/// </summary>
+public static class TradeInRules
+{
+    public const int MaxPhotos = 8;
+    public const long MaxPhotoBytes = 10 * 1024 * 1024;
+    public static readonly string[] Conditions = { "Mint", "Excellent", "Very Good", "Good", "Fair" };
+    public static readonly string[] PhotoContentTypes = { "image/jpeg", "image/png", "image/gif", "image/webp" };
+
+    /// <summary>
+    /// The stored status, except an unanswered offer past its expiry reads as expired.
+    /// Computed on read so no background job has to flip it.
+    /// </summary>
+    public static string EffectiveStatus(TradeInRequest req)
+    {
+        if (req.Status != TradeInStatus.Offered) return req.Status;
+        var active = req.Offers.LastOrDefault();
+        var lapsed = active != null && active.AcceptedAt == null && active.DeclinedAt == null
+                     && active.ExpiresAt < DateTime.UtcNow;
+        return lapsed ? TradeInStatus.Expired : req.Status;
+    }
+
+    public static bool CanOffer(TradeInRequest req) => EffectiveStatus(req) is
+        TradeInStatus.Submitted or TradeInStatus.Offered or TradeInStatus.Declined or TradeInStatus.Expired;
+
+    public static bool CanUploadLabel(TradeInRequest req) => req.Status == TradeInStatus.Accepted;
+    public static bool CanReceive(TradeInRequest req) => req.Status == TradeInStatus.Accepted;
+    public static bool CanInspect(TradeInRequest req) => req.Status == TradeInStatus.Received;
+    public static bool CanComplete(TradeInRequest req) => req.Status == TradeInStatus.Inspected;
+
+    public static bool CanMarkPaid(TradeInRequest req) =>
+        req.Status == TradeInStatus.Completed && req.Payout.PaidAt == null;
+
+    public static bool CanAdminCancel(TradeInRequest req) =>
+        req.Status is not (TradeInStatus.Completed or TradeInStatus.Cancelled);
+
+    /// <summary>The customer can back out until they have accepted an offer.</summary>
+    public static bool CanCustomerCancel(TradeInRequest req) => EffectiveStatus(req) is
+        TradeInStatus.Submitted or TradeInStatus.Offered or TradeInStatus.Expired;
+}
+
 public static class TradeInOfferType
 {
     public const string Cash = "cash";

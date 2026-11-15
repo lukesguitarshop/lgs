@@ -3027,6 +3027,24 @@ public class MongoDbService
         return request;
     }
 
+    /// <summary>
+    /// A request this user already made for the same guitar since <paramref name="since"/>,
+    /// so a double-tap or a retry after a slow upload doesn't create a second one.
+    /// </summary>
+    public async Task<TradeInRequest?> FindRecentDuplicateTradeInAsync(
+        string userId, string brand, string model, string condition, DateTime since)
+    {
+        var recent = await _tradeInRequestsCollection
+            .Find(t => t.UserId == userId && t.CreatedAt >= since)
+            .SortByDescending(t => t.CreatedAt)
+            .ToListAsync();
+        return recent.FirstOrDefault(t =>
+            string.Equals(t.Brand, brand, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(t.Model, model, StringComparison.OrdinalIgnoreCase) &&
+            t.Condition == condition &&
+            t.Status != TradeInStatus.Cancelled && t.Status != TradeInStatus.Rejected);
+    }
+
     public async Task<TradeInRequest?> GetTradeInRequestByIdAsync(string id)
     {
         return await _tradeInRequestsCollection.Find(t => t.Id == id).FirstOrDefaultAsync();
