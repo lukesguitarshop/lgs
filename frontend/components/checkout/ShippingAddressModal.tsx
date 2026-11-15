@@ -8,6 +8,8 @@ import { StateBlock } from '@/components/ui/state-block';
 import { Loader2 } from 'lucide-react';
 import { ShippingAddress, saveShippingAddress } from '@/lib/auth';
 import { useAuth } from '@/contexts/AuthContext';
+import { COUNTRIES, normalizeCountry } from '@/lib/countries';
+import { cn } from '@/lib/utils';
 
 interface ShippingAddressModalProps {
   isOpen: boolean;
@@ -20,6 +22,9 @@ interface ShippingAddressModalProps {
 // on desktop.
 const labelClass = 'mobile-label mb-2 block text-sm font-medium text-foreground/78 md:mb-1';
 const fieldErrorClass = 'mt-1 text-[13px] text-primary';
+// Same box as <Input>, so the country picker lines up with the fields around it.
+const selectClass =
+  'flex h-12 w-full border border-foreground/35 bg-background px-3.5 py-1 text-base text-foreground transition-colors focus-visible:outline-none focus-visible:border-primary focus-visible:ring-1 focus-visible:ring-ring md:h-9 md:border-input md:px-3 md:text-sm';
 
 function Required() {
   return <span className="text-primary">*</span>;
@@ -55,7 +60,8 @@ export default function ShippingAddressModal({
         city: initialAddress.city || '',
         state: initialAddress.state || '',
         postalCode: initialAddress.postalCode || '',
-        country: initialAddress.country || '',
+        // Older addresses hold free text ("USA"); map it onto the list, or make them pick.
+        country: normalizeCountry(initialAddress.country),
       });
     } else if (user?.fullName) {
       setAddress(prev => ({
@@ -78,7 +84,7 @@ export default function ShippingAddressModal({
     if (!address.fullName.trim()) errors.fullName = 'Full name is required';
     if (!address.line1.trim()) errors.line1 = 'Address is required';
     if (!address.city.trim()) errors.city = 'City is required';
-    if (!address.state.trim()) errors.state = 'State is required';
+    if (!address.state.trim()) errors.state = 'State / province is required';
     if (!address.postalCode.trim()) errors.postalCode = 'Postal code is required';
     if (!address.country.trim()) errors.country = 'Country is required';
 
@@ -170,7 +176,6 @@ export default function ShippingAddressModal({
                 id="address-city"
                 value={address.city}
                 onChange={(e) => handleChange('city', e.target.value)}
-                placeholder="New York"
                 className={fieldErrors.city ? 'border-primary' : ''}
               />
               {fieldErrors.city && (
@@ -179,13 +184,12 @@ export default function ShippingAddressModal({
             </div>
             <div>
               <label htmlFor="address-state" className={labelClass}>
-                State <Required />
+                State / Province <Required />
               </label>
               <Input
                 id="address-state"
                 value={address.state}
                 onChange={(e) => handleChange('state', e.target.value)}
-                placeholder="NY"
                 className={fieldErrors.state ? 'border-primary' : ''}
               />
               {fieldErrors.state && (
@@ -203,7 +207,6 @@ export default function ShippingAddressModal({
                 id="address-postalCode"
                 value={address.postalCode}
                 onChange={(e) => handleChange('postalCode', e.target.value)}
-                placeholder="10001"
                 className={fieldErrors.postalCode ? 'border-primary' : ''}
               />
               {fieldErrors.postalCode && (
@@ -214,13 +217,20 @@ export default function ShippingAddressModal({
               <label htmlFor="address-country" className={labelClass}>
                 Country <Required />
               </label>
-              <Input
+              <select
                 id="address-country"
                 value={address.country}
                 onChange={(e) => handleChange('country', e.target.value)}
-                placeholder="United States"
-                className={fieldErrors.country ? 'border-primary' : ''}
-              />
+                autoComplete="country-name"
+                className={cn(selectClass, fieldErrors.country && 'border-primary')}
+              >
+                <option value="">Select country</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c.code} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
               {fieldErrors.country && (
                 <p className={fieldErrorClass}>{fieldErrors.country}</p>
               )}

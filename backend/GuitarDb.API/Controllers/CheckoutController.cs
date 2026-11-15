@@ -608,6 +608,12 @@ public class CheckoutController : ControllerBase
             return BadRequest(new { error = "Please fill in all required shipping fields" });
         }
 
+        // PayPal takes an ISO country code; guessing one would ship the order to the wrong country.
+        if (!CountryCodes.TryResolve(shipping.Country, out var shippingCountryCode))
+        {
+            return BadRequest(new { error = "Please choose your country from the list in your shipping address" });
+        }
+
         var listingIds = request.Items.Select(i => i.ListingId).Distinct().ToList();
         var listings = await _mongoDbService.GetListingsByIdsAsync(listingIds);
 
@@ -735,7 +741,7 @@ public class CheckoutController : ControllerBase
                                 admin_area_2 = shipping.City,
                                 admin_area_1 = shipping.State,
                                 postal_code = shipping.PostalCode,
-                                country_code = GetCountryCode(shipping.Country)
+                                country_code = shippingCountryCode
                             }
                         }
                     }
@@ -1070,28 +1076,6 @@ public class CheckoutController : ControllerBase
     private string? GetUserIdIfAuthenticated()
     {
         return User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-    }
-
-    private static string GetCountryCode(string country)
-    {
-        var countryMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            { "United States", "US" },
-            { "USA", "US" },
-            { "Canada", "CA" },
-            { "United Kingdom", "GB" },
-            { "UK", "GB" },
-            { "Australia", "AU" },
-            { "Germany", "DE" },
-            { "France", "FR" },
-            { "Japan", "JP" },
-            { "Mexico", "MX" }
-        };
-
-        if (countryMap.TryGetValue(country, out var code))
-            return code;
-
-        return country.Length == 2 ? country.ToUpper() : "US";
     }
 
     /// <summary>
