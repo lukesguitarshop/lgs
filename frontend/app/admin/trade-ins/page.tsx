@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { Loader2, ArrowRight, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
@@ -30,6 +31,21 @@ const statusColors: Record<string, string> = {
   expired: 'bg-gray-100 text-gray-700',
   cancelled: 'bg-gray-100 text-gray-700',
 };
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function ageLabel(createdAt: string) {
+  const days = Math.floor((Date.now() - new Date(createdAt).getTime()) / DAY_MS);
+  if (days <= 0) return 'today';
+  return days === 1 ? '1 day ago' : `${days} days ago`;
+}
+
+/** A submitted request nobody has answered in 48 hours; the customer was told 24. */
+function waitingDays(it: AdminTradeInListItem) {
+  if (it.status !== 'submitted') return 0;
+  const days = (Date.now() - new Date(it.createdAt).getTime()) / DAY_MS;
+  return days >= 2 ? Math.floor(days) : 0;
+}
 
 export default function AdminTradeInsListPage() {
   const { isAdmin } = useAuth();
@@ -121,13 +137,40 @@ export default function AdminTradeInsListPage() {
 
   const columns: ResponsiveColumn<AdminTradeInListItem>[] = [
     { id: 'email', header: 'Email', priority: 'key', wide: true, cellClassName: 'text-sm', cell: (it) => it.email, mobileCell: (it) => <span className="break-all">{it.email}</span> },
-    { id: 'guitar', header: 'Guitar', priority: 'primary', cellClassName: 'text-sm font-medium', cell: (it) => `${it.brand} ${it.model}` },
+    {
+      id: 'guitar',
+      header: 'Guitar',
+      priority: 'primary',
+      cellClassName: 'text-sm font-medium',
+      cell: (it) => (
+        <div className="flex items-center gap-3">
+          <div className="relative h-11 w-11 flex-shrink-0 overflow-hidden rounded bg-gray-100">
+            {it.thumbnailUrl && (
+              <Image src={it.thumbnailUrl} alt="" fill sizes="44px" className="object-cover" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <div>{it.brand} {it.model}</div>
+            {it.photoCount === 0 ? (
+              <span className="text-xs font-medium px-2 py-0.5 rounded bg-red-100 text-red-800">No photos</span>
+            ) : (
+              <span className="text-xs font-normal text-gray-500">{it.condition} · {it.photoCount} photo{it.photoCount === 1 ? '' : 's'}</span>
+            )}
+          </div>
+        </div>
+      ),
+    },
     {
       id: 'status',
       header: 'Status',
       priority: 'badge',
       cell: (it) => (
-        <span className={`text-xs font-medium px-2 py-0.5 rounded ${statusColors[it.status] || 'bg-gray-100'}`}>{it.status}</span>
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+          <span className={`text-xs font-medium px-2 py-0.5 rounded ${statusColors[it.status] || 'bg-gray-100'}`}>{it.status}</span>
+          {waitingDays(it) > 0 && (
+            <span className="text-xs font-medium px-2 py-0.5 rounded bg-[#6E0114] text-[#FFFFF3]">Waiting {waitingDays(it)}d</span>
+          )}
+        </span>
       ),
     },
     {
@@ -135,7 +178,11 @@ export default function AdminTradeInsListPage() {
       header: 'Date',
       priority: 'key',
       cellClassName: 'text-sm text-gray-600',
-      cell: (it) => new Date(it.createdAt).toLocaleDateString(),
+      cell: (it) => (
+        <span title={new Date(it.createdAt).toLocaleString()}>
+          {new Date(it.createdAt).toLocaleDateString()} · {ageLabel(it.createdAt)}
+        </span>
+      ),
     },
     {
       id: 'actions',

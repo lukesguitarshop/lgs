@@ -129,8 +129,14 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
         </div>
       )}
 
-      {/* Send offer form (always shown so admin can re-offer) */}
-      <div className="bg-[#FFFFF3] border border-gray-200 rounded-lg p-4 mb-4">
+      {data.photos.length === 0 && (
+        <p className="mb-6 rounded border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          This request has no photos. It was created by a failed upload before the submit fix; the customer may have a later request with photos.
+        </p>
+      )}
+
+      {/* Send offer form (shown whenever a new offer is allowed, so admin can re-offer) */}
+      {data.canOffer && <div className="bg-[#FFFFF3] border border-gray-200 rounded-lg p-4 mb-4">
         <h2 className="font-semibold mb-3">Send {data.allOffers.length > 0 ? 'new ' : ''}offer</h2>
         <div className="grid grid-cols-3 gap-3">
           <div>
@@ -147,7 +153,7 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
           </div>
         </div>
         <Button onClick={handleSendOffer} disabled={busy} className="mt-3 bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">Send offer</Button>
-      </div>
+      </div>}
 
       {/* Decline panel — only when no offers have been sent yet */}
       {canDecline && (
@@ -187,12 +193,12 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
           <h2 className="font-semibold mb-3">Shipping & inspection</h2>
           {data.shipping?.labelUrl ? (
             <p className="text-sm mb-2">Label: <a href={data.shipping.labelUrl} target="_blank" rel="noopener" className="text-[#6E0114] underline inline-flex items-center">View PDF <ExternalLink className="h-3 w-3 ml-1" /></a></p>
-          ) : (
+          ) : data.status === 'accepted' ? (
             <label className="inline-flex items-center gap-2 cursor-pointer text-sm border border-dashed rounded p-3 mb-3">
               <Upload className="h-4 w-4" />Upload label PDF
               <input type="file" accept="application/pdf" className="hidden" onChange={e => handleLabelUpload(e.target.files?.[0] ?? null)} />
             </label>
-          )}
+          ) : null}
           <div className="flex flex-wrap gap-2">
             {data.status === 'accepted' && <Button onClick={() => wrap(async () => { await adminMarkTradeInReceived(id); })} disabled={busy} variant="outline">Mark Received</Button>}
             {data.status === 'received' && (
@@ -219,7 +225,7 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
       )}
 
       {/* Cancel escape hatch (post-offer, pre-completion) */}
-      {data.status !== 'submitted' && data.status !== 'completed' && data.status !== 'cancelled' && data.status !== 'rejected' && (
+      {data.canCancel && data.status !== 'submitted' && data.status !== 'rejected' && (
         <div className="mt-8 pt-6 border-t border-gray-200">
           <Button onClick={() => { if (confirm('Cancel this trade-in?')) wrap(async () => { await adminCancelTradeIn(id); }); }}
             disabled={busy} variant="outline" className="text-red-700 border-red-300">Cancel trade-in</Button>

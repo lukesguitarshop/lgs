@@ -409,14 +409,22 @@ export async function submitTradeIn(formData: FormData): Promise<{ id: string }>
   const token = getToken();
   const headers: Record<string, string> = {};
   if (token) headers.Authorization = `Bearer ${token}`;
-  const response = await fetch(`${API_BASE_URL}/trade-ins`, {
-    method: 'POST',
-    body: formData,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/trade-ins`, {
+      method: 'POST',
+      body: formData,
+      headers,
+    });
+  } catch {
+    throw new ApiError("Couldn't reach the shop. Check your connection and try again.");
+  }
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
-    throw { message: errBody.error || 'Submit failed', status: response.status } as ApiError;
+    const fallback = response.status === 413
+      ? 'Those photos are too large to upload. Remove a few and try again.'
+      : 'Submit failed. Nothing was sent, so please try again.';
+    throw new ApiError(errBody.error || fallback, response.status);
   }
   return response.json();
 }
@@ -431,6 +439,10 @@ export async function getTradeIn(id: string): Promise<TradeInRequestDto> {
 
 export async function acceptTradeInOffer(id: string, type: 'cash' | 'credit', paypalEmail?: string): Promise<TradeInRequestDto> {
   return api.authPost<TradeInRequestDto>(`/trade-ins/${id}/accept`, { type, paypalEmail });
+}
+
+export async function cancelTradeIn(id: string): Promise<TradeInRequestDto> {
+  return api.authPost<TradeInRequestDto>(`/trade-ins/${id}/cancel`);
 }
 
 export async function declineTradeInOffer(id: string): Promise<TradeInRequestDto> {
@@ -462,7 +474,7 @@ export async function adminUploadTradeInLabel(id: string, file: File): Promise<{
   });
   if (!response.ok) {
     const errBody = await response.json().catch(() => ({}));
-    throw { message: errBody.error || 'Upload failed', status: response.status } as ApiError;
+    throw new ApiError(errBody.error || 'Upload failed', response.status);
   }
   return response.json();
 }

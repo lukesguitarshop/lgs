@@ -34,6 +34,7 @@ export interface TradeInRequestDto {
   condition: TradeInCondition;
   notes: string;
   status: TradeInStatus;
+  canCancel: boolean;
   photos: TradeInPhoto[];
   activeOffer?: TradeInOffer | null;
   shipping?: TradeInShipping | null;
@@ -48,12 +49,15 @@ export interface AdminTradeInListItem {
   model: string;
   condition: string;
   status: TradeInStatus;
+  photoCount: number;
+  thumbnailUrl?: string | null;
   createdAt: string;
 }
 
 export interface AdminTradeInDetail extends TradeInRequestDto {
   email: string;
   userId: string;
+  canOffer: boolean;
   allOffers: TradeInOffer[];
   paypalEmail?: string | null;
   paypalTransactionId?: string | null;

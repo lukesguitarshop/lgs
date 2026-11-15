@@ -13,6 +13,14 @@ import { submitTradeIn } from '@/lib/api';
 import type { TradeInCondition } from '@/lib/types/trade-in';
 import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
 import { StickyBar } from '@/components/ui/sticky-bar';
+import { StateBlock } from '@/components/ui/state-block';
+import { resizeImage } from '@/lib/resize-image';
+
+const MAX_PHOTOS = 8;
+const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+const PHOTO_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+
+interface PickedPhoto { file: File; url: string; }
 
 const CONDITIONS: TradeInCondition[] = ['Mint', 'Excellent', 'Very Good', 'Good', 'Fair'];
 
@@ -24,7 +32,9 @@ export default function TradeInSubmitPage() {
   const [model, setModel] = useState('');
   const [condition, setCondition] = useState<TradeInCondition>('Excellent');
   const [notes, setNotes] = useState('');
-  const [photos, setPhotos] = useState<File[]>([]);
+  const [photos, setPhotos] = useState<PickedPhoto[]>([]);
+  const [photoError, setPhotoError] = useState<string | null>(null);
+  const [preparing, setPreparing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [addressModalOpen, setAddressModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,13 +68,43 @@ export default function TradeInSubmitPage() {
     );
   }
 
-  const handleFiles = (files: FileList | null) => {
-    if (!files) return;
-    const next = Array.from(files).slice(0, 8 - photos.length);
-    setPhotos((prev) => [...prev, ...next].slice(0, 8));
+  // Photos are checked and shrunk the moment they're picked, so a bad one is flagged
+  // next to the grid instead of failing the whole form after the upload.
+  const handleFiles = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+    const picked = Array.from(files);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+
+    const room = MAX_PHOTOS - photos.length;
+    const problems: string[] = [];
+    if (picked.length > room) problems.push(`Only ${MAX_PHOTOS} photos fit, so the extras were left out.`);
+
+    setPreparing(true);
+    const accepted: PickedPhoto[] = [];
+    for (const original of picked.slice(0, room)) {
+      if (!PHOTO_TYPES.includes(original.type)) {
+        problems.push(`${original.name} isn't a JPEG, PNG, GIF, or WebP photo.`);
+        continue;
+      }
+      const file = await resizeImage(original);
+      if (file.size > MAX_PHOTO_BYTES) {
+        problems.push(`${original.name} is over 10MB. Pick a smaller photo.`);
+        continue;
+      }
+      accepted.push({ file, url: URL.createObjectURL(file) });
+    }
+    setPreparing(false);
+    setPhotos((prev) => [...prev, ...accepted].slice(0, MAX_PHOTOS));
+    setPhotoError(problems.length ? problems.join(' ') : null);
   };
 
-  const removePhoto = (idx: number) => setPhotos((prev) => prev.filter((_, i) => i !== idx));
+  const removePhoto = (idx: number) => {
+    setPhotos((prev) => {
+      URL.revokeObjectURL(prev[idx].url);
+      return prev.filter((_, i) => i !== idx);
+    });
+    setPhotoError(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,9 +118,10 @@ export default function TradeInSubmitPage() {
       return;
     }
     if (photos.length === 0) {
-      showToast('Please add at least one photo', 'error');
+      setPhotoError('Add at least one photo so I can make you an offer.');
       return;
     }
+    if (submitting || preparing) return;
     setSubmitting(true);
     try {
       const fd = new FormData();
@@ -88,11 +129,13 @@ export default function TradeInSubmitPage() {
       fd.append('Model', model.trim());
       fd.append('Condition', condition);
       fd.append('Notes', notes.trim());
-      photos.forEach((p) => fd.append('Photos', p));
+      photos.forEach((p) => fd.append('Photos', p.file, p.file.name));
       const result = await submitTradeIn(fd);
       router.push(`/trade-in/${result.id}/submitted`);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Submit failed';
+      const message = err instanceof Error
+        ? err.message
+        : 'Submit failed. Nothing was sent, so please try again.';
       showToast(message, 'error');
       setSubmitting(false);
     }
@@ -156,7 +199,7 @@ export default function TradeInSubmitPage() {
                 Add photos of the guitar
               </span>
               <span className="mt-1 text-sm leading-[1.45] text-foreground/65">
-                Up to 8, 5MB each. Front, back, headstock, and anything that isn&apos;t perfect.
+                Up to 8. Front, back, headstock, and anything that isn&apos;t perfect.
               </span>
               <span className="font-btn mt-4 flex h-12 items-center justify-center border border-foreground px-5 text-[13px] text-foreground">
                 Choose from library
@@ -167,7 +210,7 @@ export default function TradeInSubmitPage() {
               {photos.map((p, i) => (
                 <div key={i} className="relative aspect-[4/5] overflow-hidden bg-muted">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={URL.createObjectURL(p)} alt={`photo ${i + 1}`} className="h-full w-full object-cover" />
+                  <img src={p.url} alt={`photo ${i + 1}`} className="h-full w-full object-cover" />
                   <button
                     type="button"
                     onClick={() => removePhoto(i)}
@@ -178,7 +221,7 @@ export default function TradeInSubmitPage() {
                   </button>
                 </div>
               ))}
-              {photos.length < 8 && (
+              {photos.length < MAX_PHOTOS && (
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
@@ -190,6 +233,14 @@ export default function TradeInSubmitPage() {
                 </button>
               )}
             </div>
+          )}
+          {preparing && (
+            <p className="label-mono-sm mt-3 flex items-center gap-2 text-foreground/60" role="status">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />Getting your photos ready
+            </p>
+          )}
+          {photoError && (
+            <StateBlock variant="error" label="Photo problem" className="mt-3">{photoError}</StateBlock>
           )}
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={(e) => handleFiles(e.target.files)} className="hidden" />
         </section>
@@ -239,14 +290,14 @@ export default function TradeInSubmitPage() {
         </section>
 
         {/* Desktop keeps the in-page button; phones get it in the sticky bar. */}
-        <Button type="submit" disabled={submitting} className="hidden w-full bg-primary py-6 text-lg font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:flex">
+        <Button type="submit" disabled={submitting || preparing} className="hidden w-full bg-primary py-6 text-lg font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:flex">
           {submitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Submitting...</> : 'Submit for review'}
         </Button>
 
         <StickyBar>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || preparing}
             className="font-btn flex h-13 w-full items-center justify-center gap-2 bg-primary text-[13px] text-primary-foreground disabled:opacity-50"
           >
             {submitting ? <><Loader2 className="h-4 w-4 animate-spin" />Submitting…</> : 'Get my quote'}

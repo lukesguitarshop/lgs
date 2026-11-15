@@ -8,8 +8,40 @@ import { Loader2, ArrowLeft, Package, CheckCircle2, XCircle, Clock, Download } f
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { ImageLightbox } from '@/components/ImageLightbox';
-import { getTradeIn, acceptTradeInOffer, declineTradeInOffer } from '@/lib/api';
+import { getTradeIn, acceptTradeInOffer, declineTradeInOffer, cancelTradeIn } from '@/lib/api';
 import type { TradeInRequestDto } from '@/lib/types/trade-in';
+import { StateBlock } from '@/components/ui/state-block';
+
+const STEPS = ['Submitted', 'Offer', 'Accepted', 'Received', 'Inspected', 'Paid'] as const;
+
+/** How many timeline steps are done. */
+function stepsDone(data: TradeInRequestDto): number {
+  if (data.payout?.paidAt || (data.status === 'completed' && data.activeOffer?.acceptedType === 'credit')) return 6;
+  if (data.shipping?.inspectedAt) return 5;
+  if (data.shipping?.receivedAt) return 4;
+  if (data.activeOffer?.acceptedAt) return 3;
+  if (data.activeOffer) return 2;
+  return 1;
+}
+
+function Timeline({ data }: { data: TradeInRequestDto }) {
+  const done = stepsDone(data);
+  return (
+    <ol className="mb-8 grid grid-cols-6 gap-1" aria-label="Trade-in progress">
+      {STEPS.map((step, i) => {
+        const complete = i < done;
+        return (
+          <li key={step} aria-current={i === done - 1 ? 'step' : undefined}>
+            <div className={`h-1 ${complete ? 'bg-primary' : 'bg-foreground/15'}`} />
+            <span className={`label-mono-sm mt-2 block text-[10px] sm:text-[11px] ${complete ? 'text-foreground' : 'text-foreground/45'}`}>
+              {step}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
 
 function formatPrice(amount: number) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', minimumFractionDigits: 0 }).format(amount);
@@ -62,15 +94,26 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
     finally { setActing(false); }
   };
 
+  const handleCancel = async () => {
+    if (!confirm('Cancel this trade-in? You can always start a new one later.')) return;
+    setActing(true);
+    try { setData(await cancelTradeIn(id)); }
+    catch (e: unknown) { showToast(e instanceof Error ? e.message : 'Failed', 'error'); }
+    finally { setActing(false); }
+  };
+
   const offer = data.activeOffer;
+  const closed = ['declined', 'cancelled', 'rejected'].includes(data.status);
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:px-4">
-      <Link href="/account/trade-ins" className="inline-flex items-center text-foreground/70 hover:text-foreground mb-6">
+      <Link href="/account/trade-ins" className="label-mono inline-flex min-h-11 items-center text-foreground/60 transition-colors hover:text-primary">
         <ArrowLeft className="h-4 w-4 mr-2" />My trade-ins
       </Link>
-      <h1 className="mobile-h1 mb-2 text-3xl font-bold text-foreground">{data.brand} {data.model}</h1>
-      <p className="text-foreground/70 mb-6">{data.condition} · Submitted {new Date(data.createdAt).toLocaleDateString()}</p>
+      <h1 className="font-heading mt-2 text-[clamp(30px,8vw,34px)] leading-[0.95]">{data.brand} {data.model}</h1>
+      <p className="label-mono mt-2 mb-6 text-foreground/60">{data.condition} · Submitted {new Date(data.createdAt).toLocaleDateString()}</p>
+
+      {!closed && <Timeline data={data} />}
 
       {data.photos.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
@@ -79,7 +122,7 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
               key={i}
               type="button"
               onClick={() => setLightboxIndex(i)}
-              className="relative aspect-square rounded-lg overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
+              className="relative aspect-square overflow-hidden bg-muted cursor-pointer hover:opacity-90 transition-opacity"
             >
               <Image src={p.url} alt={`photo ${i + 1}`} fill sizes="200px" className="object-cover" />
             </button>
@@ -92,7 +135,13 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
         <div className="border border-foreground/15 bg-muted/50 p-6">
           <Clock className="h-8 w-8 text-primary mb-2" />
           <h2 className="text-xl font-semibold mb-2">Under review</h2>
-          <p className="text-foreground/78">We'll email you within 24 hours.</p>
+          <p className="text-foreground/78">I&apos;m looking over your photos. You&apos;ll get an email within 24 hours with a cash offer and a higher store-credit offer.</p>
+          {data.photos.length === 0 && (
+            <StateBlock variant="warning" className="mt-4">
+              This request has no photos, so I can&apos;t make an offer on it. Please{' '}
+              <Link href="/trade-in/submit">submit it again with photos</Link>.
+            </StateBlock>
+          )}
         </div>
       )}
 
@@ -100,7 +149,7 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
         <div className="space-y-4">
           <h2 className="text-xl font-semibold">Your offer</h2>
           <div className="grid md:grid-cols-2 gap-4">
-            <div className="bg-background border border-foreground/15 rounded-lg p-6">
+            <div className="bg-background border border-foreground/15 p-6">
               <h3 className="font-medium text-foreground/78 mb-1">Cash offer</h3>
               <p className="text-3xl font-bold text-foreground mb-4">{formatPrice(offer.cashOffer)}</p>
               <p className="text-sm text-foreground/70 mb-4">Paid via PayPal after inspection.</p>
@@ -118,9 +167,9 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
           <Button onClick={handleDecline} disabled={acting} variant="outline">Decline both</Button>
 
           {acceptType === 'cash' && (
-            <div className="bg-background border border-foreground/15 rounded-lg p-4 mt-4">
+            <div className="bg-background border border-foreground/15 p-4 mt-4">
               <label className="block text-sm font-medium mb-2">Your PayPal email</label>
-              <input type="email" value={paypalEmail} onChange={(e) => setPaypalEmail(e.target.value)} className="w-full border rounded px-3 py-2 mb-3" />
+              <input type="email" value={paypalEmail} onChange={(e) => setPaypalEmail(e.target.value)} className="w-full border px-3 py-2 mb-3" />
               <div className="flex gap-2">
                 <Button onClick={handleAcceptCash} disabled={acting} className="bg-foreground text-background">Confirm</Button>
                 <Button onClick={() => setAcceptType(null)} variant="outline">Cancel</Button>
@@ -130,11 +179,11 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      {data.status === 'offered' && offer && offer.isExpired && (
-        <div className="bg-muted-foreground p-6 text-foreground">
-          <h2 className="text-xl font-semibold mb-2">Offer expired</h2>
-          <p>This offer has expired. Email us if you'd like a new one.</p>
-        </div>
+      {data.status === 'expired' && offer && (
+        <StateBlock variant="warning" label="Offer expired">
+          The offer of {formatPrice(offer.cashOffer)} cash or {formatPrice(offer.storeCreditOffer)} store credit ran out on{' '}
+          {new Date(offer.expiresAt).toLocaleDateString()}. <Link href="/contact">Send me a message</Link> if you&apos;d like a fresh one.
+        </StateBlock>
       )}
 
       {data.status === 'accepted' && (
@@ -142,13 +191,13 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
           <Package className="h-8 w-8 text-background" />
           <h2 className="text-xl font-semibold">Ship it our way</h2>
           {data.shipping?.labelUrl ? (
-            <a href={data.shipping.labelUrl} target="_blank" rel="noopener" className="inline-flex items-center bg-primary text-primary-foreground px-6 py-3 rounded-lg font-semibold">
+            <a href={data.shipping.labelUrl} target="_blank" rel="noopener" className="inline-flex items-center bg-primary text-primary-foreground px-6 py-3 font-semibold">
               <Download className="h-4 w-4 mr-2" />Download prepaid label (PDF)
             </a>
           ) : (
             <p className="text-foreground/78">We'll upload your prepaid label within 1 business day. Check back shortly.</p>
           )}
-          <div className="bg-background rounded p-4 border">
+          <div className="bg-background p-4 border">
             <h3 className="font-semibold mb-2">Packing checklist</h3>
             <ul className="list-disc list-inside text-sm text-foreground/78 space-y-1">
               <li>Use a hardshell or gig case if available</li>
@@ -189,18 +238,31 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
       )}
 
       {data.status === 'rejected' && (
-        <div className="bg-muted/50 border border-foreground/15 rounded-lg p-6">
+        <div className="bg-muted/50 border border-foreground/15 p-6">
           <XCircle className="h-8 w-8 text-foreground/60 mb-2" />
           <h2 className="text-xl font-semibold mb-2">We&apos;re unable to make an offer</h2>
           <p>Thanks for thinking of us. We can&apos;t take this one — feel free to submit other guitars in the future.</p>
         </div>
       )}
 
-      {(data.status === 'declined' || data.status === 'expired' || data.status === 'cancelled') && (
-        <div className="bg-muted/50 border border-foreground/15 rounded-lg p-6">
+      {(data.status === 'declined' || data.status === 'cancelled') && (
+        <div className="bg-muted/50 border border-foreground/15 p-6">
           <XCircle className="h-8 w-8 text-foreground/60 mb-2" />
           <h2 className="text-xl font-semibold mb-2 capitalize">{data.status}</h2>
           <p>This trade-in is closed.</p>
+        </div>
+      )}
+
+      {data.canCancel && (
+        <div className="mt-8 border-t border-foreground/15 pt-5">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={acting}
+            className="label-mono flex min-h-11 items-center text-foreground/60 underline underline-offset-4 transition-colors hover:text-primary disabled:opacity-50"
+          >
+            Cancel this trade-in
+          </button>
         </div>
       )}
 
