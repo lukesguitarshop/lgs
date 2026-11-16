@@ -193,10 +193,13 @@ function ConversationPageContent() {
     return () => clearInterval(interval);
   }, [conversationId, isAuthenticated, authLoading]);
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom only when a new message actually arrives (or on first load).
+  // The 5s poll replaces the messages array every time, so keying on the array
+  // itself would yank the page back down every few seconds.
+  const lastMessageId = messages.length > 0 ? messages[messages.length - 1].id : null;
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (lastMessageId) scrollToBottom();
+  }, [lastMessageId]);
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
