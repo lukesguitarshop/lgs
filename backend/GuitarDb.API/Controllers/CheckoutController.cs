@@ -862,17 +862,39 @@ public class CheckoutController : ControllerBase
 
             var chargeAmounts = await ResolveChargeAmountsAsync(listings, userId);
 
-            var shippingInfo = purchaseUnit.GetProperty("shipping");
-            var shippingAddress = new OrderShippingAddress
+            // The money is captured by now, so nothing about the address may stop the order
+            // being written. PayPal omits fields a country does not use (no state, no
+            // postal code), and the buyer may have picked a different address at PayPal.
+            var shippingAddress = ReadPayPalShippingAddress(purchaseUnit);
+            if (string.IsNullOrWhiteSpace(shippingAddress.Line1))
             {
-                FullName = shippingInfo.GetProperty("name").GetProperty("full_name").GetString() ?? "",
-                Line1 = shippingInfo.GetProperty("address").GetProperty("address_line_1").GetString() ?? "",
-                Line2 = shippingInfo.GetProperty("address").TryGetProperty("address_line_2", out var line2) ? line2.GetString() : "",
-                City = shippingInfo.GetProperty("address").GetProperty("admin_area_2").GetString() ?? "",
-                State = shippingInfo.GetProperty("address").GetProperty("admin_area_1").GetString() ?? "",
-                PostalCode = shippingInfo.GetProperty("address").GetProperty("postal_code").GetString() ?? "",
-                Country = shippingInfo.GetProperty("address").GetProperty("country_code").GetString() ?? ""
-            };
+                var saved = userId != null
+                    ? (await _mongoDbService.GetUserByIdAsync(userId))?.ShippingAddress
+                    : null;
+
+                if (saved != null && !string.IsNullOrWhiteSpace(saved.Line1))
+                {
+                    _logger.LogWarning(
+                        "PayPal order {PayPalOrderId} came back without a shipping address; using the buyer's saved address",
+                        request.OrderId);
+                    shippingAddress = new OrderShippingAddress
+                    {
+                        FullName = string.IsNullOrWhiteSpace(saved.FullName) ? shippingAddress.FullName : saved.FullName,
+                        Line1 = saved.Line1,
+                        Line2 = saved.Line2,
+                        City = saved.City,
+                        State = saved.State,
+                        PostalCode = saved.PostalCode,
+                        Country = saved.Country
+                    };
+                }
+                else
+                {
+                    _logger.LogError(
+                        "PayPal order {PayPalOrderId} was captured with no shipping address; ask the buyer for it",
+                        request.OrderId);
+                }
+            }
 
             var orderItems = new List<OrderItem>();
             decimal totalAmount = 0;
@@ -1037,6 +1059,40 @@ public class CheckoutController : ControllerBase
             _logger.LogError(ex, "Error capturing PayPal payment");
             return BadRequest(new { error = "Failed to capture payment" });
         }
+    }
+
+    /// <summary>
+    /// The shipping address on a captured PayPal order. Every field is optional in PayPal's
+    /// response, so a missing one reads as empty rather than throwing.
+    /// </summary>
+    private static OrderShippingAddress ReadPayPalShippingAddress(JsonElement purchaseUnit)
+    {
+        static string Text(JsonElement parent, string name) =>
+            parent.ValueKind == JsonValueKind.Object
+            && parent.TryGetProperty(name, out var value)
+            && value.ValueKind == JsonValueKind.String
+                ? value.GetString() ?? ""
+                : "";
+
+        static JsonElement Child(JsonElement parent, string name) =>
+            parent.ValueKind == JsonValueKind.Object
+            && parent.TryGetProperty(name, out var value)
+                ? value
+                : default;
+
+        var shipping = Child(purchaseUnit, "shipping");
+        var address = Child(shipping, "address");
+
+        return new OrderShippingAddress
+        {
+            FullName = Text(Child(shipping, "name"), "full_name"),
+            Line1 = Text(address, "address_line_1"),
+            Line2 = Text(address, "address_line_2"),
+            City = Text(address, "admin_area_2"),
+            State = Text(address, "admin_area_1"),
+            PostalCode = Text(address, "postal_code"),
+            Country = Text(address, "country_code")
+        };
     }
 
     private async Task<string> GetPayPalAccessToken()
