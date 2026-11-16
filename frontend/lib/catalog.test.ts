@@ -6,6 +6,7 @@ import {
   priceStats,
   isIndexableBrand,
   isInstrument,
+  similarListings,
   listingsForBrand,
   summarizeBrands,
   type CatalogListing,
@@ -106,5 +107,26 @@ describe('isInstrument', () => {
     expect(isInstrument(item('Washburn S1TS Sonamaster 2010s - Tobacco Sunburst', 149))).toBe(true);
     expect(isInstrument(item('Gibson SG Standard 2007 - Heritage Cherry with Hard Case', 1299))).toBe(true);
     expect(isInstrument(item('Epiphone Les Paul with Floyd Rose Bridge', 475))).toBe(true);
+  });
+});
+
+describe('similarListings', () => {
+  const guitar = (id: string, listing_title: string, price: number) =>
+    ({ id, listing_title, price }) as CatalogListing;
+  const active = [
+    guitar('a', 'Ibanez RG550 1991 - Road Flare Red', 1150),
+    guitar('b', 'Fender Player Stratocaster 2019 - Sunburst', 600),
+    guitar('c', 'Fender American Ultra Telecaster 2021 Arctic Pearl', 1200),
+    guitar('d', 'Gibson Les Paul Standard 2016 - Honeyburst', 2400),
+  ];
+
+  it('puts the same maker first, then the closest price, and leaves the guitar itself out', () => {
+    const out = similarListings(active[2], active, 3);
+    expect(out.map((listing) => listing.id)).toEqual(['b', 'a', 'd']);
+  });
+
+  it('falls back to price alone when the maker is unknown', () => {
+    const out = similarListings(guitar('z', 'Handmade partscaster', 2000), active, 2);
+    expect(out.map((listing) => listing.id)).toEqual(['d', 'c']);
   });
 });

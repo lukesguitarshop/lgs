@@ -143,18 +143,24 @@ interface DescribableListing {
   condition: string | null;
   price: number;
   currency?: string | null;
+  disabled?: boolean;
 }
 
 /**
  * The text under a listing's link in Google. Leads with what a shopper scans for
  * (condition, price, shipping) and spends the rest on the guitar's own write-up.
+ * A sold guitar says so first, so nobody clicks through expecting to buy it.
  */
 export function listingMetaDescription(listing: DescribableListing): string {
-  const lead = [
-    listing.condition ? `${listing.condition} condition` : null,
-    formatPrice(listing.price, listing.currency),
-    'Free insured shipping',
-  ]
+  const lead = (
+    listing.disabled
+      ? ['Sold', `Went for ${formatPrice(listing.price, listing.currency)}`, 'See similar guitars in stock']
+      : [
+          listing.condition ? `${listing.condition} condition` : null,
+          formatPrice(listing.price, listing.currency),
+          'Free insured shipping',
+        ]
+  )
     .filter(Boolean)
     .join(' · ');
   const body =

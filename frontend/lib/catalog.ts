@@ -172,3 +172,25 @@ export function coverImages(listings: CatalogListing[], limit: number): string[]
   }
   return covers;
 }
+
+/**
+ * In-stock guitars to offer in place of one that has sold: the same maker first, then
+ * whatever is closest in price. The guitar itself is never in its own list.
+ */
+export function similarListings(
+  target: Pick<CatalogListing, 'id' | 'listing_title' | 'price'>,
+  active: CatalogListing[],
+  limit: number,
+): CatalogListing[] {
+  const brand = extractBrand(target.listing_title);
+  const sameBrand = (listing: CatalogListing) =>
+    brand !== null && extractBrand(listing.listing_title) === brand;
+  return active
+    .filter((listing) => listing.id !== target.id)
+    .sort(
+      (a, b) =>
+        Number(sameBrand(b)) - Number(sameBrand(a)) ||
+        Math.abs(a.price - target.price) - Math.abs(b.price - target.price),
+    )
+    .slice(0, limit);
+}

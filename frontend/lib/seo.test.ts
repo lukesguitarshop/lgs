@@ -115,6 +115,18 @@ describe('listingMetaDescription', () => {
     expect(out.length).toBeLessThanOrEqual(158);
     expect(out.endsWith('…')).toBe(true);
   });
+
+  it('says a sold guitar is sold before anything else', () => {
+    const out = listingMetaDescription({
+      listing_title: 'Fender American Ultra Telecaster 2021 Arctic Pearl',
+      description: '<p>Clean Ultra Tele.</p>',
+      condition: 'Excellent',
+      price: 1200,
+      currency: 'USD',
+      disabled: true,
+    });
+    expect(out).toBe('Sold · Went for $1,200 · See similar guitars in stock. Clean Ultra Tele.');
+  });
 });
 
 describe('slugify', () => {

@@ -3,6 +3,8 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import ListingDetail from './ListingDetail';
 import { ProductJsonLd } from './ProductJsonLd';
 import { BreadcrumbJsonLd } from './BreadcrumbJsonLd';
+import { ListingCard } from '@/components/listing/ListingCard';
+import { getActiveListings, similarListings } from '@/lib/catalog';
 import {
   brandPath,
   extractBrand,
@@ -84,12 +86,47 @@ export default async function ListingPage({ params }: PageProps) {
   }
 
   const brand = extractBrand(listing.listing_title);
+  // A sold guitar's page stays up for the people still arriving from Google and old
+  // links, and points them at what they can actually buy.
+  const similar = listing.disabled ? similarListings(listing, await getActiveListings(), 4) : [];
 
   return (
     <>
       <ProductJsonLd listing={listing} />
       <BreadcrumbJsonLd listing={listing} />
       <ListingDetail listing={listing} />
+      {similar.length > 0 && (
+        <section
+          aria-labelledby="similar"
+          className="mx-auto max-w-[1320px] px-5 pt-[clamp(36px,5vw,64px)] pb-10"
+        >
+          <p className="label-mono flex items-center gap-3 text-primary">
+            <span className="inline-block h-px w-[34px] bg-primary" />
+            This one sold
+          </p>
+          <h2 id="similar" className="mt-3 font-heading text-[clamp(28px,4.2vw,48px)]">
+            Similar guitars <span className="text-primary">in stock</span>
+          </h2>
+          <div className="mt-7 grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-[clamp(20px,2.4vw,32px)]">
+            {similar.map((item) => (
+              <ListingCard
+                key={item.id}
+                listing={{
+                  id: item.id,
+                  title: item.listing_title,
+                  condition: item.condition,
+                  images: item.images,
+                  price: item.price,
+                  originalPrice: item.original_price ?? null,
+                  currency: item.currency,
+                  isReserved: item.is_reserved,
+                  reservationBadge: item.reservation_badge,
+                }}
+              />
+            ))}
+          </div>
+        </section>
+      )}
       {brand && (
         <p className="mx-auto max-w-[1320px] px-5 pb-10 text-[15px] text-foreground/70">
           More from this maker:{' '}
@@ -144,8 +181,9 @@ export async function generateMetadata({ params }: PageProps) {
     alternates: {
       canonical: `${siteUrl}${listingPath(listing.id, listing.listing_title)}`,
     },
+    // Sold guitars stay indexed: the page says it sold and offers similar ones in stock.
     robots: {
-      index: !listing.disabled,
+      index: true,
       follow: true,
     },
     // Read by Facebook, Pinterest and others to show price and stock on a shared link.
