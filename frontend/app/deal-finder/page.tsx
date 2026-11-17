@@ -29,6 +29,8 @@ export default function DealFinderPage() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
+      {/* Desktop shows the title and navigation in the admin shell instead. */}
+      <div className="lg:hidden">
       <div className="mb-6">
         <Link
           href="/"
@@ -43,6 +45,7 @@ export default function DealFinderPage() {
       <p className="text-foreground/70 mb-6">Scan Reverb and Sweetwater for under-priced listings</p>
 
       <AdminTabsNav />
+      </div>
 
       <DealFinderTab />
       <div className="mt-6">

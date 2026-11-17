@@ -30,6 +30,7 @@ import { buyerDisplayName, isHandedOver, isInPersonOrder, paymentLabel } from '@
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
+import { setAdminTab, useAdminTab } from '@/lib/admin-nav';
 import { ReservationDialog } from '@/components/admin/ReservationDialog';
 import { buildBulkUploadCsv } from '@/lib/sweetwater/bulk-upload';
 import { deriveRow } from '@/lib/sweetwater/derive';
@@ -213,7 +214,8 @@ export default function AdminPage() {
   const [replyText, setReplyText] = useState('');
   const [sendingReply, setSendingReply] = useState(false);
   const replyInputRef = useRef<HTMLInputElement>(null);
-  const [activeTab, setActiveTab] = useState('listings');
+  // Shared with the desktop sidebar, which switches these tabs from any admin page.
+  const activeTab = useAdminTab('operations');
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [showDisabledListings, setShowDisabledListings] = useState(false);
@@ -235,19 +237,7 @@ export default function AdminPage() {
   const lastKnownOrderCountRef = useRef<number | null>(null);
   const initialLoadDoneRef = useRef(false);
 
-  // Load active tab from localStorage on mount
-  useEffect(() => {
-    const savedTab = localStorage.getItem('adminActiveTab');
-    if (savedTab && ['listings', 'messages', 'offers', 'orders', 'users'].includes(savedTab)) {
-      setActiveTab(savedTab);
-    }
-  }, []);
-
-  // Save active tab to localStorage when it changes
-  const handleTabChange = (value: string) => {
-    setActiveTab(value);
-    localStorage.setItem('adminActiveTab', value);
-  };
+  const handleTabChange = (value: string) => setAdminTab('operations', value);
 
   const fetchListings = async () => {
     setLoadingListings(true);
@@ -1257,6 +1247,8 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
+      {/* Desktop shows the title and navigation in the admin shell instead. */}
+      <div className="lg:hidden">
       <div className="mb-6">
         <Link
           href="/"
@@ -1271,9 +1263,10 @@ export default function AdminPage() {
       <p className="text-gray-600 mb-6">Manage your guitar listings database</p>
 
       <AdminTabsNav />
+      </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6 lg:hidden">
           <TabsTrigger value="listings" className="flex items-center gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Listings</span>

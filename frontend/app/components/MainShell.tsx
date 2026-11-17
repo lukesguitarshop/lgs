@@ -1,6 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
+import { AdminSidebar, AdminTopBar } from '@/components/admin/AdminShell';
+import { isAdminRoute } from '@/lib/admin-nav';
 
 /**
  * The redesigned homepage runs full-bleed: its sections own their own max-width and
@@ -14,6 +16,10 @@ import { usePathname } from 'next/navigation';
  * trust, terms, contact) and each section carries an `order-N md:order-none` class —
  * `order` only takes effect inside a flex or grid parent, so <main> has to be one.
  *
+ * Admin routes get a sidebar and top bar beside <main> on desktop (see AdminShell). Both
+ * are display:none unless the viewer is the owner at 1024px or wider, so below that, and
+ * for anyone else who lands on an admin URL, <main> is the same centred container.
+ *
  * Children are passed through untouched, so server components stay server components.
  */
 const FULL_BLEED_ROUTES = ['/'];
@@ -21,6 +27,20 @@ const FULL_BLEED_ROUTES = ['/'];
 export default function MainShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const fullBleed = FULL_BLEED_ROUTES.includes(pathname);
+
+  if (isAdminRoute(pathname)) {
+    return (
+      <div className="flex flex-grow">
+        <AdminSidebar />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <AdminTopBar />
+          <main className="admin-main flex-grow container mx-auto px-5 py-6 md:px-4 md:py-8">
+            {children}
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main

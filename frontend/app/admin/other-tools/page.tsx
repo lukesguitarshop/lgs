@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, Suspense } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { api, getAdminActivity, type AdminActivityEntry } from '@/lib/api';
@@ -9,6 +9,7 @@ import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
+import { isAdminTab, setAdminTab, useAdminTab } from '@/lib/admin-nav';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 import {
   ArrowLeft, Clipboard, Copy, Check, Play, Loader2, CheckCircle, XCircle, Star,
@@ -179,14 +180,19 @@ function OtherToolsContent() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(
-    requestedTab === 'activity' ||
-    requestedTab === 'reservations' ||
-    requestedTab === 'review-scraper' ||
-    requestedTab === 'in-person'
-      ? requestedTab
-      : 'snippets'
-  );
+  // Shared with the desktop sidebar. A ?tab= link (the reservation emails use one)
+  // picks the tab for this visit and is followed from the first render.
+  const storedTab = useAdminTab('tools');
+  const linkedTab = isAdminTab('tools', requestedTab) ? requestedTab : null;
+  const [followLink, setFollowLink] = useState(linkedTab !== null);
+  const activeTab = followLink && linkedTab ? linkedTab : storedTab;
+  useLayoutEffect(() => {
+    if (linkedTab) setAdminTab('tools', linkedTab);
+    setFollowLink(false);
+    // Only the link the page was opened with counts.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const setActiveTab = (value: string) => setAdminTab('tools', value);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [reviewScraperLoading, setReviewScraperLoading] = useState(false);
   const [reviewScraperResult, setReviewScraperResult] = useState<ScraperResponse | null>(null);
@@ -262,6 +268,8 @@ function OtherToolsContent() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
+      {/* Desktop shows the title and navigation in the admin shell instead. */}
+      <div className="lg:hidden">
       <div className="mb-6">
         <Link
           href="/"
@@ -276,9 +284,10 @@ function OtherToolsContent() {
       <p className="text-gray-600 mb-6">Handy utilities for managing your shop</p>
 
       <AdminTabsNav />
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6 lg:hidden">
           <TabsTrigger value="in-person" className="flex items-center gap-2">
             <CreditCard className="h-4 w-4" />
             <span className="hidden sm:inline">In-Person Sale</span>

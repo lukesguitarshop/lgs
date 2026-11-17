@@ -222,6 +222,8 @@ export default function AdminTradeInsListPage() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
+      {/* Desktop shows the title and navigation in the admin shell instead. */}
+      <div className="lg:hidden">
       <div className="mb-6">
         <Link
           href="/"
@@ -236,6 +238,7 @@ export default function AdminTradeInsListPage() {
       <p className="text-gray-600 mb-6">Review submissions, send offers, manage shipping</p>
 
       <AdminTabsNav />
+      </div>
       <div className="flex flex-wrap gap-2 mb-6">
         {STATUS_FILTERS.map(s => (
           <button key={s} onClick={() => setStatus(s)}

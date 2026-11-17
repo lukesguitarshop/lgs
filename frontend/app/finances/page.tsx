@@ -1,13 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useLayoutEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { ArrowLeft, ArrowLeftRight, BarChart3, Calendar, Receipt, Calculator } from 'lucide-react';
 import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
-import { resolveFinanceTab, DEFAULT_FINANCE_TAB } from '@/lib/finance-tab';
+import { resolveFinanceTab } from '@/lib/finance-tab';
+import { setAdminTab, useAdminTab } from '@/lib/admin-nav';
 import TransactionsTab from '@/components/admin/TransactionsTab';
 import DashboardTab from '@/components/admin/DashboardTab';
 import MonthlyBreakdownTab from '@/components/admin/MonthlyBreakdownTab';
@@ -16,18 +17,16 @@ import FlipCalculatorTab from '@/components/admin/FlipCalculatorTab';
 
 export default function FinancesPage() {
   const { isAdmin, isLoading } = useAuth();
-  const [financeTab, setFinanceTab] = useState<string>(DEFAULT_FINANCE_TAB);
+  // Shared with the desktop sidebar, which restores the last-used tab on its own.
+  const financeTab = useAdminTab('finances');
 
-  // Restore the last-used tab, unless a deep link (?editTxn=<id>) asks for a
-  // specific one -- restoring over it would unmount TransactionsTab and drop it.
-  useEffect(() => {
-    setFinanceTab(resolveFinanceTab(window.location.search, localStorage.getItem('adminFinanceTab')));
+  // A deep link (?editTxn=<id> or ?txn=<id>) has to win over the last-used tab --
+  // otherwise the restored tab unmounts TransactionsTab and the link is dropped.
+  useLayoutEffect(() => {
+    setAdminTab('finances', resolveFinanceTab(window.location.search, localStorage.getItem('adminFinanceTab')));
   }, []);
 
-  const handleFinanceTabChange = (value: string) => {
-    setFinanceTab(value);
-    localStorage.setItem('adminFinanceTab', value);
-  };
+  const handleFinanceTabChange = (value: string) => setAdminTab('finances', value);
 
   if (isLoading) return null;
 
@@ -47,6 +46,8 @@ export default function FinancesPage() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
+      {/* Desktop shows the title and navigation in the admin shell instead. */}
+      <div className="lg:hidden">
       <div className="mb-6">
         <Link
           href="/"
@@ -61,9 +62,10 @@ export default function FinancesPage() {
       <p className="text-foreground/70 mb-6">Transactions, dashboard, monthly breakdown, expenses, flip calculator</p>
 
       <AdminTabsNav />
+      </div>
 
       <Tabs value={financeTab} onValueChange={handleFinanceTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6">
+        <TabsList className="grid w-full grid-cols-5 mb-6 lg:hidden">
           <TabsTrigger value="transactions" className="flex items-center gap-2">
             <ArrowLeftRight className="h-4 w-4" />
             <span className="hidden sm:inline">Transactions</span>

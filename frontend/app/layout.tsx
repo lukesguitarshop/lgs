@@ -6,6 +6,7 @@ import Header from "./components/Header";
 import Footer from "./components/Footer";
 import DevBanner from "./components/DevBanner";
 import MainShell from "./components/MainShell";
+import SiteChrome from "./components/SiteChrome";
 import ImpersonationBanner from "./components/ImpersonationBanner";
 import FreeShippingBanner from "./components/FreeShippingBanner";
 import { ADMIN_HINT_SCRIPT } from "@/lib/adminHint";
@@ -212,9 +213,13 @@ export default function RootLayout({
           <AuthProvider>
             <ImpersonationBanner />
             <FreeShippingBanner />
-            <Header />
+            <SiteChrome>
+              <Header />
+            </SiteChrome>
             <MainShell>{children}</MainShell>
-            <Footer />
+            <SiteChrome>
+              <Footer />
+            </SiteChrome>
             <LoginModal />
             <RegisterModal />
           </AuthProvider>
