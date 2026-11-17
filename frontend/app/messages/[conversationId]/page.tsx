@@ -7,7 +7,7 @@ import { useParams, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { StateBlock } from '@/components/ui/state-block';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Loader2, MessageSquare, Send, User, Tag, Paperclip, X, Check, CheckCheck } from 'lucide-react';
+import { ArrowLeft, Loader2, MessageSquare, Send, User, Tag, Paperclip, X, Check, CheckCheck, Copy, Pencil } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
@@ -90,7 +90,8 @@ function ConversationPageContent() {
   const fromAdmin = searchParams.get('from') === 'admin';
   const fromListing = searchParams.get('from') === 'listing';
   const listingIdParam = searchParams.get('listingId');
-  const { isAuthenticated, isLoading: authLoading, setShowLoginModal } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, setShowLoginModal, isAdmin } = useAuth();
+  const [copied, setCopied] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -307,6 +308,40 @@ function ConversationPageContent() {
     setMessages(updatedMessages);
   };
 
+  // Admin only: rewrite one of my own messages. No "edited" marker anywhere.
+  const handleEditMessage = async (messageId: string, text: string) => {
+    setError(null);
+    try {
+      await api.authPut(`/messages/${messageId}`, { messageText: text });
+      setMessages(prev => prev.map(m => (m.id === messageId ? { ...m, messageText: text } : m)));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to edit message');
+      throw err;
+    }
+  };
+
+  // Admin only: copy the whole chat as `Me: "..."` / `Customer: "..."` lines.
+  const handleCopyChat = async () => {
+    try {
+      // The page only polls the latest 50; pull the full thread when it may be longer.
+      const all = messages.length < 50
+        ? messages
+        : await api.authGet<Message[]>(`/messages/conversation/${conversationId}?limit=1000`);
+      const transcript = all
+        .map(m => {
+          const images = m.imageUrls?.length ? `[${m.imageUrls.length} image(s)]` : '';
+          const text = [m.messageText, images].filter(Boolean).join(' ');
+          return `${m.isMine ? 'Me' : 'Customer'}: "${text}"`;
+        })
+        .join('\n');
+      await navigator.clipboard.writeText(transcript);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setError('Failed to copy chat');
+    }
+  };
+
   const handleAcceptOffer = async () => {
     if (!conversationId || isActioning) return;
 
@@ -495,6 +530,7 @@ function ConversationPageContent() {
                           onCounter={() => setShowOfferModal(true)}
                           isActioning={isActioning}
                           onImageClick={setLightboxUrl}
+                          onEdit={isAdmin ? handleEditMessage : undefined}
                         />
                       </div>
                     );
@@ -606,7 +642,18 @@ function ConversationPageContent() {
                     </Button>
                   </div>
                 </div>
-                <div className="flex justify-end">
+                <div className="flex items-center justify-between">
+                  {isAdmin && messages.length > 0 ? (
+                    <button
+                      type="button"
+                      onClick={handleCopyChat}
+                      className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      title="Copy entire chat"
+                    >
+                      {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copied ? 'Copied' : 'Copy chat'}
+                    </button>
+                  ) : <span />}
                   <span className={`text-xs ${newMessage.length >= MAX_MESSAGE_LENGTH ? 'text-primary' : 'text-muted-foreground'}`}>
                     {newMessage.length}/{MAX_MESSAGE_LENGTH}
                   </span>
@@ -729,6 +776,7 @@ interface MessageBubbleProps {
   onCounter?: () => void;
   isActioning?: boolean;
   onImageClick?: (url: string) => void;
+  onEdit?: (messageId: string, text: string) => Promise<void>;
 }
 
 function formatPrice(amount: number): string {
@@ -739,7 +787,26 @@ function formatPrice(amount: number): string {
   }).format(amount);
 }
 
-function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pendingActionBy, onAccept, onDecline, onCounter, isActioning, onImageClick }: MessageBubbleProps) {
+function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pendingActionBy, onAccept, onDecline, onCounter, isActioning, onImageClick, onEdit }: MessageBubbleProps) {
+  const [editText, setEditText] = useState<string | null>(null);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const canEdit = !!onEdit && message.isMine && message.type === 'text';
+
+  const saveEdit = async () => {
+    const text = editText?.trim();
+    if (!text || !onEdit) return;
+    if (text === message.messageText) { setEditText(null); return; }
+    setIsSavingEdit(true);
+    try {
+      await onEdit(message.id, text);
+      setEditText(null);
+    } catch {
+      // error surfaced by the page; keep the editor open
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   // Handle system messages (accept, decline, expire)
   if (message.type === 'accept') {
     return (
@@ -874,7 +941,30 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
             ))}
           </div>
         )}
-        {message.messageText && (
+        {editText !== null ? (
+          <div className="min-w-[220px]">
+            <textarea
+              autoFocus
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') setEditText(null);
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEdit(); }
+              }}
+              rows={3}
+              disabled={isSavingEdit}
+              className="w-full resize-none rounded-md border border-input bg-background px-2 py-1 text-sm text-foreground"
+            />
+            <div className="flex justify-end gap-3 text-xs mt-1">
+              <button type="button" onClick={() => setEditText(null)} disabled={isSavingEdit} className="opacity-80 hover:opacity-100">
+                Cancel
+              </button>
+              <button type="button" onClick={saveEdit} disabled={isSavingEdit || !editText.trim()} className="font-semibold hover:underline disabled:opacity-50">
+                {isSavingEdit ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          </div>
+        ) : message.messageText && (
           <p className="text-sm whitespace-pre-wrap break-words">{linkifyText(message.messageText)}</p>
         )}
         <div
@@ -882,6 +972,17 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
             message.isMine ? 'text-primary-foreground/70 justify-end' : 'text-foreground/70'
           }`}
         >
+          {canEdit && editText === null && (
+            <button
+              type="button"
+              onClick={() => setEditText(message.messageText)}
+              className="mr-1 opacity-70 hover:opacity-100"
+              title="Edit message"
+              aria-label="Edit message"
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
           <span>{formatTime(message.createdAt)}</span>
           {message.isMine && (
             message.isRead

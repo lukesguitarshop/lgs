@@ -1591,6 +1591,31 @@ public class MongoDbService
             .ToListAsync();
     }
 
+    /// <summary>
+    /// Rewrites a message's text in place. If it is the newest message in its
+    /// conversation the inbox preview follows, without bumping LastMessageAt.
+    /// </summary>
+    public async Task UpdateMessageTextAsync(Message message, string newText)
+    {
+        await _messagesCollection.UpdateOneAsync(
+            Builders<Message>.Filter.Eq(m => m.Id, message.Id),
+            Builders<Message>.Update.Set(m => m.MessageText, newText));
+
+        var newest = await _messagesCollection
+            .Find(Builders<Message>.Filter.Eq(m => m.ConversationId, message.ConversationId))
+            .SortByDescending(m => m.CreatedAt)
+            .Limit(1)
+            .FirstOrDefaultAsync();
+
+        if (newest?.Id == message.Id)
+        {
+            var preview = newText.Length > 50 ? newText.Substring(0, 47) + "..." : newText;
+            await _conversationsCollection.UpdateOneAsync(
+                Builders<Conversation>.Filter.Eq(c => c.Id, message.ConversationId),
+                Builders<Conversation>.Update.Set(c => c.LastMessage, preview));
+        }
+    }
+
     public async Task<bool> MarkMessageAsReadAsync(string messageId)
     {
         var filter = Builders<Message>.Filter.Eq(m => m.Id, messageId);

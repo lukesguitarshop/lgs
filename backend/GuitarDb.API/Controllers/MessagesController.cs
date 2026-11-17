@@ -399,6 +399,38 @@ public class MessagesController : ControllerBase
     }
 
     /// <summary>
+    /// Admin only: rewrite the text of one of the admin's own text messages.
+    /// Silent by design - no "edited" marker is stored or shown.
+    /// </summary>
+    [HttpPut("{messageId}")]
+    public async Task<IActionResult> EditMessage(string messageId, [FromBody] EditMessageRequest request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized(new { error = "Invalid token" });
+
+        var user = await _mongoDbService.GetUserByIdAsync(userId);
+        if (user == null || !user.IsAdmin) return Forbid();
+
+        var text = request.MessageText?.Trim();
+        if (string.IsNullOrEmpty(text))
+            return BadRequest(new { error = "Message text is required" });
+
+        var message = await _mongoDbService.GetMessageByIdAsync(messageId);
+        if (message == null)
+            return NotFound(new { error = "Message not found" });
+
+        if (message.SenderId != userId)
+            return Forbid();
+
+        if (message.Type != "text")
+            return BadRequest(new { error = "Only text messages can be edited" });
+
+        await _mongoDbService.UpdateMessageTextAsync(message, text);
+
+        return Ok(new { success = true, messageText = text });
+    }
+
+    /// <summary>
     /// Get unread message count
     /// </summary>
     [HttpGet("unread-count")]
@@ -893,6 +925,11 @@ public class SendMessageRequest
     public string RecipientId { get; set; } = string.Empty;
     public string MessageText { get; set; } = string.Empty;
     public string? ListingId { get; set; }
+}
+
+public class EditMessageRequest
+{
+    public string? MessageText { get; set; }
 }
 
 public class ConversationDto
