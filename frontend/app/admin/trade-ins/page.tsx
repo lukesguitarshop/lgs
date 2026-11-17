@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { Loader2, ArrowRight, ArrowLeft, Pencil, Trash2 } from 'lucide-react';
+import { Loader2, ArrowRight, Pencil, Trash2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
@@ -12,7 +12,6 @@ import {
 import {
   getAdminTradeIns, getAdminTradeIn, adminEditTradeIn, adminDeleteTradeIn,
 } from '@/lib/api';
-import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
 import type { AdminTradeInListItem, TradeInStatus, TradeInCondition } from '@/lib/types/trade-in';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 
@@ -136,7 +135,19 @@ export default function AdminTradeInsListPage() {
   };
 
   const columns: ResponsiveColumn<AdminTradeInListItem>[] = [
-    { id: 'email', header: 'Email', priority: 'key', wide: true, cellClassName: 'text-sm', cell: (it) => it.email, mobileCell: (it) => <span className="break-all">{it.email}</span> },
+    {
+      id: 'email',
+      header: 'Customer',
+      priority: 'key',
+      wide: true,
+      cellClassName: 'text-sm',
+      cell: (it) => (
+        <Link href={`/admin/user/${it.userId}`} className="group block max-md:inline-flex max-md:min-h-11 max-md:flex-col max-md:justify-center" title="Open customer account">
+          {it.fullName && <span className="block font-medium text-[#020E1C] group-hover:text-[#6E0114] group-hover:underline">{it.fullName}</span>}
+          <span className={`block break-all group-hover:text-[#6E0114] group-hover:underline ${it.fullName ? 'text-xs text-gray-500' : ''}`}>{it.email}</span>
+        </Link>
+      ),
+    },
     {
       id: 'guitar',
       header: 'Guitar',
@@ -222,23 +233,6 @@ export default function AdminTradeInsListPage() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
-      {/* Desktop shows the title and navigation in the admin shell instead. */}
-      <div className="lg:hidden">
-      <div className="mb-6">
-        <Link
-          href="/"
-          className="inline-flex items-center text-gray-600 hover:text-[#020E1C] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Home
-        </Link>
-      </div>
-
-      <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Trade-ins</h1>
-      <p className="text-gray-600 mb-6">Review submissions, send offers, manage shipping</p>
-
-      <AdminTabsNav />
-      </div>
       <div className="flex flex-wrap gap-2 mb-6">
         {STATUS_FILTERS.map(s => (
           <button key={s} onClick={() => setStatus(s)}

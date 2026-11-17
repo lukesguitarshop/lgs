@@ -16,7 +16,19 @@ export interface TradeInOffer {
   isExpired: boolean;
 }
 
+export interface TradeInAddress {
+  fullName: string;
+  line1: string;
+  line2?: string | null;
+  city: string;
+  state: string;
+  postalCode: string;
+  country: string;
+}
+
 export interface TradeInShipping {
+  returnAddress?: TradeInAddress | null;
+  canEditReturnAddress?: boolean;
   labelUrl?: string | null;
   receivedAt?: string | null;
   inspectedAt?: string | null;
@@ -45,6 +57,8 @@ export interface TradeInRequestDto {
 export interface AdminTradeInListItem {
   id: string;
   email: string;
+  userId: string;
+  fullName?: string | null;
   brand: string;
   model: string;
   condition: string;
@@ -57,6 +71,7 @@ export interface AdminTradeInListItem {
 export interface AdminTradeInDetail extends TradeInRequestDto {
   email: string;
   userId: string;
+  fullName?: string | null;
   canOffer: boolean;
   allOffers: TradeInOffer[];
   paypalEmail?: string | null;

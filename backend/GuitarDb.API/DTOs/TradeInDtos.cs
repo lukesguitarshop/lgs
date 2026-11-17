@@ -50,8 +50,27 @@ public class TradeInOfferDto
     public bool IsExpired { get; set; }
 }
 
+public class TradeInAddressDto
+{
+    public string FullName { get; set; } = string.Empty;
+    public string Line1 { get; set; } = string.Empty;
+    public string? Line2 { get; set; }
+    public string City { get; set; } = string.Empty;
+    public string State { get; set; } = string.Empty;
+    public string PostalCode { get; set; } = string.Empty;
+    public string Country { get; set; } = string.Empty;
+
+    public static TradeInAddressDto? From(GuitarDb.API.Models.UserShippingAddress? a) => a == null ? null : new TradeInAddressDto
+    {
+        FullName = a.FullName, Line1 = a.Line1, Line2 = a.Line2, City = a.City,
+        State = a.State, PostalCode = a.PostalCode, Country = a.Country
+    };
+}
+
 public class TradeInShippingDto
 {
+    public TradeInAddressDto? ReturnAddress { get; set; }
+    public bool CanEditReturnAddress { get; set; }
     public string? LabelUrl { get; set; }
     public DateTime? ReceivedAt { get; set; }
     public DateTime? InspectedAt { get; set; }
@@ -68,6 +87,8 @@ public class AdminTradeInListItemDto
 {
     public string Id { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string? FullName { get; set; }
     public string Brand { get; set; } = string.Empty;
     public string Model { get; set; } = string.Empty;
     public string Condition { get; set; } = string.Empty;
@@ -82,6 +103,7 @@ public class AdminTradeInDetailDto : TradeInRequestDto
     public bool CanOffer { get; set; }
     public string Email { get; set; } = string.Empty;
     public string UserId { get; set; } = string.Empty;
+    public string? FullName { get; set; }
     public List<TradeInOfferDto> AllOffers { get; set; } = new();
     public string? PaypalEmail { get; set; }
     public string? PaypalTransactionId { get; set; }

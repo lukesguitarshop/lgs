@@ -402,7 +402,7 @@ export async function impersonateUser(id: string): Promise<ImpersonateResponse> 
 }
 
 // Trade-in API
-import type { TradeInRequestDto, AdminTradeInListItem, AdminTradeInDetail } from './types/trade-in';
+import type { TradeInRequestDto, TradeInAddress, AdminTradeInListItem, AdminTradeInDetail } from './types/trade-in';
 import type { StoreCreditDto } from './types/store-credit';
 
 export async function submitTradeIn(formData: FormData): Promise<{ id: string }> {
@@ -441,6 +441,10 @@ export async function acceptTradeInOffer(id: string, type: 'cash' | 'credit', pa
   return api.authPost<TradeInRequestDto>(`/trade-ins/${id}/accept`, { type, paypalEmail });
 }
 
+export async function setTradeInReturnAddress(id: string, address: TradeInAddress): Promise<TradeInRequestDto> {
+  return api.authPost<TradeInRequestDto>(`/trade-ins/${id}/return-address`, address);
+}
+
 export async function cancelTradeIn(id: string): Promise<TradeInRequestDto> {
   return api.authPost<TradeInRequestDto>(`/trade-ins/${id}/cancel`);
 }
@@ -477,6 +481,10 @@ export async function adminUploadTradeInLabel(id: string, file: File): Promise<{
     throw new ApiError(errBody.error || 'Upload failed', response.status);
   }
   return response.json();
+}
+
+export async function adminResendTradeInLabelEmail(id: string): Promise<{ sentTo: string }> {
+  return api.authPost<{ sentTo: string }>(`/admin/trade-ins/${id}/label-email`);
 }
 
 export async function adminMarkTradeInReceived(id: string): Promise<void> {

@@ -35,10 +35,14 @@ public class AdminTradeInsController : ControllerBase
     public async Task<IActionResult> List([FromQuery] string? status)
     {
         var requests = await _mongoDbService.GetAllTradeInRequestsAsync(status);
+        var names = (await _mongoDbService.GetUsersByIdsAsync(requests.Select(r => r.UserId)))
+            .ToDictionary(u => u.Id!, u => u.FullName);
         return Ok(requests.Select(r => new AdminTradeInListItemDto
         {
             Id = r.Id!,
             Email = r.Email,
+            UserId = r.UserId,
+            FullName = names.GetValueOrDefault(r.UserId),
             Brand = r.Brand,
             Model = r.Model,
             Condition = r.Condition,
@@ -56,10 +60,12 @@ public class AdminTradeInsController : ControllerBase
         if (req == null) return NotFound(new { error = "Not found" });
 
         var active = req.Offers.LastOrDefault();
+        var customer = await _mongoDbService.GetUserByIdAsync(req.UserId);
         return Ok(new AdminTradeInDetailDto
         {
             Id = req.Id!,
             UserId = req.UserId,
+            FullName = customer?.FullName,
             Email = req.Email,
             Brand = req.Brand,
             Model = req.Model,
@@ -93,6 +99,8 @@ public class AdminTradeInsController : ControllerBase
             PaypalEmail = active?.PaypalEmail,
             Shipping = new TradeInShippingDto
             {
+                ReturnAddress = TradeInAddressDto.From(req.Shipping.ReturnAddress),
+                CanEditReturnAddress = TradeInRules.CanSetReturnAddress(req),
                 LabelUrl = req.Shipping.LabelUrl,
                 ReceivedAt = req.Shipping.ReceivedAt,
                 InspectedAt = req.Shipping.InspectedAt
@@ -157,7 +165,22 @@ public class AdminTradeInsController : ControllerBase
         req.Shipping.LabelUrl = labelUrl;
         req.Shipping.LabelUploadedAt = DateTime.UtcNow;
         await _mongoDbService.UpdateTradeInRequestAsync(req);
+
+        _ = _emailService.SendTradeInLabelReadyAsync(req.Email, req.Id!, req.Brand, req.Model);
         return Ok(new { labelUrl = req.Shipping.LabelUrl });
+    }
+
+    /// <summary>Sends the "label is ready" email again, e.g. for a label uploaded before that email existed.</summary>
+    [HttpPost("{id}/label-email")]
+    public async Task<IActionResult> ResendLabelEmail(string id)
+    {
+        var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
+        if (req == null) return NotFound(new { error = "Not found" });
+        if (req.Shipping.LabelUrl == null) return BadRequest(new { error = "No label has been uploaded yet" });
+        if (req.Status != TradeInStatus.Accepted) return Refuse("email the label for", req);
+
+        await _emailService.SendTradeInLabelReadyAsync(req.Email, req.Id!, req.Brand, req.Model);
+        return Ok(new { id = req.Id, sentTo = req.Email });
     }
 
     [HttpPost("{id}/mark-received")]

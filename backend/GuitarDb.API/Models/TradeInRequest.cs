@@ -106,6 +106,19 @@ public class TradeInOffer
 
 public class TradeInShipping
 {
+    /// <summary>
+    /// Where the guitar ships from, and where it goes back if the trade falls through.
+    /// The customer gives it right after accepting; the prepaid label is made from it.
+    /// </summary>
+    [BsonElement("return_address")]
+    [BsonIgnoreIfNull]
+    public UserShippingAddress? ReturnAddress { get; set; }
+
+    [BsonElement("return_address_at")]
+    [BsonIgnoreIfNull]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    public DateTime? ReturnAddressAt { get; set; }
+
     [BsonElement("label_url")]
     [BsonIgnoreIfNull]
     public string? LabelUrl { get; set; }
@@ -192,6 +205,10 @@ public static class TradeInRules
 
     public static bool CanOffer(TradeInRequest req) => EffectiveStatus(req) is
         TradeInStatus.Submitted or TradeInStatus.Offered or TradeInStatus.Declined or TradeInStatus.Expired;
+
+    /// <summary>Once the label exists it was made from the address, so the address is fixed.</summary>
+    public static bool CanSetReturnAddress(TradeInRequest req) =>
+        req.Status == TradeInStatus.Accepted && req.Shipping.LabelUrl == null;
 
     public static bool CanUploadLabel(TradeInRequest req) => req.Status == TradeInStatus.Accepted;
     public static bool CanReceive(TradeInRequest req) => req.Status == TradeInStatus.Accepted;

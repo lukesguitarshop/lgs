@@ -935,12 +935,47 @@ public class EmailService
 <h2>Thanks for accepting!</h2>
 <p>Here's what happens next:</p>
 <ol>
-    <li>We'll upload your prepaid shipping label within 1 business day.</li>
+    <li>Tell us your return address on the trade-in page. It's where the guitar ships from, and where it comes back if anything falls through.</li>
+    <li>We'll upload your prepaid shipping label within 1 business day of getting it.</li>
     <li>Pack your <strong>{brand} {model}</strong> securely (case + box, plenty of padding).</li>
     <li>Drop it off at the carrier indicated on the label.</li>
 </ol>
-<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""{ButtonStyle}"">View shipping page</a></p>";
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""{ButtonStyle}"">Add your return address</a></p>";
         await SendEmailAsync(toEmail, subject, body);
+    }
+
+    public async Task SendTradeInLabelReadyAsync(string toEmail, string requestId, string brand, string model)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(toEmail)) return;
+        var guitar = System.Net.WebUtility.HtmlEncode($"{brand} {model}");
+        var subject = "Your prepaid shipping label is ready";
+        var body = $@"
+<h2>Your label is ready</h2>
+<p>The prepaid shipping label for your <strong>{guitar}</strong> is on your trade-in page. Download it there, along with the packing checklist.</p>
+<ol>
+    <li>Print the label and pack the guitar securely (case + box, plenty of padding).</li>
+    <li>Tape the label to the box and drop it off at the carrier shown on it.</li>
+    <li>We'll email you when it arrives.</li>
+</ol>
+<p><a href=""{_frontendUrl}/trade-in/{requestId}"" style=""{ButtonStyle}"">Get your label</a></p>";
+        await SendEmailAsync(toEmail, subject, body);
+    }
+
+    public async Task SendTradeInReturnAddressAdminAsync(string requestId, string brand, string model, string userEmail, GuitarDb.API.Models.UserShippingAddress address, bool changed)
+    {
+        if (!_isEnabled || string.IsNullOrEmpty(_sellerEmail)) return;
+        string E(string? s) => System.Net.WebUtility.HtmlEncode(s ?? string.Empty);
+        var guitar = E($"{brand} {model}");
+        var subject = changed
+            ? $"Trade-in return address changed: {brand} {model}"
+            : $"Trade-in accepted, label needed: {brand} {model}";
+        var line2 = string.IsNullOrEmpty(address.Line2) ? "" : E(address.Line2) + "<br>";
+        var body = $@"
+<h2>{(changed ? "Return address changed" : "Offer accepted")}</h2>
+<p><strong>{E(userEmail)}</strong> {(changed ? "changed the return address" : "accepted the offer and gave a return address")} for their <strong>{guitar}</strong>.</p>
+<p>{E(address.FullName)}<br>{E(address.Line1)}<br>{line2}{E(address.City)}, {E(address.State)} {E(address.PostalCode)}<br>{E(address.Country)}</p>
+<p><a href=""{_frontendUrl}/admin/trade-ins/{requestId}"" style=""{ButtonStyle}"">Upload the prepaid label</a></p>";
+        await SendEmailAsync(_sellerEmail, subject, body);
     }
 
     public async Task SendTradeInDeclinedAdminAsync(string brand, string model, string userEmail)

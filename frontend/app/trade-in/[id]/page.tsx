@@ -8,8 +8,9 @@ import { Loader2, ArrowLeft, Package, CheckCircle2, XCircle, Clock, Download } f
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { ImageLightbox } from '@/components/ImageLightbox';
-import { getTradeIn, acceptTradeInOffer, declineTradeInOffer, cancelTradeIn } from '@/lib/api';
-import type { TradeInRequestDto } from '@/lib/types/trade-in';
+import { getTradeIn, acceptTradeInOffer, declineTradeInOffer, cancelTradeIn, setTradeInReturnAddress } from '@/lib/api';
+import type { TradeInRequestDto, TradeInAddress } from '@/lib/types/trade-in';
+import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
 import { StateBlock } from '@/components/ui/state-block';
 
 const STEPS = ['Submitted', 'Offer', 'Accepted', 'Received', 'Inspected', 'Paid'] as const;
@@ -49,7 +50,7 @@ function formatPrice(amount: number) {
 
 export default function TradeInDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { showToast } = useToast();
   const [data, setData] = useState<TradeInRequestDto | null>(null);
   const [loading, setLoading] = useState(true);
@@ -57,6 +58,7 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
   const [paypalEmail, setPaypalEmail] = useState('');
   const [acting, setActing] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [addressOpen, setAddressOpen] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) { setLoading(false); return; }
@@ -74,7 +76,7 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
     setActing(true);
     try {
       const updated = await acceptTradeInOffer(id, 'cash', paypalEmail.trim());
-      setData(updated); setAcceptType(null);
+      setData(updated); setAcceptType(null); setAddressOpen(true);
     } catch (e: unknown) { showToast(e instanceof Error ? e.message : 'Failed', 'error'); }
     finally { setActing(false); }
   };
@@ -82,9 +84,13 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
     setActing(true);
     try {
       const updated = await acceptTradeInOffer(id, 'credit');
-      setData(updated); setAcceptType(null);
+      setData(updated); setAcceptType(null); setAddressOpen(true);
     } catch (e: unknown) { showToast(e instanceof Error ? e.message : 'Failed', 'error'); }
     finally { setActing(false); }
+  };
+  const saveReturnAddress = async (address: TradeInAddress) => {
+    setData(await setTradeInReturnAddress(id, address));
+    showToast('Return address saved', 'success');
   };
   const handleDecline = async () => {
     if (!confirm('Decline this offer?')) return;
@@ -104,6 +110,7 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
 
   const offer = data.activeOffer;
   const closed = ['declined', 'cancelled', 'rejected'].includes(data.status);
+  const returnAddress = data.shipping?.returnAddress;
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:px-4">
@@ -194,10 +201,38 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
             <a href={data.shipping.labelUrl} target="_blank" rel="noopener" className="inline-flex items-center bg-primary text-primary-foreground px-6 py-3 font-semibold">
               <Download className="h-4 w-4 mr-2" />Download prepaid label (PDF)
             </a>
+          ) : returnAddress ? (
+            <p className="text-background/80">I&apos;ll upload your prepaid label within 1 business day. Check back shortly.</p>
           ) : (
-            <p className="text-foreground/78">We'll upload your prepaid label within 1 business day. Check back shortly.</p>
+            <div className="space-y-3">
+              <p className="text-background/80">
+                First I need your return address. It&apos;s where the guitar ships from, and where it comes back if anything falls through. Your prepaid label is made from it.
+              </p>
+              <Button onClick={() => setAddressOpen(true)} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                Add return address
+              </Button>
+            </div>
           )}
-          <div className="bg-background p-4 border">
+          {returnAddress && (
+            <div className="bg-background p-4 text-foreground">
+              <div className="mb-1 flex items-center justify-between gap-3">
+                <h3 className="font-semibold">Return address</h3>
+                {data.shipping?.canEditReturnAddress && (
+                  <button type="button" onClick={() => setAddressOpen(true)} className="label-mono-sm flex min-h-11 items-center text-primary">
+                    Edit
+                  </button>
+                )}
+              </div>
+              <div className="space-y-0.5 text-sm text-foreground/78">
+                <p className="font-medium text-foreground">{returnAddress.fullName}</p>
+                <p>{returnAddress.line1}</p>
+                {returnAddress.line2 && <p>{returnAddress.line2}</p>}
+                <p>{returnAddress.city}, {returnAddress.state} {returnAddress.postalCode}</p>
+                <p>{returnAddress.country}</p>
+              </div>
+            </div>
+          )}
+          <div className="bg-background p-4 border text-foreground">
             <h3 className="font-semibold mb-2">Packing checklist</h3>
             <ul className="list-disc list-inside text-sm text-foreground/78 space-y-1">
               <li>Use a hardshell or gig case if available</li>
@@ -265,6 +300,15 @@ export default function TradeInDetailPage({ params }: { params: Promise<{ id: st
           </button>
         </div>
       )}
+
+      <ShippingAddressModal
+        isOpen={addressOpen}
+        onClose={() => setAddressOpen(false)}
+        initialAddress={returnAddress ?? user?.shippingAddress}
+        onSave={saveReturnAddress}
+        title="Your return address"
+        description="Where the guitar ships from, and where it comes back if anything falls through. I make your prepaid label from it."
+      />
 
       <ImageLightbox
         images={data.photos.map(p => p.url)}

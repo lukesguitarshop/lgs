@@ -4,13 +4,13 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
-import { Loader2, ArrowLeft, Upload, ExternalLink, X } from 'lucide-react';
+import { Loader2, ArrowLeft, Upload, ExternalLink, X, Copy, Mail } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { ImageLightbox } from '@/components/ImageLightbox';
 import {
   getAdminTradeIn, adminCreateTradeInOffer, adminUploadTradeInLabel,
-  adminMarkTradeInReceived, adminMarkTradeInInspected, adminCompleteTradeIn,
+  adminResendTradeInLabelEmail, adminMarkTradeInReceived,adminMarkTradeInInspected, adminCompleteTradeIn,
   adminMarkTradeInPaid, adminCancelTradeIn, adminRejectTradeIn,
 } from '@/lib/api';
 import type { AdminTradeInDetail } from '@/lib/types/trade-in';
@@ -95,7 +95,13 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
 
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-[#020E1C]">{data.brand} {data.model}</h1>
-        <p className="text-gray-600">{data.condition} · {data.email} · <span className="capitalize font-medium">{data.status}</span></p>
+        <p className="text-gray-600">
+          {data.condition} ·{' '}
+          <Link href={`/admin/user/${data.userId}`} className="text-[#6E0114] underline underline-offset-2 break-all" title="Open customer account">
+            {data.fullName ? `${data.fullName} (${data.email})` : data.email}
+          </Link>{' '}
+          · <span className="capitalize font-medium">{data.status}</span>
+        </p>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
@@ -191,8 +197,48 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
       {(data.status === 'accepted' || data.status === 'received' || data.status === 'inspected' || data.status === 'completed') && (
         <div className="bg-[#FFFFF3] border border-gray-200 rounded-lg p-4 mb-4">
           <h2 className="font-semibold mb-3">Shipping & inspection</h2>
+          {data.shipping?.returnAddress ? (
+            <div className="mb-3 text-sm">
+              <div className="flex items-center gap-3">
+                <span className="font-medium">Return address</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const a = data.shipping!.returnAddress!;
+                    const text = [a.fullName, a.line1, a.line2, `${a.city}, ${a.state} ${a.postalCode}`, a.country].filter(Boolean).join('\n');
+                    navigator.clipboard.writeText(text).then(() => showToast('Address copied', 'success'));
+                  }}
+                  className="inline-flex items-center text-[#6E0114] hover:underline"
+                >
+                  <Copy className="h-3.5 w-3.5 mr-1" />Copy
+                </button>
+              </div>
+              <address className="not-italic text-gray-700">
+                {data.shipping.returnAddress.fullName}<br />
+                {data.shipping.returnAddress.line1}<br />
+                {data.shipping.returnAddress.line2 && <>{data.shipping.returnAddress.line2}<br /></>}
+                {data.shipping.returnAddress.city}, {data.shipping.returnAddress.state} {data.shipping.returnAddress.postalCode}<br />
+                {data.shipping.returnAddress.country}
+              </address>
+            </div>
+          ) : data.status === 'accepted' ? (
+            <p className="mb-3 rounded border border-yellow-300 bg-yellow-50 px-3 py-2 text-sm text-yellow-900">
+              Waiting on the customer&apos;s return address. They&apos;re asked for it right after accepting; you&apos;ll get an email when it&apos;s in.
+            </p>
+          ) : null}
           {data.shipping?.labelUrl ? (
-            <p className="text-sm mb-2">Label: <a href={data.shipping.labelUrl} target="_blank" rel="noopener" className="text-[#6E0114] underline inline-flex items-center">View PDF <ExternalLink className="h-3 w-3 ml-1" /></a></p>
+            <p className="text-sm mb-2">Label: <a href={data.shipping.labelUrl} target="_blank" rel="noopener" className="text-[#6E0114] underline inline-flex items-center">View PDF <ExternalLink className="h-3 w-3 ml-1" /></a>
+              {data.status === 'accepted' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => wrap(async () => { const r = await adminResendTradeInLabelEmail(id); showToast(`Label email sent to ${r.sentTo}`, 'success'); })}
+                  className="ml-3 inline-flex items-center text-[#6E0114] underline disabled:opacity-50"
+                >
+                  <Mail className="h-3 w-3 mr-1" />Email label link to customer
+                </button>
+              )}
+            </p>
           ) : data.status === 'accepted' ? (
             <label className="inline-flex items-center gap-2 cursor-pointer text-sm border border-dashed rounded p-3 mb-3">
               <Upload className="h-4 w-4" />Upload label PDF

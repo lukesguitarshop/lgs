@@ -6,12 +6,11 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, LogIn, Upload, X, Plus, ArrowLeft, MapPin, AlertCircle } from 'lucide-react';
+import { Loader2, LogIn, Upload, X, Plus, ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { submitTradeIn } from '@/lib/api';
 import type { TradeInCondition } from '@/lib/types/trade-in';
-import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
 import { StickyBar } from '@/components/ui/sticky-bar';
 import { StateBlock } from '@/components/ui/state-block';
 import { resizeImage } from '@/lib/resize-image';
@@ -26,7 +25,7 @@ const CONDITIONS: TradeInCondition[] = ['Mint', 'Excellent', 'Very Good', 'Good'
 
 export default function TradeInSubmitPage() {
   const router = useRouter();
-  const { isAuthenticated, setShowLoginModal, setShowRegisterModal, user, refreshUser } = useAuth();
+  const { isAuthenticated, setShowLoginModal, setShowRegisterModal } = useAuth();
   const { showToast } = useToast();
   const [brand, setBrand] = useState('');
   const [model, setModel] = useState('');
@@ -36,7 +35,6 @@ export default function TradeInSubmitPage() {
   const [photoError, setPhotoError] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [addressModalOpen, setAddressModalOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   if (!isAuthenticated) {
@@ -110,11 +108,6 @@ export default function TradeInSubmitPage() {
     e.preventDefault();
     if (!brand.trim() || !model.trim()) {
       showToast('Please fill in brand and model', 'error');
-      return;
-    }
-    if (!user?.shippingAddress) {
-      showToast('Please add a shipping address to your profile before submitting', 'error');
-      setAddressModalOpen(true);
       return;
     }
     if (photos.length === 0) {
@@ -244,51 +237,6 @@ export default function TradeInSubmitPage() {
           )}
           <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple onChange={(e) => handleFiles(e.target.files)} className="hidden" />
         </section>
-        <section>
-          <h2 className="label-mono mb-3 text-primary">Where to reach you</h2>
-          <div className="border border-foreground/15 p-4">
-            <div className="mb-2 flex items-center justify-between gap-3">
-              <Label className="flex items-center gap-2 text-sm font-semibold">
-                <MapPin className="h-4 w-4" />
-                Return address
-              </Label>
-              <button
-                type="button"
-                onClick={() => setAddressModalOpen(true)}
-                className="label-mono-sm flex min-h-11 items-center text-primary"
-              >
-                {user?.shippingAddress ? 'Edit' : 'Add address'}
-              </button>
-            </div>
-            {user?.shippingAddress ? (
-              <div className="space-y-0.5 text-sm text-foreground/78">
-                <p className="font-medium text-foreground">{user.shippingAddress.fullName}</p>
-                <p>{user.shippingAddress.line1}</p>
-                {user.shippingAddress.line2 && <p>{user.shippingAddress.line2}</p>}
-                <p>{user.shippingAddress.city}, {user.shippingAddress.state} {user.shippingAddress.postalCode}</p>
-                <p>{user.shippingAddress.country}</p>
-              </div>
-            ) : (
-              <div className="bg-muted-foreground p-4 text-foreground">
-                <p className="label-mono flex items-center gap-2 text-foreground/60">
-                  <AlertCircle className="h-3.5 w-3.5" />
-                  Heads up
-                </p>
-                <p className="mt-1.5 text-[15px] leading-[1.5]">
-                  I need an address to generate your prepaid shipping label.{' '}
-                  <button
-                    type="button"
-                    onClick={() => setAddressModalOpen(true)}
-                    className="font-semibold underline"
-                  >
-                    Add one now.
-                  </button>
-                </p>
-              </div>
-            )}
-          </div>
-        </section>
-
         {/* Desktop keeps the in-page button; phones get it in the sticky bar. */}
         <Button type="submit" disabled={submitting || preparing} className="hidden w-full bg-primary py-6 text-lg font-semibold text-primary-foreground hover:bg-primary/90 disabled:opacity-50 md:flex">
           {submitting ? <><Loader2 className="mr-2 h-5 w-5 animate-spin" />Submitting...</> : 'Submit for review'}
@@ -304,16 +252,6 @@ export default function TradeInSubmitPage() {
           </button>
         </StickyBar>
       </form>
-
-      <ShippingAddressModal
-        isOpen={addressModalOpen}
-        onClose={() => setAddressModalOpen(false)}
-        initialAddress={user?.shippingAddress}
-        onSave={async () => {
-          await refreshUser();
-          setAddressModalOpen(false);
-        }}
-      />
     </div>
   );
 }

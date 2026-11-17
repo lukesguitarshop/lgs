@@ -15,7 +15,11 @@ interface ShippingAddressModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialAddress?: ShippingAddress | null;
-  onSave: (address: ShippingAddress) => void;
+  onSave: (address: ShippingAddress) => void | Promise<void>;
+  /** Replaces "Add/Edit Shipping Address" where the address is asked for another reason. */
+  title?: string;
+  /** A line under the title saying what the address is for. */
+  description?: string;
 }
 
 // Mono crimson on phones (`.mobile-label` is inert from md up), today's Archivo label
@@ -35,6 +39,8 @@ export default function ShippingAddressModal({
   onClose,
   initialAddress,
   onSave,
+  title,
+  description,
 }: ShippingAddressModalProps) {
   const { user, refreshUser } = useAuth();
   const [saving, setSaving] = useState(false);
@@ -101,7 +107,7 @@ export default function ShippingAddressModal({
     try {
       await saveShippingAddress(address);
       await refreshUser();
-      onSave(address);
+      await onSave(address);
       onClose();
     } catch (err) {
       console.error('Failed to save address:', err);
@@ -116,8 +122,9 @@ export default function ShippingAddressModal({
       <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {initialAddress ? 'Edit Shipping Address' : 'Add Shipping Address'}
+            {title ?? (initialAddress ? 'Edit Shipping Address' : 'Add Shipping Address')}
           </DialogTitle>
+          {description && <p className="text-sm text-foreground/70">{description}</p>}
         </DialogHeader>
 
         <div className="space-y-4 mt-4">

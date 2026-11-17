@@ -205,6 +205,44 @@ public class TradeInsController : ControllerBase
         return Ok(MapToDto(req));
     }
 
+    [HttpPost("{id}/return-address")]
+    public async Task<IActionResult> SetReturnAddress(string id, [FromBody] TradeInAddressDto request)
+    {
+        var userId = GetUserId();
+        if (userId == null) return Unauthorized(new { error = "Invalid token" });
+
+        var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
+        if (req == null || req.UserId != userId) return NotFound(new { error = "Trade-in not found" });
+        if (!TradeInRules.CanSetReturnAddress(req))
+            return BadRequest(new { error = req.Shipping.LabelUrl != null
+                ? "Your label is already made, so the address can't change here. Send me a message and I'll sort it out."
+                : "A return address can only be added once you've accepted an offer." });
+
+        var address = new UserShippingAddress
+        {
+            FullName = request.FullName?.Trim() ?? string.Empty,
+            Line1 = request.Line1?.Trim() ?? string.Empty,
+            Line2 = string.IsNullOrWhiteSpace(request.Line2) ? null : request.Line2.Trim(),
+            City = request.City?.Trim() ?? string.Empty,
+            State = request.State?.Trim() ?? string.Empty,
+            PostalCode = request.PostalCode?.Trim() ?? string.Empty,
+            Country = request.Country?.Trim() ?? string.Empty
+        };
+        var required = new[] { address.FullName, address.Line1, address.City, address.State, address.PostalCode, address.Country };
+        if (required.Any(string.IsNullOrEmpty))
+            return BadRequest(new { error = "Name, address, city, state, postal code, and country are required" });
+        if (required.Append(address.Line2 ?? string.Empty).Any(v => v.Length > 200))
+            return BadRequest(new { error = "Each address field must be 200 characters or fewer" });
+
+        var changed = req.Shipping.ReturnAddress != null;
+        req.Shipping.ReturnAddress = address;
+        req.Shipping.ReturnAddressAt = DateTime.UtcNow;
+        await _mongoDbService.UpdateTradeInRequestAsync(req);
+
+        _ = _emailService.SendTradeInReturnAddressAdminAsync(req.Id!, req.Brand, req.Model, req.Email, address, changed);
+        return Ok(MapToDto(req));
+    }
+
     [HttpPost("{id}/decline")]
     public async Task<IActionResult> Decline(string id)
     {
@@ -257,6 +295,8 @@ public class TradeInsController : ControllerBase
             ActiveOffer = activeDto,
             Shipping = new TradeInShippingDto
             {
+                ReturnAddress = TradeInAddressDto.From(req.Shipping.ReturnAddress),
+                CanEditReturnAddress = TradeInRules.CanSetReturnAddress(req),
                 LabelUrl = req.Shipping.LabelUrl,
                 ReceivedAt = req.Shipping.ReceivedAt,
                 InspectedAt = req.Shipping.InspectedAt
