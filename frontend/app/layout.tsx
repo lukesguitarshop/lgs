@@ -7,6 +7,8 @@ import Footer from "./components/Footer";
 import DevBanner from "./components/DevBanner";
 import MainShell from "./components/MainShell";
 import ImpersonationBanner from "./components/ImpersonationBanner";
+import FreeShippingBanner from "./components/FreeShippingBanner";
+import { ADMIN_HINT_SCRIPT } from "@/lib/adminHint";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LoginModal } from "@/components/auth/LoginModal";
 import { RegisterModal } from "@/components/auth/RegisterModal";
@@ -190,8 +192,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    // suppressHydrationWarning: ADMIN_HINT_SCRIPT may add a class to <html> before React
+    // hydrates. It covers this element's own attributes only, not the tree below.
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: ADMIN_HINT_SCRIPT }} />
         <OrganizationJsonLd />
         <WebSiteJsonLd />
         <LocalBusinessJsonLd />
@@ -206,6 +211,7 @@ export default function RootLayout({
         <ToastProvider>
           <AuthProvider>
             <ImpersonationBanner />
+            <FreeShippingBanner />
             <Header />
             <MainShell>{children}</MainShell>
             <Footer />

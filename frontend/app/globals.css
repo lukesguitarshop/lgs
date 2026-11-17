@@ -274,6 +274,40 @@
       transform: scaleX(0);
     }
   }
+  /* Free-shipping band above the header. Two identical groups sit side by side and each
+     slides left by exactly its own width, so the loop has no seam. Hidden outright for
+     the owner (the class is set before first paint, see FreeShippingBanner). */
+  .viewer-admin .ship-marquee {
+    display: none;
+  }
+  .ship-marquee-group {
+    animation: ship-marquee 38s linear infinite;
+  }
+  .ship-marquee:hover .ship-marquee-group {
+    animation-play-state: paused;
+  }
+  .ship-marquee-outline {
+    color: transparent;
+    -webkit-text-stroke: 1px hsl(var(--primary-foreground) / 0.85);
+  }
+  @keyframes ship-marquee {
+    to {
+      transform: translateX(-100%);
+    }
+  }
+  /* Less motion: one static, centred line. The second group and the repeats go. */
+  @media (prefers-reduced-motion: reduce) {
+    .ship-marquee-group {
+      animation: none;
+      min-width: 100%;
+      justify-content: center;
+    }
+    .ship-marquee-group + .ship-marquee-group,
+    .ship-marquee-group > span + span,
+    .ship-marquee-group > span > span + span {
+      display: none;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     .rise,
     .bar-grow,
