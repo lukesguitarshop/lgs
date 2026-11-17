@@ -7,14 +7,12 @@ import { api, getAdminActivity, type AdminActivityEntry } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import { isAdminTab, setAdminTab, useAdminTab } from '@/lib/admin-nav';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 import {
-  ArrowLeft, Clipboard, Copy, Check, Play, Loader2, CheckCircle, XCircle, Star,
+  Clipboard, Copy, Check, Play, Loader2, CheckCircle, XCircle,
   Activity, LogIn, ShoppingCart, Heart, HeartOff, Receipt, ChevronLeft, ChevronRight, X,
-  Bookmark, CreditCard,
 } from 'lucide-react';
 import { ReservationsTab } from '@/components/admin/ReservationsTab';
 import { InPersonSaleTab } from '@/components/admin/InPersonSaleTab';
@@ -268,48 +266,7 @@ function OtherToolsContent() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
-      {/* Desktop shows the title and navigation in the admin shell instead. */}
-      <div className="lg:hidden">
-      <div className="mb-6">
-        <Link
-          href="/"
-          className="inline-flex items-center text-gray-600 hover:text-[#020E1C] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Home
-        </Link>
-      </div>
-
-      <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Other Tools</h1>
-      <p className="text-gray-600 mb-6">Handy utilities for managing your shop</p>
-
-      <AdminTabsNav />
-      </div>
-
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6 lg:hidden">
-          <TabsTrigger value="in-person" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            <span className="hidden sm:inline">In-Person Sale</span>
-          </TabsTrigger>
-          <TabsTrigger value="snippets" className="flex items-center gap-2">
-            <Clipboard className="h-4 w-4" />
-            <span className="hidden sm:inline">Snippets</span>
-          </TabsTrigger>
-          <TabsTrigger value="reservations" className="flex items-center gap-2">
-            <Bookmark className="h-4 w-4" />
-            <span className="hidden sm:inline">Reservations</span>
-          </TabsTrigger>
-          <TabsTrigger value="review-scraper" className="flex items-center gap-2">
-            <Star className="h-4 w-4" />
-            <span className="hidden sm:inline">Review Scraper</span>
-          </TabsTrigger>
-          <TabsTrigger value="activity" className="flex items-center gap-2">
-            <Activity className="h-4 w-4" />
-            <span className="hidden sm:inline">Activity Logs</span>
-          </TabsTrigger>
-        </TabsList>
-
         {/* In-Person Sale Tab */}
         <TabsContent value="in-person">
           <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-4 md:p-6">

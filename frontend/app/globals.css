@@ -280,22 +280,34 @@
   .viewer-admin .ship-marquee {
     display: none;
   }
-  /* Desktop admin shell. The sidebar and top bar (.admin-desk) exist in the markup of
-     every admin route but only show for the owner from 1024px up, where they replace
-     the storefront header and footer (.site-chrome). Keyed on .viewer-admin so the swap
-     is settled before first paint instead of flashing once auth resolves. */
+  /* Admin shell. Its navigation exists in the markup of every admin route but only
+     shows for the owner, where it replaces the storefront header and footer
+     (.site-chrome): a bar across the top at every width (.admin-bar) and, from 1024px
+     up, a sidebar (.admin-desk). Keyed on .viewer-admin so the swap is settled before
+     first paint instead of flashing once auth resolves. */
   .site-chrome {
     display: contents;
   }
-  .admin-desk {
+  .admin-desk,
+  .admin-bar {
     display: none;
+  }
+  .viewer-admin .site-chrome[data-admin-route] {
+    display: none;
+  }
+  .viewer-admin .admin-bar {
+    display: flex;
+  }
+  /* Anchors and sticky offsets clear the admin bar rather than the storefront header. */
+  .viewer-admin .admin-frame {
+    --header-h: 56px;
   }
   @media (min-width: 1024px) {
     .viewer-admin .admin-desk {
       display: flex;
     }
-    .viewer-admin .site-chrome[data-admin-route] {
-      display: none;
+    .viewer-admin .admin-frame {
+      --header-h: 60px;
     }
     .viewer-admin .admin-main {
       max-width: none;

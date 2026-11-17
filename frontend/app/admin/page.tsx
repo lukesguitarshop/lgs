@@ -16,8 +16,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 import { CopyButton } from '@/components/ui/copy-button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Package, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Users, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList, DollarSign, Zap } from 'lucide-react';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList, DollarSign, Zap } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
@@ -29,7 +29,6 @@ import { appLink } from '@/lib/app-links';
 import { buyerDisplayName, isHandedOver, isInPersonOrder, paymentLabel } from '@/lib/orders';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
-import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
 import { setAdminTab, useAdminTab } from '@/lib/admin-nav';
 import { ReservationDialog } from '@/components/admin/ReservationDialog';
 import { buildBulkUploadCsv } from '@/lib/sweetwater/bulk-upload';
@@ -1247,58 +1246,7 @@ export default function AdminPage() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
-      {/* Desktop shows the title and navigation in the admin shell instead. */}
-      <div className="lg:hidden">
-      <div className="mb-6">
-        <Link
-          href="/"
-          className="inline-flex items-center text-gray-600 hover:text-[#020E1C] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Home
-        </Link>
-      </div>
-
-      <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Admin Portal</h1>
-      <p className="text-gray-600 mb-6">Manage your guitar listings database</p>
-
-      <AdminTabsNav />
-      </div>
-
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6 lg:hidden">
-          <TabsTrigger value="listings" className="flex items-center gap-2">
-            <Package className="h-4 w-4" />
-            <span className="hidden sm:inline">Listings</span>
-          </TabsTrigger>
-          <TabsTrigger value="messages" className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
-            <span className="hidden sm:inline">Messages</span>
-            {conversations.reduce((sum, c) => sum + c.unreadCount, 0) > 0 && (
-              <span className="px-1.5 py-0.5 bg-[#6E0114] text-[#FFFFF3] rounded-full text-xs">
-                {conversations.reduce((sum, c) => sum + c.unreadCount, 0)}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="offers" className="flex items-center gap-2">
-            <Tag className="h-4 w-4" />
-            <span className="hidden sm:inline">Offers</span>
-            {conversationOffers.filter(o => o.offerStatus === 'active').length > 0 && (
-              <span className="px-1.5 py-0.5 bg-yellow-500 text-[#FFFFF3] rounded-full text-xs">
-                {conversationOffers.filter(o => o.offerStatus === 'active').length}
-              </span>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="orders" className="flex items-center gap-2">
-            <Receipt className="h-4 w-4" />
-            <span className="hidden sm:inline">Orders</span>
-          </TabsTrigger>
-          <TabsTrigger value="users" className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            <span className="hidden sm:inline">Users</span>
-          </TabsTrigger>
-        </TabsList>
-
         {/* Manage Listings Tab */}
         <TabsContent value="listings">
           <div className="bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">
@@ -1610,6 +1558,19 @@ export default function AdminPage() {
                   label={label}
                   columns={listingColumns(rows.map(l => l.id))}
                   rows={rows}
+                  mobileMedia={(listing) =>
+                    listing.images?.[0] ? (
+                      <Image
+                        src={listing.images[0]}
+                        alt=""
+                        width={72}
+                        height={72}
+                        className="h-[72px] w-[72px] object-cover"
+                      />
+                    ) : (
+                      <div className="h-[72px] w-[72px] bg-gray-200" />
+                    )
+                  }
                   rowKey={(listing) => listing.id}
                   rowClassName={(listing) => `border-b border-gray-100 ${listing.disabled ? 'bg-gray-50 opacity-60' : ''}`}
                   headerRowClassName="border-b border-gray-200"

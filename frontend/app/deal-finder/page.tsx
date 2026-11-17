@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
 import { DealFinderTab } from '@/components/admin/DealFinderTab';
 import { SweetwaterDealFinderTab } from '@/components/admin/SweetwaterDealFinderTab';
 
@@ -29,24 +28,6 @@ export default function DealFinderPage() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
-      {/* Desktop shows the title and navigation in the admin shell instead. */}
-      <div className="lg:hidden">
-      <div className="mb-6">
-        <Link
-          href="/"
-          className="inline-flex items-center text-foreground/70 hover:text-[#020E1C] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Home
-        </Link>
-      </div>
-
-      <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Deal Finder</h1>
-      <p className="text-foreground/70 mb-6">Scan Reverb and Sweetwater for under-priced listings</p>
-
-      <AdminTabsNav />
-      </div>
-
       <DealFinderTab />
       <div className="mt-6">
         <SweetwaterDealFinderTab />

@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { AdminSidebar, AdminTopBar } from '@/components/admin/AdminShell';
+import { AdminFrame } from '@/components/admin/AdminShell';
 import { isAdminRoute } from '@/lib/admin-nav';
 
 /**
@@ -16,9 +16,10 @@ import { isAdminRoute } from '@/lib/admin-nav';
  * trust, terms, contact) and each section carries an `order-N md:order-none` class —
  * `order` only takes effect inside a flex or grid parent, so <main> has to be one.
  *
- * Admin routes get a sidebar and top bar beside <main> on desktop (see AdminShell). Both
- * are display:none unless the viewer is the owner at 1024px or wider, so below that, and
- * for anyone else who lands on an admin URL, <main> is the same centred container.
+ * Admin routes render inside AdminFrame, which adds the admin navigation around <main>
+ * (a sidebar on desktop, a hamburger bar on phones). It is display:none unless the
+ * viewer is the owner, so anyone else who lands on an admin URL gets the same centred
+ * container as every other page.
  *
  * Children are passed through untouched, so server components stay server components.
  */
@@ -29,17 +30,7 @@ export default function MainShell({ children }: { children: React.ReactNode }) {
   const fullBleed = FULL_BLEED_ROUTES.includes(pathname);
 
   if (isAdminRoute(pathname)) {
-    return (
-      <div className="flex flex-grow">
-        <AdminSidebar />
-        <div className="flex min-w-0 flex-1 flex-col">
-          <AdminTopBar />
-          <main className="admin-main flex-grow container mx-auto px-5 py-6 md:px-4 md:py-8">
-            {children}
-          </main>
-        </div>
-      </div>
-    );
+    return <AdminFrame>{children}</AdminFrame>;
   }
 
   return (

@@ -4,9 +4,8 @@ import { useLayoutEffect } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, ArrowLeftRight, BarChart3, Calendar, Receipt, Calculator } from 'lucide-react';
-import { AdminTabsNav } from '@/components/admin/AdminTabsNav';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
+import { ArrowLeft } from 'lucide-react';
 import { resolveFinanceTab } from '@/lib/finance-tab';
 import { setAdminTab, useAdminTab } from '@/lib/admin-nav';
 import TransactionsTab from '@/components/admin/TransactionsTab';
@@ -46,48 +45,7 @@ export default function FinancesPage() {
 
   return (
     <div className="max-w-4xl lg:max-w-6xl xl:max-w-7xl mx-auto">
-      {/* Desktop shows the title and navigation in the admin shell instead. */}
-      <div className="lg:hidden">
-      <div className="mb-6">
-        <Link
-          href="/"
-          className="inline-flex items-center text-foreground/70 hover:text-[#020E1C] transition-colors"
-        >
-          <ArrowLeft className="h-4 w-4 mr-2" />
-          Back to Home
-        </Link>
-      </div>
-
-      <h1 className="text-3xl font-bold text-[#020E1C] mb-2">Finances</h1>
-      <p className="text-foreground/70 mb-6">Transactions, dashboard, monthly breakdown, expenses, flip calculator</p>
-
-      <AdminTabsNav />
-      </div>
-
       <Tabs value={financeTab} onValueChange={handleFinanceTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-5 mb-6 lg:hidden">
-          <TabsTrigger value="transactions" className="flex items-center gap-2">
-            <ArrowLeftRight className="h-4 w-4" />
-            <span className="hidden sm:inline">Transactions</span>
-          </TabsTrigger>
-          <TabsTrigger value="dashboard" className="flex items-center gap-2">
-            <BarChart3 className="h-4 w-4" />
-            <span className="hidden sm:inline">Dashboard</span>
-          </TabsTrigger>
-          <TabsTrigger value="monthly" className="flex items-center gap-2">
-            <Calendar className="h-4 w-4" />
-            <span className="hidden sm:inline">Monthly</span>
-          </TabsTrigger>
-          <TabsTrigger value="expenses" className="flex items-center gap-2">
-            <Receipt className="h-4 w-4" />
-            <span className="hidden sm:inline">Expenses</span>
-          </TabsTrigger>
-          <TabsTrigger value="flip-calc" className="flex items-center gap-2">
-            <Calculator className="h-4 w-4" />
-            <span className="hidden sm:inline">Flip Calc</span>
-          </TabsTrigger>
-        </TabsList>
-
         <TabsContent value="transactions">
           <TransactionsTab />
         </TabsContent>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { ArrowUpRight, CornerDownLeft, LogOut, Search } from 'lucide-react';
+import { ArrowUpRight, CornerDownLeft, LogOut, Menu, Search, X } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
@@ -17,13 +17,15 @@ import {
 } from '@/lib/admin-nav';
 
 /**
- * Desktop frame for the admin area: a sidebar listing every destination (what used to
- * be a row of five page tabs above a row of five sub-tabs) and a slim top bar with the
- * current location and a jump-to palette.
+ * Frame for the admin area, replacing what used to be a row of five page tabs above a
+ * row of five sub-tabs. A bar across the top shows the current location (`.admin-bar`).
+ * From 1024px up every destination is listed in a sidebar beside it (`.admin-desk`) and
+ * the bar carries a jump-to palette; below that the bar carries a hamburger that opens
+ * the same navigation as a drawer.
  *
- * Everything here carries `.admin-desk`, which globals.css shows only from 1024px up and
- * only for the owner (`.viewer-admin` on <html>, set before first paint). Phones, and
- * anyone who is not the admin, get the page exactly as it was.
+ * globals.css shows both only for the owner (`.viewer-admin` on <html>, set before first
+ * paint). Anyone else who lands on an admin URL gets the storefront header and a plain
+ * centred <main>.
  */
 
 type Badges = Record<BadgeKey, number>;
@@ -71,11 +73,58 @@ function go(item: AdminNavItem) {
   if (item.section && item.tab) setAdminTab(item.section, item.tab);
 }
 
-export function AdminSidebar() {
+interface Location {
+  group: string;
+  label: string;
+}
+
+function useLocation(): Location {
   const pathname = usePathname();
   const tabs = useAdminTabs();
-  const { user, isAdmin, logout } = useAuth();
+  for (const group of ADMIN_NAV) {
+    const item = group.items.find((i) => isNavItemActive(i, pathname, tabs));
+    if (item) return { group: group.label, label: item.label };
+  }
+  return { group: 'Admin', label: 'Back office' };
+}
+
+export function AdminFrame({ children }: { children: React.ReactNode }) {
+  const { isAdmin } = useAuth();
   const badges = useBadges(isAdmin);
+  const location = useLocation();
+
+  return (
+    <div className="admin-frame flex flex-grow flex-col lg:flex-row">
+      <aside className="admin-desk sticky top-0 h-screen w-[248px] shrink-0 flex-col bg-foreground text-background">
+        <AdminNav badges={badges} />
+      </aside>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AdminBar badges={badges} location={location} />
+        <main className="admin-main flex-grow container mx-auto px-5 py-6 md:px-4 md:py-8">{children}</main>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Brand, the grouped destinations, and the account row. Shared by the desktop sidebar
+ * and the phone drawer; `touch` gives the rows 44px targets, and `onNavigate` lets the
+ * drawer close itself when a destination is picked.
+ */
+function AdminNav({
+  badges,
+  touch = false,
+  onNavigate,
+  brandAction,
+}: {
+  badges: Badges;
+  touch?: boolean;
+  onNavigate?: () => void;
+  brandAction?: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const tabs = useAdminTabs();
+  const { user, logout } = useAuth();
 
   const name = user?.fullName || user?.email || 'Admin';
   const initials = name
@@ -85,21 +134,33 @@ export function AdminSidebar() {
     .join('')
     .toUpperCase();
 
+  const row = touch ? 'h-11 gap-3 px-3 text-[15px]' : 'h-8 gap-2.5 px-2.5 text-[13.5px]';
+
   return (
-    <aside className="admin-desk sticky top-0 h-screen w-[248px] shrink-0 flex-col bg-foreground text-background">
-      <Link href="/admin" onClick={() => setAdminTab('operations', 'listings')} className="block px-5 pb-5 pt-6">
-        <span className="font-heading block text-[22px] uppercase leading-none tracking-[0.02em]">
-          Luke&rsquo;s Guitar Shop
-        </span>
-        <span className="mt-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-background/50">
-          <span className="h-1.5 w-1.5 bg-primary ring-1 ring-background/30" />
-          Back office
-        </span>
-      </Link>
+    <>
+      <div className="flex items-start">
+        <Link
+          href="/admin"
+          onClick={() => {
+            setAdminTab('operations', 'listings');
+            onNavigate?.();
+          }}
+          className="block min-w-0 flex-1 px-5 pb-5 pt-6"
+        >
+          <span className="font-heading block text-[22px] uppercase leading-none tracking-[0.02em]">
+            Luke&rsquo;s Guitar Shop
+          </span>
+          <span className="mt-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-background/50">
+            <span className="h-1.5 w-1.5 bg-primary ring-1 ring-background/30" />
+            Back office
+          </span>
+        </Link>
+        {brandAction}
+      </div>
 
       <nav
         aria-label="Admin"
-        className="flex-1 overflow-y-auto px-3 pb-4 [scrollbar-color:rgb(255_255_243/0.18)_transparent] [scrollbar-width:thin]"
+        className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 [scrollbar-color:rgb(255_255_243/0.18)_transparent] [scrollbar-width:thin]"
       >
         {ADMIN_NAV.map((group) => (
           <div key={group.label} className="mt-[18px] first:mt-1">
@@ -115,9 +176,12 @@ export function AdminSidebar() {
                   <li key={item.id}>
                     <Link
                       href={item.href}
-                      onClick={() => go(item)}
+                      onClick={() => {
+                        go(item);
+                        onNavigate?.();
+                      }}
                       aria-current={active ? 'page' : undefined}
-                      className={`group relative flex h-8 items-center gap-2.5 px-2.5 text-[13.5px] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/70 ${
+                      className={`group relative flex items-center transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/70 ${row} ${
                         active
                           ? 'bg-primary font-semibold text-background'
                           : 'text-background/70 hover:bg-background/[0.07] hover:text-background'
@@ -144,15 +208,16 @@ export function AdminSidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-background/10 p-3">
+      <div className="border-t border-background/10 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <Link
           href="/"
-          className="flex h-[34px] items-center gap-2.5 px-2.5 text-[13.5px] text-background/70 transition-colors hover:bg-background/[0.07] hover:text-background"
+          onClick={onNavigate}
+          className={`flex items-center text-background/70 transition-colors hover:bg-background/[0.07] hover:text-background ${row}`}
         >
           <ArrowUpRight className="h-4 w-4 text-background/45" strokeWidth={1.75} />
           View storefront
         </Link>
-        <div className="mt-2 flex items-center gap-2.5 px-2.5 py-1.5">
+        <div className={`mt-2 flex items-center py-1.5 ${touch ? 'gap-3 px-3' : 'gap-2.5 px-2.5'}`}>
           <span className="flex h-8 w-8 shrink-0 items-center justify-center bg-background/10 font-mono text-[11px] font-semibold">
             {initials}
           </span>
@@ -165,29 +230,27 @@ export function AdminSidebar() {
             onClick={logout}
             title="Sign out"
             aria-label="Sign out"
-            className="flex h-8 w-8 items-center justify-center text-background/50 transition-colors hover:bg-background/10 hover:text-background"
+            className={`flex items-center justify-center text-background/50 transition-colors hover:bg-background/10 hover:text-background ${
+              touch ? 'h-11 w-11' : 'h-8 w-8'
+            }`}
           >
             <LogOut className="h-4 w-4" />
           </button>
         </div>
       </div>
-    </aside>
+    </>
   );
 }
 
-export function AdminTopBar() {
-  const pathname = usePathname();
-  const tabs = useAdminTabs();
+/**
+ * One bar for every width, so the page has a single <h1>. On phones it is the dark strip
+ * with the hamburger; from 1024px up the hamburger goes (the sidebar is always there),
+ * the bar turns light and the jump-to palette appears.
+ */
+function AdminBar({ badges, location }: { badges: Badges; location: Location }) {
+  const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
-
-  let current: { group: string; item: AdminNavItem } | null = null;
-  for (const group of ADMIN_NAV) {
-    const item = group.items.find((i) => isNavItemActive(i, pathname, tabs));
-    if (item) {
-      current = { group: group.label, item };
-      break;
-    }
-  }
+  const waiting = badges.messages + badges.offers;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -203,21 +266,55 @@ export function AdminTopBar() {
   }, []);
 
   return (
-    <div className="admin-desk sticky top-0 z-40 h-[60px] items-center gap-6 border-b border-border bg-background/95 px-8 backdrop-blur-sm">
-      <div className="flex min-w-0 items-baseline gap-3">
-        <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-foreground/45">
-          {current?.group ?? 'Admin'}
+    <div className="admin-bar sticky top-0 z-40 h-14 items-center gap-1 bg-foreground pl-1.5 pr-4 text-background lg:h-[60px] lg:gap-6 lg:border-b lg:border-border lg:bg-background/95 lg:px-8 lg:text-foreground lg:backdrop-blur-sm">
+      <DialogPrimitive.Root open={menuOpen} onOpenChange={setMenuOpen}>
+        <DialogPrimitive.Trigger
+          aria-label={waiting > 0 ? `Open admin menu, ${waiting} waiting` : 'Open admin menu'}
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/70 lg:hidden"
+        >
+          <Menu className="h-6 w-6" strokeWidth={1.75} />
+          {waiting > 0 && (
+            <span className="absolute right-1.5 top-2 h-2.5 w-2.5 rounded-full bg-amber-400 ring-2 ring-foreground" />
+          )}
+        </DialogPrimitive.Trigger>
+        <DialogPrimitive.Portal>
+          <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-foreground/55 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:animate-in data-[state=open]:fade-in-0 lg:hidden" />
+          <DialogPrimitive.Content
+            aria-describedby={undefined}
+            className="fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] flex-col bg-foreground text-background shadow-[8px_0_40px_rgba(2,14,28,0.45)] duration-200 focus:outline-none data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:animate-in data-[state=open]:slide-in-from-left lg:hidden"
+          >
+            <DialogPrimitive.Title className="sr-only">Admin menu</DialogPrimitive.Title>
+            <AdminNav
+              badges={badges}
+              touch
+              onNavigate={() => setMenuOpen(false)}
+              brandAction={
+                <DialogPrimitive.Close
+                  aria-label="Close menu"
+                  className="mr-1.5 mt-3 flex h-11 w-11 shrink-0 items-center justify-center text-background/60 hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/70"
+                >
+                  <X className="h-5 w-5" />
+                </DialogPrimitive.Close>
+              }
+            />
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      </DialogPrimitive.Root>
+
+      <div className="flex min-w-0 flex-col gap-1 lg:flex-row lg:items-baseline lg:gap-3">
+        <span className="font-mono text-[9.5px] uppercase leading-none tracking-[0.2em] opacity-50 lg:text-[11px] lg:tracking-[0.18em] lg:opacity-45">
+          {location.group}
         </span>
-        <span className="text-foreground/25">/</span>
-        <h1 className="font-heading truncate text-[22px] uppercase leading-none tracking-[0.02em] text-foreground">
-          {current?.item.label ?? 'Back office'}
+        <span className="hidden opacity-25 lg:inline">/</span>
+        <h1 className="font-heading truncate text-[19px] uppercase leading-none tracking-[0.02em] lg:text-[22px]">
+          {location.label}
         </h1>
       </div>
 
       <button
         type="button"
         onClick={() => setPaletteOpen(true)}
-        className="ml-auto flex h-9 w-[280px] items-center gap-2.5 border border-border bg-muted/60 px-3 text-left text-[13px] text-foreground/55 transition-colors hover:border-foreground/40 hover:text-foreground"
+        className="ml-auto hidden h-9 w-[280px] items-center gap-2.5 border border-border bg-muted/60 px-3 text-left text-[13px] text-foreground/55 transition-colors hover:border-foreground/40 hover:text-foreground lg:flex"
       >
         <Search className="h-4 w-4" />
         <span className="flex-1">Jump to…</span>
