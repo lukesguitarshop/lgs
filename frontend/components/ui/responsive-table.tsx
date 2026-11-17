@@ -17,6 +17,9 @@ import { cn } from '@/lib/utils';
  *   detail   – behind a "Details" expander
  *   actions  – card footer, wrapping, 44px tap targets
  *   desktop  – table only (selection checkboxes, thumbnails…)
+ *
+ * A table whose rows are told apart by a picture passes `mobileMedia`; the card puts it
+ * beside the title.
  */
 export type ColumnPriority = 'primary' | 'badge' | 'key' | 'detail' | 'actions' | 'desktop';
 
@@ -83,6 +86,8 @@ export interface ResponsiveTableProps<T> {
   /** Phones render this many cards, then "Show more". */
   mobilePageSize?: number;
   cardClassName?: (row: T) => string;
+  /** Thumbnail shown to the left of the card's title and badges. */
+  mobileMedia?: (row: T) => React.ReactNode;
   /** Accessible name for the table and the card list. */
   label?: string;
 }
@@ -119,6 +124,7 @@ export function ResponsiveTable<T>({
   stickyFirstColumn = true,
   mobilePageSize = 25,
   cardClassName,
+  mobileMedia,
   label,
 }: ResponsiveTableProps<T>) {
   // Rows can be recomputed every render, so reset "Show more" on what they are,
@@ -186,6 +192,7 @@ export function ResponsiveTable<T>({
       .map((c) => (c.isEmpty?.(row) ? null : (c.mobileCell ?? c.cell)(row)))
       .filter((n) => !isBlank(n));
     const click = clickable && onRowClick ? () => onRowClick(row) : undefined;
+    const media = mobileMedia?.(row);
 
     return (
       <li
@@ -199,18 +206,23 @@ export function ResponsiveTable<T>({
         )}
         onClick={click}
       >
-        {primary.length > 0 && (
-          <div className="line-clamp-2 break-words font-medium text-[#020E1C]">
-            {primary.map((c) => (
-              <React.Fragment key={c.id}>{(c.mobileCell ?? c.cell)(row)}</React.Fragment>
-            ))}
+        <div className={cn(!isBlank(media) && 'flex min-w-0 items-start gap-3')}>
+          {!isBlank(media) && <div className="shrink-0">{media}</div>}
+          <div className="min-w-0 flex-1">
+            {primary.length > 0 && (
+              <div className="line-clamp-2 break-words font-medium text-[#020E1C]">
+                {primary.map((c) => (
+                  <React.Fragment key={c.id}>{(c.mobileCell ?? c.cell)(row)}</React.Fragment>
+                ))}
+              </div>
+            )}
+            {badgeNodes.length > 0 && (
+              <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
+                {badgeNodes.map((n, i) => <React.Fragment key={i}>{n}</React.Fragment>)}
+              </div>
+            )}
           </div>
-        )}
-        {badgeNodes.length > 0 && (
-          <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1.5">
-            {badgeNodes.map((n, i) => <React.Fragment key={i}>{n}</React.Fragment>)}
-          </div>
-        )}
+        </div>
         {keyFields.length > 0 && (
           <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2.5">{keyFields}</dl>
         )}
