@@ -60,6 +60,11 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess, onOffer
       return;
     }
 
+    if (!Number.isInteger(amount)) {
+      setError('Please enter a whole dollar amount');
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -125,7 +130,7 @@ export function MakeOfferModal({ open, onOpenChange, listing, onSuccess, onOffer
 
         {isSuccess ? (
           <StateBlock variant="success" label="Offer sent">
-            Your offer of {formatPrice(parseFloat(offerAmount), listing.currency)} has been sent to the seller.
+            Your offer of {formatPrice(parseFloat(offerAmount), listing.currency)} has been sent{isCounter ? '' : ' to the seller'}.
           </StateBlock>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4 pt-4">

@@ -518,6 +518,11 @@ public class MessagesController : ControllerBase
         if (request.OfferAmount > 99999)
             return BadRequest(new { error = "Offer amount cannot exceed $99,999" });
 
+        // Offers are shown everywhere as whole dollars, so a fractional amount would be
+        // displayed as one price and charged as another.
+        if (request.OfferAmount != decimal.Truncate(request.OfferAmount))
+            return BadRequest(new { error = "Offer amount must be a whole dollar amount" });
+
         var conversation = await _mongoDbService.GetConversationByIdAsync(conversationId);
         if (conversation == null)
             return NotFound(new { error = "Conversation not found" });
@@ -606,6 +611,11 @@ public class MessagesController : ControllerBase
 
         if (conversation.OfferStatus != "active")
             return BadRequest(new { error = "No active offer to accept" });
+
+        // The expiry job only runs every 15 minutes; don't let a lapsed offer be accepted
+        // in the gap.
+        if (conversation.OfferExpiresAt.HasValue && conversation.OfferExpiresAt.Value <= DateTime.UtcNow)
+            return BadRequest(new { error = "This offer has expired" });
 
         // Verify it's the recipient's turn
         var admin = await _mongoDbService.GetAdminUserAsync();
@@ -831,6 +841,11 @@ public class MessagesController : ControllerBase
 
         if (request.OfferAmount > 99999)
             return BadRequest(new { error = "Offer amount cannot exceed $99,999" });
+
+        // Offers are shown everywhere as whole dollars, so a fractional amount would be
+        // displayed as one price and charged as another.
+        if (request.OfferAmount != decimal.Truncate(request.OfferAmount))
+            return BadRequest(new { error = "Offer amount must be a whole dollar amount" });
 
         var conversation = await _mongoDbService.GetConversationByIdAsync(conversationId);
         if (conversation == null)

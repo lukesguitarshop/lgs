@@ -202,6 +202,21 @@ function ConversationPageContent() {
     if (lastMessageId) scrollToBottom();
   }, [lastMessageId]);
 
+  // Offer state (whose turn, the active amount, accepted) lives on the conversation, which
+  // is otherwise only loaded once. Reload it whenever a new message lands, so an offer,
+  // counter or acceptance from the other side shows its buttons without a page refresh.
+  useEffect(() => {
+    if (!lastMessageId || !isAuthenticated) return;
+    let cancelled = false;
+    api.authGet<Conversation[]>('/messages/conversations')
+      .then(convs => {
+        const updated = convs.find(c => c.id === conversationId);
+        if (!cancelled && updated) setConversation(updated);
+      })
+      .catch(() => { /* keep what we have; the next message retries */ });
+    return () => { cancelled = true; };
+  }, [lastMessageId, conversationId, isAuthenticated]);
+
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -374,8 +389,11 @@ function ConversationPageContent() {
     }
   };
 
+  // Called by the offer modal. Failures are thrown, not swallowed: the modal shows the
+  // error itself, and would otherwise report "Offer sent" for an offer that was refused.
   const handleMakeOffer = async (amount: number) => {
-    if (!conversationId || isActioning) return;
+    if (!conversationId) return;
+    if (isActioning) throw new Error('Another offer action is still in progress.');
 
     setIsActioning(true);
     setError(null);
@@ -390,14 +408,10 @@ function ConversationPageContent() {
       });
       await refreshMessages();
       await refreshConversation();
-      setShowOfferModal(false);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : '';
-      if (errorMessage.toLowerCase().includes('active offer')) {
-        setError('There is already an active offer in this conversation.');
-      } else {
-        setError(errorMessage || 'Failed to make offer');
-      }
+      // The page may be out of date (the other side just acted); resync before reporting.
+      await Promise.all([refreshMessages(), refreshConversation()]).catch(() => {});
+      throw err;
     } finally {
       setIsActioning(false);
     }
@@ -407,6 +421,34 @@ function ConversationPageContent() {
   // If the other person sent the active offer, it's my turn to respond
   const isMyTurn = conversation?.offerStatus === 'active' &&
     conversation?.activeOfferBy === conversation?.otherUserId;
+
+  // The active offer is the NEWEST offer message matching the conversation's active
+  // amount and sender. Matching on amount and sender alone would also light up an older
+  // offer for the same amount (e.g. $500 declined, then $500 offered again).
+  let activeOfferMessageId: string | null = null;
+  if (conversation?.offerStatus === 'active') {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.type === 'offer' && m.offerAmount === conversation.activeOfferAmount && m.senderId === conversation.activeOfferBy) {
+        activeOfferMessageId = m.id;
+        break;
+      }
+    }
+  }
+
+  // An offer was countered when the next offer event after it is a counter, as opposed
+  // to a decline, an expiry or an acceptance.
+  const counteredOfferIds = new Set<string>();
+  messages.forEach((m, i) => {
+    if (m.type !== 'offer' || m.id === activeOfferMessageId) return;
+    const next = messages.slice(i + 1).find(n => n.type !== 'text');
+    if (next?.type === 'counter') counteredOfferIds.add(m.id);
+  });
+
+  // New offers are only possible when none is active or accepted; a counter only when it
+  // is my turn. Offering in any other state is refused by the server.
+  const canMakeOffer = conversation?.offerStatus !== 'active' && conversation?.offerStatus !== 'accepted';
+  const canCounter = isMyTurn;
 
   if (authLoading || isLoading) {
     return (
@@ -500,15 +542,8 @@ function ConversationPageContent() {
                     const prevMessage = index > 0 ? messages[index - 1] : null;
                     const showDateSeparator = shouldShowDateSeparator(message, prevMessage);
 
-                    // This is the active offer if amount and sender match the conversation's active offer
-                    const isThisActiveOffer = message.type === 'offer' &&
-                      conversation?.offerStatus === 'active' &&
-                      message.offerAmount === conversation?.activeOfferAmount &&
-                      message.senderId === conversation?.activeOfferBy;
-
-                    // An offer was countered if it's an offer but not the active one (and there is still an active offer)
-                    const wasCountered = message.type === 'offer' && !isThisActiveOffer &&
-                      conversation?.offerStatus === 'active';
+                    const isThisActiveOffer = message.id === activeOfferMessageId;
+                    const wasCountered = counteredOfferIds.has(message.id);
 
                     return (
                       <div key={message.id}>
@@ -560,7 +595,7 @@ function ConversationPageContent() {
               )}
 
               {/* Make Offer Button */}
-              {conversation?.listingId && listingPrice && conversation?.offerStatus !== 'active' && conversation?.offerStatus !== 'accepted' && (
+              {conversation?.listingId && listingPrice && canMakeOffer && (
                 <div className="mb-3">
                   <Button
                     type="button"
@@ -700,14 +735,14 @@ function ConversationPageContent() {
                       View Listing
                     </Button>
                   </Link>
-                  {listingPrice && (
+                  {listingPrice && (canMakeOffer || canCounter) && (
                     <Button
                       variant="outline"
                       className="w-full border-primary text-primary hover:bg-primary/5"
                       onClick={() => setShowOfferModal(true)}
                     >
                       <Tag className="h-4 w-4 mr-2" />
-                      Make an Offer
+                      {canCounter ? 'Counter Offer' : 'Make an Offer'}
                     </Button>
                   )}
                 </div>

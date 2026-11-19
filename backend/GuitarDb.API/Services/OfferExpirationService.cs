@@ -60,7 +60,10 @@ public class OfferExpirationService : BackgroundService
                         await mongoDbService.CreateMessageAsync(new Message
                         {
                             ConversationId = conv.Id!,
-                            SenderId = "system",
+                            // No human sent this. SenderId is an ObjectId column, so a
+                            // placeholder like "system" cannot be stored and the write
+                            // throws, which used to leave the offer active forever.
+                            SenderId = null!,
                             RecipientId = otherUserId,
                             ListingId = conv.ListingId,
                             MessageText = $"Offer of ${conv.ActiveOfferAmount:N0} expired after 48 hours",

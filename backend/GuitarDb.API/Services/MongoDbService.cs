@@ -1585,8 +1585,12 @@ public class MongoDbService
     public async Task<List<Message>> GetMessagesByConversationAsync(string conversationId, int limit = 50)
     {
         var filter = Builders<Message>.Filter.Eq(m => m.ConversationId, conversationId);
+        // A counter writes two messages back to back ("countered" then the new offer) and
+        // they can land in the same millisecond. Break the tie by id, which increases in
+        // insert order, so the thread never shows them swapped.
         return await _messagesCollection.Find(filter)
             .SortByDescending(m => m.CreatedAt)
+            .ThenByDescending(m => m.Id)
             .Limit(limit)
             .ToListAsync();
     }
