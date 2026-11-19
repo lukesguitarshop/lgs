@@ -880,12 +880,14 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
             )}
           </div>
           {!message.isMine && isMyTurn && isActiveOffer && !wasCountered && (
-            <div className="flex gap-2 mt-3">
+            // Three buttons side by side overflow the bubble on a phone, so there Accept
+            // takes a full row with Counter and Decline sharing the row below.
+            <div className="grid grid-cols-2 gap-2 mt-3 sm:flex">
               <Button
                 size="sm"
                 onClick={onAccept}
                 disabled={isActioning}
-                className="bg-foreground hover:bg-foreground/90 text-background"
+                className="col-span-2 bg-foreground hover:bg-foreground/90 text-background"
               >
                 Accept
               </Button>
