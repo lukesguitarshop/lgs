@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countryCode, estimatedDeliveryDate } from './GoogleCustomerReviews';
+import { countryCode, estimatedDeliveryDate } from '../components/checkout/GoogleCustomerReviews';
 
 describe('countryCode', () => {
   it('passes a two-letter code through in capitals', () => {
