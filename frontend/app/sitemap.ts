@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next';
 import { brandPath, listingPath } from '@/lib/seo';
+import { isIndexableModel, modelPath, summarizeModels } from '@/lib/models';
 import {
   getSoldListings,
   isIndexableBrand,
@@ -91,7 +92,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Brand pages, limited to the ones with enough on them to be worth indexing.
   const active = listings.filter((listing) => !listing.disabled) as unknown as CatalogListing[];
-  const brands = summarizeBrands(active, await getSoldListings()).filter(isIndexableBrand);
+  const sold = await getSoldListings();
+  const brands = summarizeBrands(active, sold).filter(isIndexableBrand);
+  const models = summarizeModels(active, sold).filter(isIndexableModel);
   const brandPages: MetadataRoute.Sitemap =
     brands.length === 0
       ? []
@@ -99,6 +102,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           { url: `${siteUrl}/guitars`, changeFrequency: 'weekly', priority: 0.7 },
           ...brands.map((summary) => ({
             url: `${siteUrl}${brandPath(summary.brand)}`,
+            changeFrequency: 'weekly' as const,
+            priority: summary.inStock > 0 ? 0.8 : 0.5,
+          })),
+          ...models.map((summary) => ({
+            url: `${siteUrl}${modelPath(summary.brand, summary.model)}`,
             changeFrequency: 'weekly' as const,
             priority: summary.inStock > 0 ? 0.8 : 0.5,
           })),

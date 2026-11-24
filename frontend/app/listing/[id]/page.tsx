@@ -5,6 +5,7 @@ import { ProductJsonLd } from './ProductJsonLd';
 import { BreadcrumbJsonLd } from './BreadcrumbJsonLd';
 import { ListingCard } from '@/components/listing/ListingCard';
 import { getActiveListings, similarListings } from '@/lib/catalog';
+import { extractModel, modelPath } from '@/lib/models';
 import {
   brandPath,
   extractBrand,
@@ -86,6 +87,7 @@ export default async function ListingPage({ params }: PageProps) {
   }
 
   const brand = extractBrand(listing.listing_title);
+  const model = extractModel(listing.listing_title);
   // A sold guitar's page stays up for the people still arriving from Google and old
   // links, and points them at what they can actually buy.
   const similar = listing.disabled ? similarListings(listing, await getActiveListings(), 4) : [];
@@ -133,6 +135,17 @@ export default async function ListingPage({ params }: PageProps) {
           <Link href={brandPath(brand)} className="underline hover:text-primary">
             used {brand} guitars
           </Link>
+          {model && (
+            <>
+              {' · '}
+              <Link
+                href={modelPath(model.brand, model.model)}
+                className="underline hover:text-primary"
+              >
+                used {model.brand} {model.model} guitars
+              </Link>
+            </>
+          )}
         </p>
       )}
     </>

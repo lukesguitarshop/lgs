@@ -8,10 +8,11 @@ import { clearCart, refreshPendingCart } from '@/lib/cart';
 import { useAuth } from '@/contexts/AuthContext';
 import { trackPurchase } from '@/lib/analytics';
 import { StateBlock } from '@/components/ui/state-block';
+import { GoogleCustomerReviews } from '@/components/checkout/GoogleCustomerReviews';
 
 function CheckoutSuccessContent() {
   const searchParams = useSearchParams();
-  const { isLoading: authLoading } = useAuth();
+  const { isLoading: authLoading, user } = useAuth();
   const [hasCompleted, setHasCompleted] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
@@ -104,6 +105,14 @@ function CheckoutSuccessContent() {
         <p className="mt-3 text-base leading-[1.5] text-foreground/65 md:text-xl">
           Your payment was successful. You will receive an email confirmation shortly.
         </p>
+      )}
+
+      {hasCompleted && !orderError && (
+        <GoogleCustomerReviews
+          orderId={searchParams.get('session_id') || searchParams.get('paypal_order_id')}
+          email={user?.email}
+          country={user?.shippingAddress?.country}
+        />
       )}
 
       <div className="mt-6 grid gap-2 md:flex md:justify-center md:gap-4">
