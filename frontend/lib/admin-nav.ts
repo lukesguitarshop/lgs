@@ -6,6 +6,7 @@ import {
   Bookmark,
   Calculator,
   Calendar,
+  ChartNoAxesColumn,
   Clipboard,
   CreditCard,
   MessageSquare,
@@ -77,6 +78,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       op('offers', 'Offers', Tag, { badge: 'offers' }),
       op('orders', 'Orders', Receipt),
       op('users', 'Users', Users, { also: ['/admin/user'] }),
+      op('analytics', 'Analytics', ChartNoAxesColumn),
     ],
   },
   {

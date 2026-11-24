@@ -29,6 +29,7 @@ public class MongoDbService
     private readonly IMongoCollection<UserActivity> _userActivitiesCollection;
     private readonly IMongoCollection<ListingViewMark> _listingViewMarksCollection;
     private readonly IMongoCollection<ListingViewCount> _listingViewCountsCollection;
+    private readonly IMongoCollection<ListingViewDay> _listingViewDaysCollection;
     private readonly IMongoCollection<ScheduledJobRun> _scheduledJobRunsCollection;
     private readonly IMongoCollection<DiscountCode> _discountCodesCollection;
     private readonly IMongoCollection<DiscountRedemption> _discountRedemptionsCollection;
@@ -70,6 +71,7 @@ public class MongoDbService
         _userActivitiesCollection = database.GetCollection<UserActivity>("user_activities");
         _listingViewMarksCollection = database.GetCollection<ListingViewMark>("listing_view_marks");
         _listingViewCountsCollection = database.GetCollection<ListingViewCount>("listing_view_counts");
+        _listingViewDaysCollection = database.GetCollection<ListingViewDay>("listing_view_days");
         _scheduledJobRunsCollection = database.GetCollection<ScheduledJobRun>("scheduled_job_runs");
         _discountCodesCollection = database.GetCollection<DiscountCode>("discount_codes");
         _discountRedemptionsCollection = database.GetCollection<DiscountRedemption>("discount_redemptions");
@@ -167,6 +169,13 @@ public class MongoDbService
                 new CreateIndexModel<ListingViewMark>(
                     Builders<ListingViewMark>.IndexKeys.Ascending(m => m.CreatedAt),
                     new CreateIndexOptions { Name = "view_mark_ttl_idx", ExpireAfter = TimeSpan.FromDays(2) })
+            );
+
+            // One row per listing per day; the analytics page reads a range of days.
+            await _listingViewDaysCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<ListingViewDay>(
+                    Builders<ListingViewDay>.IndexKeys.Ascending(d => d.Day).Ascending(d => d.ListingId),
+                    new CreateIndexOptions { Name = "day_listing_idx", Unique = true })
             );
 
             // Watcher counts group favorites by listing.
@@ -1316,7 +1325,22 @@ public class MongoDbService
             Builders<ListingViewCount>.Filter.Eq(c => c.ListingId, listingId),
             Builders<ListingViewCount>.Update.Inc(c => c.Count, 1L),
             new UpdateOptions { IsUpsert = true });
+
+        var day = ViewAnalytics.DayKey(DateTime.UtcNow);
+        await _listingViewDaysCollection.UpdateOneAsync(
+            Builders<ListingViewDay>.Filter.Eq(d => d.Day, day)
+                & Builders<ListingViewDay>.Filter.Eq(d => d.ListingId, listingId),
+            Builders<ListingViewDay>.Update.Inc(d => d.Count, 1L),
+            new UpdateOptions { IsUpsert = true });
         return true;
+    }
+
+    /// <summary>Per-listing daily view rows from <paramref name="fromDay"/> (yyyy-MM-dd) onward.</summary>
+    public async Task<List<ListingViewDay>> GetListingViewDaysAsync(string fromDay)
+    {
+        return await _listingViewDaysCollection
+            .Find(Builders<ListingViewDay>.Filter.Gte(d => d.Day, fromDay))
+            .ToListAsync();
     }
 
     public async Task<Dictionary<string, long>> GetListingViewCountsAsync()

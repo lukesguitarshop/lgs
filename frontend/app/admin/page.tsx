@@ -21,6 +21,7 @@ import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, To
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
+import { AnalyticsTab } from '@/components/admin/AnalyticsTab';
 import { NewMessageModal } from '@/components/admin/NewMessageModal';
 import { SweetwaterExportModal } from '@/components/admin/SweetwaterExportModal';
 import { EbayExportModal } from '@/components/admin/EbayExportModal';
@@ -2318,6 +2319,11 @@ export default function AdminPage() {
         {/* Users Tab */}
         <TabsContent value="users">
           <UsersTab />
+        </TabsContent>
+
+        {/* Analytics Tab */}
+        <TabsContent value="analytics">
+          <AnalyticsTab />
         </TabsContent>
       </Tabs>
 

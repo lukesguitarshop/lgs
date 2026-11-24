@@ -687,3 +687,31 @@ export async function getAdminActivity(opts: {
 }
 
 export default api;
+
+// Admin analytics
+export interface ViewAnalytics {
+  days: number;
+  totals: {
+    today: number;
+    last_7_days: number;
+    in_range: number;
+    all_time: number;
+    listings_viewed: number;
+  };
+  /** One entry per UTC day in the range, oldest first, zeros included. */
+  daily: { date: string; views: number }[];
+  top_listings: {
+    id: string;
+    listing_title: string;
+    image: string | null;
+    price: number;
+    disabled: boolean;
+    views: number;
+    all_time_views: number;
+    watchers: number;
+  }[];
+}
+
+export async function getViewAnalytics(days: number): Promise<ViewAnalytics> {
+  return api.authGet<ViewAnalytics>(`/admin/analytics/views?days=${days}`);
+}
