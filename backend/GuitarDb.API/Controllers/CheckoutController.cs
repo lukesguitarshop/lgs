@@ -4,6 +4,7 @@ using GuitarDb.API.Services;
 using Microsoft.AspNetCore.Mvc;
 using Stripe;
 using Stripe.Checkout;
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using System.Text;
@@ -90,6 +91,118 @@ public class CheckoutController : ControllerBase
         }
 
         return result;
+    }
+
+    private record AppliedDiscount(string Code, decimal PercentOff, decimal Amount);
+
+    /// <summary>
+    /// Works out what a typed discount code takes off this cart. Returns neither a
+    /// discount nor an error when no code was typed. A guitar the buyer holds a
+    /// reservation on (accepted offer, hold, deposit) already has agreed terms, so the
+    /// code only counts the guitars being bought at their listing price.
+    /// </summary>
+    private async Task<(AppliedDiscount? Discount, string? Error)> ResolveDiscountAsync(
+        string? typedCode, List<MyListing> listings, Dictionary<string, decimal> chargeAmounts, string? userId)
+    {
+        var normalized = DiscountRules.Normalize(typedCode);
+        if (normalized.Length == 0) return (null, null);
+
+        var code = await _mongoDbService.GetDiscountCodeAsync(normalized);
+        var usesByUser = code != null && userId != null
+            ? await _mongoDbService.CountDiscountRedemptionsByUserAsync(normalized, userId)
+            : 0;
+
+        var check = DiscountRules.Evaluate(code, DateTime.UtcNow, userId, usesByUser);
+        if (!check.Valid) return (null, check.Error);
+
+        var reservations = await _mongoDbService.GetActiveReservationsByListingIdsAsync(
+            listings.Select(l => l.Id!));
+
+        var eligiblePrices = listings
+            .Where(l =>
+            {
+                reservations.TryGetValue(l.Id!, out var reservation);
+                return !ReservationService.IsHeldBy(reservation, userId);
+            })
+            .Select(l => chargeAmounts.GetValueOrDefault(l.Id!, l.Price));
+
+        var amount = DiscountRules.ComputeDiscount(eligiblePrices, code!.PercentOff);
+        if (amount <= 0m) return (null, DiscountRules.NoEligibleItems);
+
+        return (new AppliedDiscount(normalized, code.PercentOff, amount), null);
+    }
+
+    /// <summary>Copies the discount a Stripe session was created with onto the order.</summary>
+    private static void ReadDiscountFromMetadata(IDictionary<string, string>? metadata, Order order)
+    {
+        if (metadata == null) return;
+        if (!metadata.TryGetValue("discount_code", out var code) || string.IsNullOrEmpty(code)) return;
+        metadata.TryGetValue("discount_amount", out var amountText);
+        if (!decimal.TryParse(amountText, NumberStyles.Number, CultureInfo.InvariantCulture, out var amount)
+            || amount <= 0m)
+        {
+            return;
+        }
+
+        order.DiscountCode = code;
+        order.DiscountAmount = amount;
+    }
+
+    /// <summary>
+    /// Counts the order against its discount code. Called once the order exists; the
+    /// money is already taken by then, so this never refuses anything.
+    /// </summary>
+    private async Task RecordDiscountRedemptionAsync(Order order)
+    {
+        if (string.IsNullOrEmpty(order.DiscountCode) || order.UserId == null || order.Id == null) return;
+
+        await _mongoDbService.RecordDiscountRedemptionAsync(
+            order.DiscountCode, order.UserId, order.Id, order.DiscountAmount);
+    }
+
+    /// <summary>
+    /// Tells the checkout page what a code is worth on this cart before any payment is
+    /// started. The same check runs again when the payment is created.
+    /// </summary>
+    [HttpPost("discount/quote")]
+    public async Task<IActionResult> QuoteDiscount([FromBody] DiscountQuoteRequest request)
+    {
+        if (string.IsNullOrWhiteSpace(request.Code))
+        {
+            return BadRequest(new { error = "Enter a discount code." });
+        }
+
+        var listingIds = (request.Items ?? new List<CartItem>()).Select(i => i.ListingId).Distinct().ToList();
+        var listings = listingIds.Count > 0
+            ? await _mongoDbService.GetListingsByIdsAsync(listingIds)
+            : new List<MyListing>();
+        if (listings.Count == 0)
+        {
+            return BadRequest(new { error = "Cart is empty" });
+        }
+
+        var userId = GetUserIdIfAuthenticated();
+        var chargeAmounts = await ResolveChargeAmountsAsync(listings, userId);
+
+        var (discount, error) = await ResolveDiscountAsync(request.Code, listings, chargeAmounts, userId);
+        if (discount == null)
+        {
+            return BadRequest(new { error = error ?? DiscountRules.NotValid });
+        }
+
+        // The checkout page re-quotes whenever the cart changes, so once a day per code.
+        if (userId != null)
+        {
+            await _mongoDbService.LogActivityOncePerDayAsync(userId, "discount_applied",
+                $"Applied discount code {discount.Code} ({discount.PercentOff:0.##}% off)");
+        }
+
+        return Ok(new
+        {
+            code = discount.Code,
+            percentOff = discount.PercentOff,
+            discountAmount = discount.Amount
+        });
     }
 
     /// <summary>
@@ -252,30 +365,49 @@ public class CheckoutController : ControllerBase
             return BadRequest(new { error = "No valid items to checkout" });
         }
 
-        // Apply store credit if requested
-        decimal storeCreditApplied = 0;
+        var subtotal = lineItems.Sum(li => (li.PriceData?.UnitAmount ?? 0) * (li.Quantity ?? 1)) / 100m;
+
+        // Discount code first, then store credit on what is left.
+        var (discount, discountError) = await ResolveDiscountAsync(
+            request.DiscountCode, listings, chargeAmounts, userId);
+        if (discountError != null)
+        {
+            return BadRequest(new { error = discountError });
+        }
+
+        decimal storeCreditBalance = 0;
         string? storeCreditId = null;
         if (request.ApplyStoreCredit && userId != null)
         {
             var sc = await _mongoDbService.GetStoreCreditByUserAsync(userId);
             if (sc != null && sc.Balance > 0)
             {
-                var subtotal = lineItems.Sum(li => (li.PriceData?.UnitAmount ?? 0) * (li.Quantity ?? 1)) / 100m;
-                storeCreditApplied = Math.Min(sc.Balance, subtotal);
+                storeCreditBalance = sc.Balance;
                 storeCreditId = sc.Id;
             }
         }
 
+        var totals = CheckoutTotals.Compute(subtotal, discount?.Amount ?? 0m, storeCreditBalance, payPal: false);
+        var storeCreditApplied = totals.StoreCreditApplied;
+
         if (storeCreditApplied > 0 && lineItems.Count > 0)
         {
-            var creditCents = (long)(storeCreditApplied * 100);
-            var first = lineItems[0];
-            var newAmount = (first.PriceData!.UnitAmount ?? 0) - creditCents;
-            if (newAmount < 0) newAmount = 0;
-            first.PriceData.UnitAmount = newAmount;
-            // Reflect the discount in the product name so the user sees it on Stripe's checkout
-            first.PriceData.ProductData.Description =
-                $"{first.PriceData.ProductData.Description} (store credit -${storeCreditApplied:N2})";
+            // Taken off the first guitar, spilling onto the next when the credit is larger
+            // than one guitar's price, so the amount charged always matches the credit debited.
+            var creditCentsLeft = (long)Math.Round(storeCreditApplied * 100m);
+            foreach (var line in lineItems)
+            {
+                if (creditCentsLeft <= 0) break;
+                var unitAmount = line.PriceData!.UnitAmount ?? 0;
+                var taken = Math.Min(unitAmount, creditCentsLeft);
+                if (taken <= 0) continue;
+
+                line.PriceData.UnitAmount = unitAmount - taken;
+                creditCentsLeft -= taken;
+                // Reflect the credit in the description so the user sees it on Stripe's checkout
+                line.PriceData.ProductData.Description =
+                    $"{line.PriceData.ProductData.Description} (store credit -${taken / 100m:N2})";
+            }
         }
 
         // On the session as well as the payment: a checkout paid entirely by store credit
@@ -293,10 +425,31 @@ public class CheckoutController : ControllerBase
 
         StripeConfiguration.ApiKey = _configuration["Stripe:SecretKey"];
 
+        // Stripe has no negative line items, so the discount goes on as a single-use
+        // coupon for the exact amount. That is what gives it its own line on the Stripe page.
+        List<SessionDiscountOptions>? stripeDiscounts = null;
+        if (discount != null)
+        {
+            var couponName = $"Code {discount.Code}";
+            var coupon = await new CouponService().CreateAsync(new CouponCreateOptions
+            {
+                AmountOff = (long)Math.Round(discount.Amount * 100m),
+                Currency = lineItems.First().PriceData.Currency,
+                Duration = "once",
+                MaxRedemptions = 1,
+                Name = couponName.Length > 40 ? couponName[..40] : couponName
+            });
+            stripeDiscounts = new List<SessionDiscountOptions>
+            {
+                new SessionDiscountOptions { Coupon = coupon.Id }
+            };
+        }
+
         var options = new SessionCreateOptions
         {
             PaymentMethodTypes = new List<string> { "card" },
             LineItems = lineItems,
+            Discounts = stripeDiscounts,
             Mode = "payment",
             // Same origin the buyer signed in on: the JWT lives in that origin's localStorage,
             // so sending Stripe back anywhere else looks like a logout.
@@ -327,7 +480,9 @@ public class CheckoutController : ControllerBase
                 { "listing_ids", string.Join(",", listingIds) },
                 { "user_id", userId ?? "" },
                 { "store_credit_applied", storeCreditApplied.ToString("F2") },
-                { "store_credit_id", storeCreditId ?? "" }
+                { "store_credit_id", storeCreditId ?? "" },
+                { "discount_code", discount?.Code ?? "" },
+                { "discount_amount", (discount?.Amount ?? 0m).ToString("F2", CultureInfo.InvariantCulture) }
             }
         };
 
@@ -475,8 +630,12 @@ public class CheckoutController : ControllerBase
                 }
             }
 
+            ReadDiscountFromMetadata(session.Metadata, order);
+
             await _mongoDbService.CreateOrderAsync(order);
             _logger.LogInformation("Created order {OrderId} for session {SessionId}", order.Id, session.Id);
+
+            await RecordDiscountRedemptionAsync(order);
 
             if (userId != null)
             {
@@ -561,7 +720,9 @@ public class CheckoutController : ControllerBase
                     shippingAddress.FullName,
                     shippingAddressFormatted,
                     order.StoreCreditApplied,
-                    order.DepositApplied);
+                    order.DepositApplied,
+                    order.DiscountAmount,
+                    order.DiscountCode);
             }
 
             // Send notification to seller
@@ -573,7 +734,9 @@ public class CheckoutController : ControllerBase
                 shippingAddressFormatted,
                 "Stripe",
                 order.StoreCreditApplied,
-                order.DepositApplied);
+                order.DepositApplied,
+                order.DiscountAmount,
+                order.DiscountCode);
 
             return Ok(new { success = true, message = "Checkout completed successfully", orderId = order.Id });
         }
@@ -673,21 +836,41 @@ public class CheckoutController : ControllerBase
             return BadRequest(new { error = "No valid items to checkout" });
         }
 
-        // Apply store credit if requested (before fee so fee is calculated on reduced amount)
-        decimal storeCreditApplied = 0m;
+        // Discount code first, then store credit, then the fee on what is left to pay.
+        var (discount, discountError) = await ResolveDiscountAsync(
+            request.DiscountCode, listings, chargeAmounts, userId);
+        if (discountError != null)
+        {
+            return BadRequest(new { error = discountError });
+        }
+
+        decimal storeCreditBalance = 0m;
         if (request.ApplyStoreCredit && userId != null)
         {
             var sc = await _mongoDbService.GetStoreCreditByUserAsync(userId);
             if (sc != null && sc.Balance > 0)
             {
-                storeCreditApplied = Math.Min(sc.Balance, totalAmount);
-                storeCreditApplied = Math.Round(storeCreditApplied, 2);
+                storeCreditBalance = sc.Balance;
             }
         }
 
-        // Calculate 3.5% PayPal fee on amount after store credit
-        var amountAfterCredit = totalAmount - storeCreditApplied;
-        var transactionFee = Math.Round(amountAfterCredit * 0.035m, 2);
+        var totals = CheckoutTotals.Compute(totalAmount, discount?.Amount ?? 0m, storeCreditBalance, payPal: true);
+        var discountAmount = totals.Discount;
+        var storeCreditApplied = totals.StoreCreditApplied;
+        var transactionFee = totals.Fee;
+
+        // "userId|listingIds|storeCredit|discountAmount|discountCode". This is the only
+        // thing PayPal hands back at capture, and it caps the field at 127 characters.
+        var customId = string.Join("|",
+            userId ?? "",
+            string.Join(",", listingIds),
+            storeCreditApplied.ToString("F2", CultureInfo.InvariantCulture),
+            discountAmount.ToString("F2", CultureInfo.InvariantCulture),
+            discount?.Code ?? "");
+        if (customId.Length > 127)
+        {
+            return BadRequest(new { error = "That is too many guitars for one PayPal payment. Please pay by card, or split the order." });
+        }
         items.Add(new
         {
             name = "PayPal Fee (3.5%)",
@@ -698,18 +881,20 @@ public class CheckoutController : ControllerBase
                 value = transactionFee.ToString("F2")
             }
         });
-        var grandTotal = amountAfterCredit + transactionFee;
+        var grandTotal = totals.AmountDue;
 
         try
         {
             var accessToken = await GetPayPalAccessToken();
 
             var itemTotal = totalAmount + transactionFee;
-            object breakdown = storeCreditApplied > 0
+            // PayPal has one "discount" figure, so the code and store credit share it.
+            var reductions = discountAmount + storeCreditApplied;
+            object breakdown = reductions > 0
                 ? (object)new
                 {
                     item_total = new { currency_code = currency, value = itemTotal.ToString("F2") },
-                    discount = new { currency_code = currency, value = storeCreditApplied.ToString("F2") }
+                    discount = new { currency_code = currency, value = reductions.ToString("F2") }
                 }
                 : new
                 {
@@ -730,7 +915,7 @@ public class CheckoutController : ControllerBase
                             breakdown
                         },
                         items = items,
-                        custom_id = $"{userId ?? ""}|{string.Join(",", listingIds)}|{storeCreditApplied.ToString("F2")}",
+                        custom_id = customId,
                         shipping = new
                         {
                             name = new { full_name = shipping.FullName },
@@ -838,14 +1023,25 @@ public class CheckoutController : ControllerBase
                 .GetProperty("captures")[0]
                 .GetProperty("id").GetString();
 
-            // Parse custom_id format: "userId|listingId1,listingId2|storeCreditApplied"
+            // Parse custom_id format:
+            // "userId|listingId1,listingId2|storeCreditApplied|discountAmount|discountCode"
+            // (orders created before discount codes existed stop after the third part).
             string? userId = null;
             string listingIdsString = customId;
             decimal storeCreditApplied = 0m;
+            decimal discountAmount = 0m;
+            string? discountCode = null;
             var parts = customId.Split('|');
             if (parts.Length >= 1) { userId = string.IsNullOrEmpty(parts[0]) ? null : parts[0]; }
             if (parts.Length >= 2) { listingIdsString = parts[1]; }
             if (parts.Length >= 3) { decimal.TryParse(parts[2], out storeCreditApplied); }
+            if (parts.Length >= 5 && !string.IsNullOrEmpty(parts[4])
+                && decimal.TryParse(parts[3], NumberStyles.Number, CultureInfo.InvariantCulture, out var parsedDiscount)
+                && parsedDiscount > 0m)
+            {
+                discountAmount = parsedDiscount;
+                discountCode = parts[4];
+            }
 
             var listingIds = listingIdsString.Split(',', StringSplitOptions.RemoveEmptyEntries).Distinct().ToList();
             if (listingIds.Count == 0)
@@ -919,8 +1115,10 @@ public class CheckoutController : ControllerBase
                 }
             }
 
-            // Add 3.5% PayPal fee
-            var transactionFee = Math.Round(totalAmount * 0.035m, 2);
+            // The 3.5% PayPal fee, worked out exactly as it was when the payment was
+            // created: on what was left after the discount code and store credit.
+            var transactionFee = CheckoutTotals.Compute(
+                totalAmount, discountAmount, storeCreditApplied, payPal: true).Fee;
             var grandTotal = totalAmount + transactionFee;
 
             // Link any deposit already paid so the paper trail is complete.
@@ -939,6 +1137,8 @@ public class CheckoutController : ControllerBase
                 Status = "completed",
                 UserId = userId,
                 StoreCreditApplied = storeCreditApplied,
+                DiscountCode = discountCode,
+                DiscountAmount = discountAmount,
                 DepositApplied = depositApplied,
                 DepositOrderIds = depositOrderIds,
                 ReservationIds = reservationIds
@@ -954,6 +1154,8 @@ public class CheckoutController : ControllerBase
 
             await _mongoDbService.CreateOrderAsync(order);
             _logger.LogInformation("Created order {OrderId} for PayPal order {PayPalOrderId}", order.Id, request.OrderId);
+
+            await RecordDiscountRedemptionAsync(order);
 
             if (userId != null)
             {
@@ -1038,7 +1240,9 @@ public class CheckoutController : ControllerBase
                     shippingAddress.FullName,
                     shippingAddressFormatted,
                     order.StoreCreditApplied,
-                    order.DepositApplied);
+                    order.DepositApplied,
+                    order.DiscountAmount,
+                    order.DiscountCode);
             }
 
             // Send notification to seller
@@ -1050,7 +1254,9 @@ public class CheckoutController : ControllerBase
                 shippingAddressFormatted,
                 "PayPal",
                 order.StoreCreditApplied,
-                order.DepositApplied);
+                order.DepositApplied,
+                order.DiscountAmount,
+                order.DiscountCode);
 
             return Ok(new { success = true, message = "Payment captured successfully", orderId = order.Id });
         }
@@ -1300,8 +1506,12 @@ public class CheckoutController : ControllerBase
                 ReservationIds = webhookReservationIds
             };
 
+            ReadDiscountFromMetadata(expandedSession.Metadata, order);
+
             await _mongoDbService.CreateOrderAsync(order);
             _logger.LogInformation("Webhook: Created order {OrderId} for session {SessionId}", order.Id, session.Id);
+
+            await RecordDiscountRedemptionAsync(order);
 
             await _mongoDbService.DisableListingsByIdsAsync(listingIds);
             await _mongoDbService.MarkListingsSoldInTransactionsAsync(listingIds, DateTime.UtcNow);
@@ -1376,7 +1586,9 @@ public class CheckoutController : ControllerBase
                     shippingAddress.FullName,
                     shippingAddressFormatted,
                     order.StoreCreditApplied,
-                    order.DepositApplied);
+                    order.DepositApplied,
+                    order.DiscountAmount,
+                    order.DiscountCode);
             }
 
             // Send notification to seller
@@ -1388,7 +1600,9 @@ public class CheckoutController : ControllerBase
                 shippingAddressFormatted,
                 "Stripe",
                 order.StoreCreditApplied,
-                order.DepositApplied);
+                order.DepositApplied,
+                order.DiscountAmount,
+                order.DiscountCode);
         }
 
         return Ok();

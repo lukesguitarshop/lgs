@@ -646,13 +646,22 @@ public class EmailService
     /// The money lines of an order email. With store credit or a deposit on the order, the
     /// total alone overstates what was charged, so those come off and the charge is shown.
     /// </summary>
-    private static string PaymentSummaryHtml(decimal totalAmount, decimal storeCreditApplied, decimal depositApplied)
+    private static string PaymentSummaryHtml(
+        decimal totalAmount, decimal storeCreditApplied, decimal depositApplied,
+        decimal discountAmount = 0m, string? discountCode = null)
     {
-        if (storeCreditApplied <= 0 && depositApplied <= 0)
+        if (storeCreditApplied <= 0 && depositApplied <= 0 && discountAmount <= 0)
             return $"<p><strong>Total:</strong> ${totalAmount:N2}</p>";
 
-        var charged = Math.Max(0m, totalAmount - storeCreditApplied - depositApplied);
+        var charged = Math.Max(0m, totalAmount - discountAmount - storeCreditApplied - depositApplied);
         var lines = $"<li>Total: ${totalAmount:N2}</li>";
+        if (discountAmount > 0)
+        {
+            var label = string.IsNullOrEmpty(discountCode)
+                ? "Discount"
+                : $"Discount ({System.Net.WebUtility.HtmlEncode(discountCode)})";
+            lines += $"<li>{label}: -${discountAmount:N2}</li>";
+        }
         if (depositApplied > 0) lines += $"<li>Deposit already paid: -${depositApplied:N2}</li>";
         if (storeCreditApplied > 0) lines += $"<li>Store credit: -${storeCreditApplied:N2}</li>";
         lines += $"<li><strong>Charged: ${charged:N2}</strong></li>";
@@ -670,7 +679,9 @@ public class EmailService
         string shippingName,
         string shippingAddress,
         decimal storeCreditApplied = 0m,
-        decimal depositApplied = 0m)
+        decimal depositApplied = 0m,
+        decimal discountAmount = 0m,
+        string? discountCode = null)
     {
         if (!_isEnabled || string.IsNullOrEmpty(buyerEmail))
         {
@@ -695,7 +706,7 @@ public class EmailService
 {itemsList}
 </ul>
 
-{PaymentSummaryHtml(totalAmount, storeCreditApplied, depositApplied)}
+{PaymentSummaryHtml(totalAmount, storeCreditApplied, depositApplied, discountAmount, discountCode)}
 
 <h3>Shipping To</h3>
 <p>
@@ -828,7 +839,9 @@ public class EmailService
         string shippingAddress,
         string paymentMethod,
         decimal storeCreditApplied = 0m,
-        decimal depositApplied = 0m)
+        decimal depositApplied = 0m,
+        decimal discountAmount = 0m,
+        string? discountCode = null)
     {
         if (!_isEnabled || string.IsNullOrEmpty(_sellerEmail))
         {
@@ -851,7 +864,7 @@ public class EmailService
     <li><strong>Payment Method:</strong> {paymentMethod}</li>
 </ul>
 
-{PaymentSummaryHtml(totalAmount, storeCreditApplied, depositApplied)}
+{PaymentSummaryHtml(totalAmount, storeCreditApplied, depositApplied, discountAmount, discountCode)}
 
 <h3>Items Sold</h3>
 <ul>

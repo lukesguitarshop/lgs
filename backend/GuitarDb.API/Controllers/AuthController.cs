@@ -87,6 +87,7 @@ public class AuthController : ControllerBase
 
         await _mongoDbService.CreateUserAsync(user);
         _logger.LogInformation("User registered: {Email}", email);
+        await _mongoDbService.LogActivityAsync(user.Id!, "registered", "Created an account");
 
         // Link any guest orders to the new user account
         var linkedCount = 0;
@@ -258,6 +259,23 @@ public class AuthController : ControllerBase
         await _mongoDbService.UpdateUserAsync(userId, user);
         _logger.LogInformation("Profile updated for user: {UserId}", userId);
 
+        if (!string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            await _mongoDbService.LogActivityAsync(userId, "password_changed", "Changed their password");
+        }
+        if (request.RemoveShippingAddress)
+        {
+            await _mongoDbService.LogActivityAsync(userId, "profile_updated", "Removed their saved shipping address");
+        }
+        else if (request.ShippingAddress != null)
+        {
+            await _mongoDbService.LogActivityAsync(userId, "profile_updated", "Updated their shipping address");
+        }
+        else if (!string.IsNullOrWhiteSpace(request.FullName) && string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            await _mongoDbService.LogActivityAsync(userId, "profile_updated", "Updated their name");
+        }
+
         return Ok(MapToUserDto(user));
     }
 
@@ -381,11 +399,13 @@ public class AuthController : ControllerBase
             // PayPal orders bake a 3.5% fee into the stored total; showing the gap keeps
             // the summary adding up instead of leaving an unexplained jump.
             ProcessingFee = Math.Max(0m, order.TotalAmount - subtotal),
+            DiscountCode = order.DiscountCode,
+            DiscountAmount = order.DiscountAmount,
             StoreCreditApplied = order.StoreCreditApplied,
             DepositApplied = order.DepositApplied,
             // Store credit and any deposit already paid come off the card charge, so this is
             // what actually left the customer's account at checkout.
-            AmountPaid = Math.Max(0m, order.TotalAmount - order.StoreCreditApplied - order.DepositApplied),
+            AmountPaid = Math.Max(0m, order.TotalAmount - order.DiscountAmount - order.StoreCreditApplied - order.DepositApplied),
             TotalAmount = order.TotalAmount,
             Currency = order.Currency,
             TrackingCarrier = order.TrackingCarrier,
@@ -427,6 +447,7 @@ public class AuthController : ControllerBase
 
         await _emailService.SendPasswordResetEmailAsync(email, resetLink);
         _logger.LogInformation("Password reset email sent to: {Email}", email);
+        await _mongoDbService.LogActivityAsync(user.Id!, "password_reset_requested", "Requested a password reset");
 
         return Ok(new { message = "If an account exists with this email, a password reset link has been sent." });
     }
@@ -472,6 +493,7 @@ public class AuthController : ControllerBase
         await _mongoDbService.MarkPasswordResetTokenUsedAsync(request.Token);
 
         _logger.LogInformation("Password reset successfully for user: {UserId}", user.Id);
+        await _mongoDbService.LogActivityAsync(user.Id!, "password_changed", "Reset their password from an emailed link");
 
         return Ok(new { message = "Password has been reset successfully. You can now sign in with your new password." });
     }
@@ -511,6 +533,7 @@ public class AuthController : ControllerBase
         await _mongoDbService.MarkEmailVerificationTokenUsedAsync(request.Token);
 
         _logger.LogInformation("Email verified for user: {UserId}", user.Id);
+        await _mongoDbService.LogActivityAsync(user.Id!, "email_verified", "Verified their email address");
 
         return Ok(new { message = "Email verified successfully! You can now sign in." });
     }
@@ -692,6 +715,9 @@ public class OrderDetailDto
     public decimal ItemsSubtotal { get; set; }
     /// <summary>The PayPal surcharge folded into the total, zero on card orders.</summary>
     public decimal ProcessingFee { get; set; }
+    /// <summary>The discount code used, and what it took off. Null and zero when none.</summary>
+    public string? DiscountCode { get; set; }
+    public decimal DiscountAmount { get; set; }
     public decimal StoreCreditApplied { get; set; }
     public decimal DepositApplied { get; set; }
     /// <summary>What was actually charged after credit and any deposit came off.</summary>

@@ -2,7 +2,7 @@
 
 import { FUNDING, PayPalScriptProvider, PayPalButtons } from '@paypal/react-paypal-js';
 import { StateBlock } from '@/components/ui/state-block';
-import { api } from '@/lib/api';
+import { api, ApiError } from '@/lib/api';
 
 interface CartItem {
   id: string;
@@ -32,6 +32,10 @@ interface PayPalCheckoutButtonProps {
   disabled?: boolean;
   useAuth?: boolean;
   applyStoreCredit?: boolean;
+  /** The discount code applied on the checkout page, if any. */
+  discountCode?: string;
+  /** Called instead of onError when the API refuses the payment with a code applied. */
+  onDiscountRejected?: (error: string) => void;
   /**
    * Fit a 48px row — the phone sticky bar. Renders the single PayPal funding source at
    * that height and swaps the padded message boxes for 48px placeholders.
@@ -49,6 +53,8 @@ export default function PayPalCheckoutButton({
   disabled = false,
   useAuth = true,
   applyStoreCredit = false,
+  discountCode,
+  onDiscountRejected,
   compact = false,
 }: PayPalCheckoutButtonProps) {
   const clientId = process.env.NEXT_PUBLIC_PAYPAL_CLIENT_ID;
@@ -85,6 +91,9 @@ export default function PayPalCheckoutButton({
       }}
     >
       <PayPalButtons
+        // PayPal keeps the callbacks it was first given, so anything that changes what
+        // is charged has to remount the buttons.
+        forceReRender={[applyStoreCredit, discountCode ?? '', currency, cartItems.length]}
         // A standalone PayPal button takes an explicit height (PayPal allows 25–55px);
         // the stacked vertical set would run far taller than the 48px bar it sits in.
         fundingSource={compact ? FUNDING.PAYPAL : undefined}
@@ -103,6 +112,7 @@ export default function PayPalCheckoutButton({
               })),
               shippingAddress,
               applyStoreCredit,
+              discountCode,
             };
 
             // Authentication is required
@@ -110,7 +120,11 @@ export default function PayPalCheckoutButton({
             return response.orderId;
           } catch (err) {
             console.error('Failed to create PayPal order:', err);
-            onError('Failed to create PayPal order. Please try again.');
+            if (discountCode && onDiscountRejected && err instanceof ApiError && err.status === 400) {
+              onDiscountRejected(err.message);
+            } else {
+              onError('Failed to create PayPal order. Please try again.');
+            }
             throw err;
           }
         }}

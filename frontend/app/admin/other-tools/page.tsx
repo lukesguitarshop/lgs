@@ -12,8 +12,9 @@ import { isAdminTab, setAdminTab, useAdminTab } from '@/lib/admin-nav';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 import {
   Clipboard, Copy, Check, Play, Loader2, CheckCircle, XCircle,
-  Activity, LogIn, ShoppingCart, Heart, HeartOff, Receipt, ChevronLeft, ChevronRight, X,
+  Activity, ChevronLeft, ChevronRight, X,
 } from 'lucide-react';
+import { ACTIVITY_TYPES, ActivityIcon } from '@/components/admin/activity-events';
 import { ReservationsTab } from '@/components/admin/ReservationsTab';
 import { InPersonSaleTab } from '@/components/admin/InPersonSaleTab';
 
@@ -81,32 +82,6 @@ Questions are welcome before purchase. Message me anytime — I'd rather answer 
   },
 ];
 
-const ACTIVITY_TYPES: { value: string; label: string }[] = [
-  { value: '', label: 'All events' },
-  { value: 'login', label: 'Logins' },
-  { value: 'add_to_cart', label: 'Add to cart' },
-  { value: 'favorite', label: 'Favorites' },
-  { value: 'unfavorite', label: 'Unfavorites' },
-  { value: 'order_placed', label: 'Orders placed' },
-];
-
-function getActivityIcon(type: string) {
-  switch (type) {
-    case 'login':
-      return <LogIn className="h-4 w-4 text-blue-600" />;
-    case 'add_to_cart':
-      return <ShoppingCart className="h-4 w-4 text-[#6E0114]" />;
-    case 'favorite':
-      return <Heart className="h-4 w-4 text-pink-600" />;
-    case 'unfavorite':
-      return <HeartOff className="h-4 w-4 text-gray-400" />;
-    case 'order_placed':
-      return <Receipt className="h-4 w-4 text-green-600" />;
-    default:
-      return <Activity className="h-4 w-4 text-gray-400" />;
-  }
-}
-
 function formatActivityDate(dateString: string): string {
   return new Date(dateString).toLocaleDateString('en-US', {
     month: 'short',
@@ -124,7 +99,7 @@ const activityColumns: ResponsiveColumn<AdminActivityEntry>[] = [
     priority: 'badge',
     cell: (entry) => (
       <span className="inline-flex items-center gap-2 whitespace-nowrap">
-        {getActivityIcon(entry.type)}
+        <ActivityIcon type={entry.type} />
         <span className="text-gray-700">{entry.type.replace(/_/g, ' ')}</span>
       </span>
     ),

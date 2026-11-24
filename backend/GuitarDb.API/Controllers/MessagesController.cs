@@ -230,6 +230,11 @@ public class MessagesController : ControllerBase
                 conversation.Id);
         }
 
+        if (!isAdminSender)
+        {
+            await LogMessageSentAsync(userId, listing, request.ListingId);
+        }
+
         return Ok(new MessageDto
         {
             Id = message.Id!,
@@ -365,6 +370,11 @@ public class MessagesController : ControllerBase
                 preview,
                 listing?.ListingTitle,
                 conversation.Id);
+        }
+
+        if (!isAdminSender)
+        {
+            await LogMessageSentAsync(userId, listing, request.ListingId);
         }
 
         return Ok(new MessageDto
@@ -600,6 +610,12 @@ public class MessagesController : ControllerBase
             );
         }
 
+        if (isBuyer)
+        {
+            await _mongoDbService.LogActivityAsync(userId, "offer_made",
+                $"Offered ${request.OfferAmount:N0} on {listing?.ListingTitle ?? "a listing"}", conversation.ListingId);
+        }
+
         return Ok(new { success = true, messageId = message.Id });
     }
 
@@ -759,6 +775,12 @@ public class MessagesController : ControllerBase
             }
         }
 
+        if (isBuyer)
+        {
+            await _mongoDbService.LogActivityAsync(userId, "offer_accepted",
+                $"Accepted the shop's ${acceptedAmount:N0} offer on {listing?.ListingTitle ?? "a listing"}", conversation.ListingId);
+        }
+
         return Ok(new { success = true, acceptedAmount });
     }
 
@@ -832,6 +854,12 @@ public class MessagesController : ControllerBase
                 conversationId,
                 request?.Reason
             );
+        }
+
+        if (isBuyer)
+        {
+            await _mongoDbService.LogActivityAsync(userId, "offer_declined",
+                $"Declined the shop's ${declinedAmount:N0} offer on {listing?.ListingTitle ?? "a listing"}", conversation.ListingId);
         }
 
         return Ok(new { success = true });
@@ -930,7 +958,22 @@ public class MessagesController : ControllerBase
             );
         }
 
+        if (isBuyer)
+        {
+            await _mongoDbService.LogActivityAsync(userId, "offer_countered",
+                $"Countered ${previousAmount:N0} with ${request.OfferAmount:N0} on {listing?.ListingTitle ?? "a listing"}",
+                conversation.ListingId);
+        }
+
         return Ok(new { success = true, newOfferAmount = request.OfferAmount });
+    }
+
+    private Task LogMessageSentAsync(string userId, MyListing? listing, string? listingId)
+    {
+        var description = listing != null
+            ? $"Sent a message about {listing.ListingTitle}"
+            : "Sent a message to the shop";
+        return _mongoDbService.LogActivityAsync(userId, "message_sent", description, listingId);
     }
 
     private string? GetUserId()

@@ -127,6 +127,9 @@ public class TradeInsController : ControllerBase
             return StatusCode(500, new { error = "Something went wrong saving your trade-in. Nothing was submitted, so please try again." });
         }
 
+        await _mongoDbService.LogActivityAsync(userId, "trade_in_submitted",
+            $"Submitted a trade-in: {tradeIn.Brand} {tradeIn.Model}");
+
         // Fire-and-forget email notifications
         _ = _emailService.SendTradeInSubmittedAsync(tradeIn.Email, tradeIn.Id!, tradeIn.Brand, tradeIn.Model);
         _ = _emailService.SendTradeInSubmittedAdminAsync(tradeIn.Id!, tradeIn.Brand, tradeIn.Model,

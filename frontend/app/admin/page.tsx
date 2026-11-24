@@ -53,6 +53,10 @@ interface AdminListing {
   currency: string;
   disabled: boolean;
   featured: boolean;
+  /** Unique visitors per day, summed. Counted since view tracking shipped. */
+  view_count: number;
+  /** Customers who currently have this guitar favorited. */
+  watcher_count: number;
   is_reserved: boolean;
   reservation_id: string | null;
   reservation_type: string | null;
@@ -1423,6 +1427,20 @@ export default function AdminPage() {
                       )}
                     </>
                   ),
+                },
+                {
+                  id: 'views',
+                  header: 'Views',
+                  priority: 'key',
+                  cellClassName: 'text-gray-600 tabular-nums',
+                  cell: (listing) => (listing.view_count ?? 0).toLocaleString(),
+                },
+                {
+                  id: 'watchers',
+                  header: 'Watchers',
+                  priority: 'key',
+                  cellClassName: 'text-gray-600 tabular-nums',
+                  cell: (listing) => (listing.watcher_count ?? 0).toLocaleString(),
                 },
                 {
                   id: 'status',

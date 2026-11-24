@@ -78,6 +78,8 @@ interface Order {
   totalAmount: number;
   /** Store credit and deposits come off the total; amountPaid is what was charged. */
   storeCreditApplied?: number;
+  discountCode?: string | null;
+  discountAmount?: number;
   depositApplied?: number;
   amountPaid?: number;
   currency: string;
@@ -274,6 +276,7 @@ function generateOrderPdf(order: Order): void {
 
   // Store credit and deposits: without these the receipt reads as the full total charged.
   const credits: [string, number][] = [
+    [order.discountCode ? `Discount (${order.discountCode})` : 'Discount', order.discountAmount ?? 0],
     ['Deposit already paid', order.depositApplied ?? 0],
     ['Store credit', order.storeCreditApplied ?? 0],
   ];
@@ -1021,8 +1024,16 @@ export default function OrderDetailPage() {
                   {formatCurrency(order.totalAmount, order.currency)}
                 </span>
               </div>
-              {((order.depositApplied ?? 0) > 0 || (order.storeCreditApplied ?? 0) > 0) && (
+              {((order.depositApplied ?? 0) > 0 || (order.storeCreditApplied ?? 0) > 0 || (order.discountAmount ?? 0) > 0) && (
                 <div className="mt-3 space-y-1.5 text-sm">
+                  {(order.discountAmount ?? 0) > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-foreground/60">
+                        Discount{order.discountCode ? ` (${order.discountCode})` : ''}
+                      </span>
+                      <span>&minus;{formatCurrency(order.discountAmount!, order.currency)}</span>
+                    </div>
+                  )}
                   {(order.depositApplied ?? 0) > 0 && (
                     <div className="flex justify-between">
                       <span className="text-foreground/60">Deposit already paid</span>

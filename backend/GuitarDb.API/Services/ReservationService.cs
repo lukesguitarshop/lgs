@@ -170,16 +170,18 @@ public class ReservationService
     /// </summary>
     public static decimal ResolveChargeAmount(MyListing listing, Reservation? reservation, string? userId)
     {
-        if (reservation != null
-            && reservation.IsActive
-            && !reservation.IsUnassigned
-            && reservation.UserId == userId)
-        {
-            return reservation.BalanceDue;
-        }
-
-        return listing.Price;
+        return IsHeldBy(reservation, userId) ? reservation!.BalanceDue : listing.Price;
     }
+
+    /// <summary>
+    /// True when this user holds the active reservation, so they pay its locked terms
+    /// rather than the listing price.
+    /// </summary>
+    public static bool IsHeldBy(Reservation? reservation, string? userId) =>
+        reservation != null
+        && reservation.IsActive
+        && !reservation.IsUnassigned
+        && reservation.UserId == userId;
 
     // ---------------- Cart locking ----------------
 

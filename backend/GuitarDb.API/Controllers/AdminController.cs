@@ -283,6 +283,9 @@ public class AdminController : ControllerBase
             ? (await _mongoDbService.GetUsersByIdsAsync(holderIds)).ToDictionary(u => u.Id!, u => u)
             : new Dictionary<string, Models.User>();
 
+        var viewCounts = await _mongoDbService.GetListingViewCountsAsync();
+        var watcherCounts = await _mongoDbService.GetWatcherCountsAsync();
+
         return Ok(listings.Select(l =>
         {
             reservations.TryGetValue(l.Id!, out var reservation);
@@ -305,6 +308,8 @@ public class AdminController : ControllerBase
                 currency = l.Currency,
                 disabled = l.Disabled,
                 featured = l.Featured,
+                view_count = viewCounts.GetValueOrDefault(l.Id!),
+                watcher_count = watcherCounts.GetValueOrDefault(l.Id!),
                 is_reserved = isReserved,
                 reservation_id = isReserved ? reservation!.Id : null,
                 reservation_type = isReserved ? reservation!.Type : null,
@@ -793,9 +798,11 @@ public class AdminController : ControllerBase
                     Country = order.ShippingAddress.Country
                 },
                 TotalAmount = order.TotalAmount,
+                DiscountCode = order.DiscountCode,
+                DiscountAmount = order.DiscountAmount,
                 StoreCreditApplied = order.StoreCreditApplied,
                 DepositApplied = order.DepositApplied,
-                AmountPaid = Math.Max(0m, order.TotalAmount - order.StoreCreditApplied - order.DepositApplied),
+                AmountPaid = Math.Max(0m, order.TotalAmount - order.DiscountAmount - order.StoreCreditApplied - order.DepositApplied),
                 Currency = order.Currency,
                 Status = order.Status,
                 CreatedAt = order.CreatedAt,
@@ -1022,9 +1029,11 @@ public class AdminController : ControllerBase
         public List<AdminOrderItemDto> Items { get; set; } = new();
         public AdminOrderShippingAddressDto ShippingAddress { get; set; } = new();
         public decimal TotalAmount { get; set; }
+        public string? DiscountCode { get; set; }
+        public decimal DiscountAmount { get; set; }
         public decimal StoreCreditApplied { get; set; }
         public decimal DepositApplied { get; set; }
-        /// <summary>What was actually charged after store credit and any deposit came off.</summary>
+        /// <summary>What was actually charged after any discount, store credit and deposit came off.</summary>
         public decimal AmountPaid { get; set; }
         public string Currency { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;

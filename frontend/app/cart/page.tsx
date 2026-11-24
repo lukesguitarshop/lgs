@@ -10,6 +10,7 @@ import { ShoppingCart, Trash2, ArrowLeft, Lock, X } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { api } from '@/lib/api';
 import { CartItem, getCart, removeFromCart } from '@/lib/cart';
+import { logRemoveFromCart } from '@/lib/activity';
 import { trackRemoveFromCart } from '@/lib/analytics';
 import { cn } from '@/lib/utils';
 
@@ -134,6 +135,7 @@ export default function CartPage() {
     if (removed) {
       if (item) {
         trackRemoveFromCart({ id: item.id, name: item.title, price: item.price });
+        logRemoveFromCart(item.id, item.title);
       }
       setLocalCartItems(localCartItems.filter((item) => item.id !== itemId));
     }

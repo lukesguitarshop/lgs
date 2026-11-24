@@ -10,10 +10,17 @@ namespace GuitarDb.API.Controllers;
 public class MyListingsController : ControllerBase
 {
     private readonly MongoDbService _mongoDbService;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<MyListingsController> _logger;
 
-    public MyListingsController(MongoDbService mongoDbService)
+    public MyListingsController(
+        MongoDbService mongoDbService,
+        IConfiguration configuration,
+        ILogger<MyListingsController> logger)
     {
         _mongoDbService = mongoDbService;
+        _configuration = configuration;
+        _logger = logger;
     }
 
     [HttpGet]
@@ -154,6 +161,51 @@ public class MyListingsController : ControllerBase
             reserved_for_me = reservedForMe,
             accepts_offers = !isReserved
         });
+    }
+
+    /// <summary>
+    /// Called by the listing page once it has loaded in a browser. Counts one view per
+    /// visitor per listing per day; crawlers and the shop's own admins are left out.
+    /// Always answers 204 so the page learns nothing about whether it counted.
+    /// </summary>
+    [HttpPost("{id}/view")]
+    public async Task<IActionResult> RecordView(string id)
+    {
+        try
+        {
+            var userAgent = Request.Headers.UserAgent.ToString();
+            if (ListingViewRules.IsBot(userAgent)) return NoContent();
+            if (User.FindFirst("is_admin")?.Value == "true") return NoContent();
+            if (!MongoDB.Bson.ObjectId.TryParse(id, out _)) return NoContent();
+
+            var listing = await _mongoDbService.GetMyListingByIdAsync(id);
+            if (listing == null) return NoContent();
+
+            var ip = ListingViewRules.ClientIp(
+                Request.Headers["Fly-Client-IP"].ToString(),
+                Request.Headers["X-Forwarded-For"].ToString(),
+                HttpContext.Connection.RemoteIpAddress?.ToString());
+            var salt = _configuration["ListingViews:Salt"] ?? _configuration["Jwt:SecretKey"] ?? "listing-views";
+
+            await _mongoDbService.RecordListingViewAsync(
+                id, ListingViewRules.VisitorKey(ip, userAgent, salt, DateTime.UtcNow));
+
+            // The customer's own feed gets one line per guitar per day, however many
+            // devices or reloads were involved.
+            var userId = GetUserIdIfAuthenticated();
+            if (userId != null)
+            {
+                await _mongoDbService.LogActivityOncePerDayAsync(
+                    userId, "listing_view", $"Viewed {listing.ListingTitle}", id);
+            }
+        }
+        catch (Exception ex)
+        {
+            // A view count must never surface as an error on the listing page.
+            _logger.LogWarning(ex, "Failed to record a view for listing {ListingId}", id);
+        }
+
+        return NoContent();
     }
 
     private string? GetUserIdIfAuthenticated()

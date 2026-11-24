@@ -12,7 +12,7 @@ import { ChevronLeft, ChevronRight, ShoppingCart, ArrowLeft, Check, Download, Co
 import JSZip from 'jszip';
 import DOMPurify from 'dompurify';
 import { addToCart, isInCart, CartItem } from '@/lib/cart';
-import { logAddToCart } from '@/lib/activity';
+import { logAddToCart, recordListingView } from '@/lib/activity';
 import { useAuth } from '@/contexts/AuthContext';
 import api from '@/lib/api';
 import { getAuthHeaders } from '@/lib/auth';
@@ -213,6 +213,12 @@ export default function ListingDetail({ listing }: ListingDetailProps) {
       currency: listing.currency,
     });
   }, [listing.id, listing.listing_title, listing.price, listing.currency]);
+
+  // Count the page view for the admin's per-listing numbers. Once per listing shown,
+  // not per render; the server handles repeat visits, bots and admins.
+  useEffect(() => {
+    recordListingView(listing.id);
+  }, [listing.id]);
 
   // Check if listing is favorited on mount
   useEffect(() => {

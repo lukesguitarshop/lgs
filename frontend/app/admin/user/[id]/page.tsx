@@ -31,12 +31,9 @@ import {
   DollarSign,
   Activity,
   LogIn,
-  ShoppingCart,
-  Heart,
-  HeartOff,
-  Eye,
   Star,
 } from 'lucide-react';
+import { ActivityIcon } from '@/components/admin/activity-events';
 
 interface UserDetail {
   id: string;
@@ -359,25 +356,6 @@ export default function AdminUserDetailPage() {
       hour: 'numeric',
       minute: '2-digit',
     });
-  };
-
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case 'login':
-        return <LogIn className="h-4 w-4 text-blue-600" />;
-      case 'add_to_cart':
-        return <ShoppingCart className="h-4 w-4 text-[#6E0114]" />;
-      case 'favorite':
-        return <Heart className="h-4 w-4 text-pink-600" />;
-      case 'unfavorite':
-        return <HeartOff className="h-4 w-4 text-gray-400" />;
-      case 'order_placed':
-        return <Receipt className="h-4 w-4 text-green-600" />;
-      case 'admin_impersonation':
-        return <Eye className="h-4 w-4 text-[#6E0114]" />;
-      default:
-        return <Activity className="h-4 w-4 text-gray-400" />;
-    }
   };
 
   const getStatusDisplay = (status: string): string => {
@@ -891,7 +869,7 @@ export default function AdminUserDetailPage() {
                 key={entry.id}
                 className="flex items-center gap-3 py-2 border-b border-gray-100 last:border-0"
               >
-                <span className="shrink-0">{getActivityIcon(entry.type)}</span>
+                <span className="shrink-0"><ActivityIcon type={entry.type} /></span>
                 {entry.listingId ? (
                   <Link
                     href={`/listing/${entry.listingId}`}

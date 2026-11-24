@@ -153,6 +153,10 @@ public class ReviewsController : ControllerBase
         var review = await _mongoDbService.UpsertSiteReviewAsync(
             userId, request.OrderId, guitarName, reviewerName, request.Rating, text);
 
+        // Editing a review saves it again; one line a day per review is enough.
+        await _mongoDbService.LogActivityOncePerDayAsync(userId, "review_left",
+            $"Left a {request.Rating}-star review for {guitarName}");
+
         return Ok(new
         {
             id = review.Id,

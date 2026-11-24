@@ -60,6 +60,8 @@ interface OrderDetail {
   shippingAddress: OrderShippingAddress | null;
   itemsSubtotal: number;
   processingFee: number;
+  discountCode: string | null;
+  discountAmount: number;
   storeCreditApplied: number;
   depositApplied: number;
   amountPaid: number;
@@ -439,6 +441,16 @@ export default function CustomerOrderDetailPage({
                   <div className="flex justify-between">
                     <dt className="text-foreground/60">PayPal fee</dt>
                     <dd>{formatOrderCurrency(order.processingFee, order.currency)}</dd>
+                  </div>
+                )}
+                {order.discountAmount > 0 && (
+                  <div className="flex justify-between">
+                    <dt className="text-foreground/60">
+                      Discount{order.discountCode ? ` (${order.discountCode})` : ''}
+                    </dt>
+                    <dd className="label-mono text-primary">
+                      &minus;{formatOrderCurrency(order.discountAmount, order.currency)}
+                    </dd>
                   </div>
                 )}
                 {order.depositApplied > 0 && (

@@ -96,6 +96,16 @@ public class Order
     [BsonIgnoreIfNull]
     public string? StoreCreditId { get; set; }
 
+    /// <summary>The discount code used on this order, normalized. Null when none was.</summary>
+    [BsonElement("discount_code")]
+    [BsonIgnoreIfNull]
+    public string? DiscountCode { get; set; }
+
+    /// <summary>What the code took off, in the order's currency.</summary>
+    [BsonElement("discount_amount")]
+    [BsonIgnoreIfDefault]
+    public decimal DiscountAmount { get; set; } = 0m;
+
     /// <summary>
     /// "sale" for a normal purchase, "deposit" for a reservation deposit payment.
     /// Deposit orders are partial payments, not sales — they must be distinguishable

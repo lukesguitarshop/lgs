@@ -1,19 +1,22 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { api, getMyStoreCredit } from '@/lib/api';
+import { api, ApiError, getMyStoreCredit } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { StateBlock } from '@/components/ui/state-block';
 import { StickyBar } from '@/components/ui/sticky-bar';
 import { ShoppingCart, ArrowLeft, Loader2, CreditCard, LogIn, MapPin, Plus, Pencil, Check } from 'lucide-react';
 import PayPalCheckoutButton from '@/components/PayPalCheckoutButton';
 import ShippingAddressModal from '@/components/checkout/ShippingAddressModal';
+import DiscountCodeField, { type AppliedDiscount } from '@/components/checkout/DiscountCodeField';
+import { computeCheckoutTotals } from '@/lib/checkout-totals';
 import { useAuth } from '@/contexts/AuthContext';
 import { ShippingAddress } from '@/lib/auth';
 import { trackBeginCheckout } from '@/lib/analytics';
+import { logCheckoutStarted } from '@/lib/activity';
 import { cn } from '@/lib/utils';
 
 type PaymentMethod = 'stripe' | 'paypal';
@@ -91,6 +94,8 @@ export default function CheckoutPage() {
   const [savedAddress, setSavedAddress] = useState<ShippingAddress | null>(null);
   const [creditBalance, setCreditBalance] = useState(0);
   const [applyCredit, setApplyCredit] = useState(false);
+  const [discount, setDiscount] = useState<AppliedDiscount | null>(null);
+  const checkoutLogged = useRef(false);
 
   // Load cart from localStorage and fetch pending items
   useEffect(() => {
@@ -135,6 +140,13 @@ export default function CheckoutPage() {
     loadCart();
   }, [isAuthenticated]);
 
+  // Note in the customer's activity feed that they reached checkout, once per visit.
+  useEffect(() => {
+    if (loading || !isAuthenticated || cartItems.length === 0 || checkoutLogged.current) return;
+    checkoutLogged.current = true;
+    logCheckoutStarted(cartItems);
+  }, [loading, isAuthenticated, cartItems]);
+
   // Load saved address from user profile
   useEffect(() => {
     if (!isAuthenticated || !user?.shippingAddress) return;
@@ -158,14 +170,19 @@ export default function CheckoutPage() {
   }, [isAuthenticated]);
 
   const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
-  const creditApplied = applyCredit ? Math.min(creditBalance, subtotal) : 0;
-  const subtotalAfterCredit = subtotal - creditApplied;
-  const paypalFee = Math.round(subtotalAfterCredit * 0.035 * 100) / 100; // 3.5% fee on amount after store credit
-  const total = paymentMethod === 'paypal' ? subtotal + paypalFee : subtotal;
-  const totalAfterCredit = paymentMethod === 'paypal'
-    ? subtotalAfterCredit + paypalFee
-    : subtotalAfterCredit;
+  // Discount code, then store credit, then the 3.5% PayPal fee on what is left.
+  const totals = computeCheckoutTotals({
+    subtotal,
+    discount: discount?.discountAmount ?? 0,
+    creditBalance: applyCredit ? creditBalance : 0,
+    payPal: paymentMethod === 'paypal',
+  });
+  const creditApplied = totals.creditApplied;
+  const paypalFee = totals.fee;
+  const total = subtotal + paypalFee;
+  const totalAfterCredit = totals.amountDue;
   const currency = cartItems[0]?.currency || 'USD';
+  const listingIds = cartItems.map((item) => item.id);
 
   const hasValidAddress = savedAddress &&
     savedAddress.fullName &&
@@ -196,15 +213,23 @@ export default function CheckoutPage() {
         })),
         shippingAddress: savedAddress,
         applyStoreCredit: applyCredit,
+        discountCode: discount?.code,
       };
 
       // Use authenticated request (authentication is required)
       const response = await api.authPost<CheckoutResponse>('/checkout', checkoutData);
 
       // Redirect to Stripe checkout
-      window.location.href = response.sessionUrl;
-    } catch {
-      setError('Failed to create checkout session. Please try again.');
+      window.location.assign(response.sessionUrl);
+    } catch (err) {
+      // With a code applied, a refusal is most likely about the code (it expired or was
+      // used since it was typed), so say what the API said and take it back off.
+      if (discount && err instanceof ApiError && err.status === 400) {
+        setError(err.message);
+        setDiscount(null);
+      } else {
+        setError('Failed to create checkout session. Please try again.');
+      }
       setCheckoutLoading(false);
     }
   };
@@ -219,6 +244,12 @@ export default function CheckoutPage() {
   };
 
   const handlePayPalError = (errorMsg: string) => setError(errorMsg);
+
+  // The API turned the code down when the PayPal payment was created.
+  const handlePayPalDiscountRejected = (errorMsg: string) => {
+    setError(errorMsg);
+    setDiscount(null);
+  };
 
   if (loading) {
     return (
@@ -314,6 +345,14 @@ export default function CheckoutPage() {
               <span className="tabular-nums">{formatExact(paypalFee, currency)}</span>
             </div>
           )}
+          <DiscountCodeField
+            inputId="discount-code-phone"
+            className="mt-3"
+            listingIds={listingIds}
+            applied={discount}
+            onChange={setDiscount}
+            formatAmount={(amount) => formatExact(amount, currency)}
+          />
           {creditBalance > 0 && (
             <label className="mt-2 flex h-12 cursor-pointer items-center gap-3.5">
               <input
@@ -465,6 +504,8 @@ export default function CheckoutPage() {
                 disabled={!hasValidAddress}
                 useAuth={true}
                 applyStoreCredit={applyCredit}
+                discountCode={discount?.code}
+                onDiscountRejected={handlePayPalDiscountRejected}
                 onSuccess={handlePayPalSuccess}
                 onError={handlePayPalError}
               />
@@ -593,6 +634,13 @@ export default function CheckoutPage() {
                       <span>{formatPrice(paypalFee, currency)}</span>
                     </div>
                   )}
+                  <DiscountCodeField
+                    inputId="discount-code-desktop"
+                    listingIds={listingIds}
+                    applied={discount}
+                    onChange={setDiscount}
+                    formatAmount={(amount) => formatExact(amount, currency)}
+                  />
                   {creditBalance > 0 && (
                     <div className="flex items-center justify-between bg-primary/6 border border-primary rounded p-2">
                       <label className="flex items-center gap-2 text-sm cursor-pointer flex-1">
@@ -691,6 +739,8 @@ export default function CheckoutPage() {
                       disabled={!hasValidAddress}
                       useAuth={true}
                       applyStoreCredit={applyCredit}
+                      discountCode={discount?.code}
+                      onDiscountRejected={handlePayPalDiscountRejected}
                       onSuccess={handlePayPalSuccess}
                       onError={handlePayPalError}
                     />

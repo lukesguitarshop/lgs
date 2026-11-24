@@ -21,7 +21,7 @@ public class ActivityController : ControllerBase
 
     /// <summary>
     /// Record a client-side activity event for the current user.
-    /// Currently used for "add_to_cart" since the cart lives in localStorage.
+    /// Used for cart and checkout-page events, since the cart lives in localStorage.
     /// </summary>
     [HttpPost]
     public async Task<IActionResult> LogActivity([FromBody] LogActivityRequest request)
@@ -29,22 +29,34 @@ public class ActivityController : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId)) return Unauthorized(new { error = "Invalid token" });
 
-        // Only allow client-originated event types we expect, to avoid log spam/abuse.
-        if (request.Type != "add_to_cart")
-        {
-            return BadRequest(new { error = "Unsupported activity type" });
-        }
-
         var listingTitle = string.IsNullOrWhiteSpace(request.ListingTitle)
             ? "an item"
             : request.ListingTitle.Trim();
         if (listingTitle.Length > 120) listingTitle = listingTitle[..120];
 
-        await _mongoDbService.LogActivityAsync(
-            userId,
-            "add_to_cart",
-            $"Added {listingTitle} to cart",
-            request.ListingId);
+        // Only allow client-originated event types we expect, to avoid log spam/abuse.
+        // The wording is built here, never taken from the client.
+        switch (request.Type)
+        {
+            case "add_to_cart":
+                await _mongoDbService.LogActivityAsync(
+                    userId, "add_to_cart", $"Added {listingTitle} to cart", request.ListingId);
+                break;
+
+            case "remove_from_cart":
+                await _mongoDbService.LogActivityAsync(
+                    userId, "remove_from_cart", $"Removed {listingTitle} from cart", request.ListingId);
+                break;
+
+            case "checkout_started":
+                // The checkout page reports this on every visit; once a day per cart.
+                await _mongoDbService.LogActivityOncePerDayAsync(
+                    userId, "checkout_started", $"Started checkout with {listingTitle}", request.ListingId);
+                break;
+
+            default:
+                return BadRequest(new { error = "Unsupported activity type" });
+        }
 
         return Ok(new { message = "logged" });
     }

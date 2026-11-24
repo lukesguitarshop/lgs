@@ -27,7 +27,11 @@ public class MongoDbService
     private readonly IMongoCollection<TradeInRequest> _tradeInRequestsCollection;
     private readonly IMongoCollection<StoreCredit> _storeCreditsCollection;
     private readonly IMongoCollection<UserActivity> _userActivitiesCollection;
+    private readonly IMongoCollection<ListingViewMark> _listingViewMarksCollection;
+    private readonly IMongoCollection<ListingViewCount> _listingViewCountsCollection;
     private readonly IMongoCollection<ScheduledJobRun> _scheduledJobRunsCollection;
+    private readonly IMongoCollection<DiscountCode> _discountCodesCollection;
+    private readonly IMongoCollection<DiscountRedemption> _discountRedemptionsCollection;
     private readonly IMongoCollection<ProductPrice> _productPricesCollection;
     private readonly IMongoCollection<ProductOverride> _productOverridesCollection;
     private readonly ILogger<MongoDbService> _logger;
@@ -64,7 +68,11 @@ public class MongoDbService
         _tradeInRequestsCollection = database.GetCollection<TradeInRequest>("trade_in_requests");
         _storeCreditsCollection = database.GetCollection<StoreCredit>("store_credits");
         _userActivitiesCollection = database.GetCollection<UserActivity>("user_activities");
+        _listingViewMarksCollection = database.GetCollection<ListingViewMark>("listing_view_marks");
+        _listingViewCountsCollection = database.GetCollection<ListingViewCount>("listing_view_counts");
         _scheduledJobRunsCollection = database.GetCollection<ScheduledJobRun>("scheduled_job_runs");
+        _discountCodesCollection = database.GetCollection<DiscountCode>("discount_codes");
+        _discountRedemptionsCollection = database.GetCollection<DiscountRedemption>("discount_redemptions");
         _productPricesCollection = database.GetCollection<ProductPrice>("product_prices");
         _productOverridesCollection = database.GetCollection<ProductOverride>("product_overrides");
 
@@ -146,6 +154,26 @@ public class MongoDbService
             var activityTtlIndex = Builders<UserActivity>.IndexKeys.Ascending(a => a.CreatedAt);
             await _userActivitiesCollection.Indexes.CreateOneAsync(
                 new CreateIndexModel<UserActivity>(activityTtlIndex, new CreateIndexOptions { Name = "activity_ttl_idx", ExpireAfter = TimeSpan.FromDays(180) })
+            );
+
+            // Listing views: one mark per visitor per listing per day (the day is inside
+            // the visitor key), cleared once that day can no longer matter.
+            await _listingViewMarksCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<ListingViewMark>(
+                    Builders<ListingViewMark>.IndexKeys.Ascending(m => m.ListingId).Ascending(m => m.Visitor),
+                    new CreateIndexOptions { Name = "listing_visitor_idx", Unique = true })
+            );
+            await _listingViewMarksCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<ListingViewMark>(
+                    Builders<ListingViewMark>.IndexKeys.Ascending(m => m.CreatedAt),
+                    new CreateIndexOptions { Name = "view_mark_ttl_idx", ExpireAfter = TimeSpan.FromDays(2) })
+            );
+
+            // Watcher counts group favorites by listing.
+            await _favoritesCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<Favorite>(
+                    Builders<Favorite>.IndexKeys.Ascending(f => f.ListingId),
+                    new CreateIndexOptions { Name = "listing_id_idx" })
             );
 
             // Offers indexes
@@ -362,6 +390,26 @@ public class MongoDbService
             await _scheduledJobRunsCollection.Indexes.CreateOneAsync(
                 new CreateIndexModel<ScheduledJobRun>(scheduledJobRunIndex,
                     new CreateIndexOptions { Name = "job_name_run_date_slot_uniq", Unique = true })
+            );
+
+            // Discount codes: the code string is the lookup key and must be unique.
+            await _discountCodesCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<DiscountCode>(
+                    Builders<DiscountCode>.IndexKeys.Ascending(c => c.Code),
+                    new CreateIndexOptions { Name = "code_uniq", Unique = true })
+            );
+
+            // One redemption per order, so recording the same order twice (success page
+            // racing the webhook) cannot double-count a use.
+            await _discountRedemptionsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<DiscountRedemption>(
+                    Builders<DiscountRedemption>.IndexKeys.Ascending(r => r.OrderId),
+                    new CreateIndexOptions { Name = "order_id_uniq", Unique = true })
+            );
+            await _discountRedemptionsCollection.Indexes.CreateOneAsync(
+                new CreateIndexModel<DiscountRedemption>(
+                    Builders<DiscountRedemption>.IndexKeys.Ascending(r => r.Code).Ascending(r => r.UserId),
+                    new CreateIndexOptions { Name = "code_user_idx" })
             );
 
             _logger.LogInformation("MongoDB indexes created successfully");
@@ -1211,6 +1259,79 @@ public class MongoDbService
             .ToListAsync();
 
         return (items, total);
+    }
+
+    /// <summary>
+    /// Logs an event unless the same user already has an identical one (same type and
+    /// wording) since the start of today, UTC. For things a page does on every load or
+    /// retry, such as viewing a guitar or re-checking a discount code, so the feed shows
+    /// that it happened without a line per reload.
+    /// </summary>
+    public async Task LogActivityOncePerDayAsync(string userId, string type, string description, string? listingId = null)
+    {
+        if (string.IsNullOrEmpty(userId)) return;
+
+        try
+        {
+            var builder = Builders<UserActivity>.Filter;
+            var filter = builder.Eq(a => a.UserId, userId)
+                & builder.Eq(a => a.Type, type)
+                & builder.Eq(a => a.Description, description)
+                & builder.Gte(a => a.CreatedAt, DateTime.UtcNow.Date);
+            if (await _userActivitiesCollection.Find(filter).AnyAsync()) return;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to check activity '{Type}' for user {UserId}", type, userId);
+            return; // when unsure, don't add a possible duplicate
+        }
+
+        await LogActivityAsync(userId, type, description, listingId);
+    }
+
+    // Listing view operations
+
+    /// <summary>
+    /// Counts a view unless this visitor already counted for this listing today.
+    /// The unique index is the referee, so two simultaneous requests can't both count.
+    /// </summary>
+    /// <returns>True when the view was new and the total went up.</returns>
+    public async Task<bool> RecordListingViewAsync(string listingId, string visitorKey)
+    {
+        try
+        {
+            await _listingViewMarksCollection.InsertOneAsync(new ListingViewMark
+            {
+                ListingId = listingId,
+                Visitor = visitorKey,
+                CreatedAt = DateTime.UtcNow
+            });
+        }
+        catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            return false;
+        }
+
+        await _listingViewCountsCollection.UpdateOneAsync(
+            Builders<ListingViewCount>.Filter.Eq(c => c.ListingId, listingId),
+            Builders<ListingViewCount>.Update.Inc(c => c.Count, 1L),
+            new UpdateOptions { IsUpsert = true });
+        return true;
+    }
+
+    public async Task<Dictionary<string, long>> GetListingViewCountsAsync()
+    {
+        var counts = await _listingViewCountsCollection.Find(Builders<ListingViewCount>.Filter.Empty).ToListAsync();
+        return counts.ToDictionary(c => c.ListingId, c => c.Count);
+    }
+
+    /// <summary>How many customers have each listing favorited, keyed by listing id.</summary>
+    public async Task<Dictionary<string, int>> GetWatcherCountsAsync()
+    {
+        var groups = await _favoritesCollection.Aggregate()
+            .Group(f => f.ListingId, g => new { ListingId = g.Key, Count = g.Count() })
+            .ToListAsync();
+        return groups.ToDictionary(g => g.ListingId, g => g.Count);
     }
 
     public async Task<List<User>> GetUsersByIdsAsync(IEnumerable<string> ids)
@@ -3185,6 +3306,74 @@ public class MongoDbService
             Builders<StoreCredit>.Filter.Gte(s => s.Balance, amount));
         var result = await _storeCreditsCollection.UpdateOneAsync(filter, update);
         return result.ModifiedCount > 0;
+    }
+
+    // ==================== DISCOUNT CODES ====================
+
+    /// <summary>Looks a code up by its normalized (trimmed, upper case) string.</summary>
+    public async Task<DiscountCode?> GetDiscountCodeAsync(string normalizedCode)
+    {
+        if (string.IsNullOrEmpty(normalizedCode)) return null;
+        return await _discountCodesCollection.Find(c => c.Code == normalizedCode).FirstOrDefaultAsync();
+    }
+
+    public async Task<List<DiscountCode>> GetDiscountCodesAsync()
+    {
+        return await _discountCodesCollection.Find(_ => true)
+            .SortByDescending(c => c.CreatedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>False when a code with the same string already exists.</summary>
+    public async Task<bool> TryCreateDiscountCodeAsync(DiscountCode code)
+    {
+        try
+        {
+            await _discountCodesCollection.InsertOneAsync(code);
+            return true;
+        }
+        catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            return false;
+        }
+    }
+
+    public async Task<bool> SetDiscountCodeActiveAsync(string id, bool active)
+    {
+        var result = await _discountCodesCollection.UpdateOneAsync(
+            c => c.Id == id, Builders<DiscountCode>.Update.Set(c => c.Active, active));
+        return result.MatchedCount > 0;
+    }
+
+    public async Task<long> CountDiscountRedemptionsByUserAsync(string normalizedCode, string userId)
+    {
+        return await _discountRedemptionsCollection.CountDocumentsAsync(
+            r => r.Code == normalizedCode && r.UserId == userId);
+    }
+
+    /// <summary>
+    /// Records that an order used a code and bumps the code's use count. Safe to call
+    /// twice for the same order: the second call is a no-op.
+    /// </summary>
+    public async Task RecordDiscountRedemptionAsync(string normalizedCode, string userId, string orderId, decimal amount)
+    {
+        try
+        {
+            await _discountRedemptionsCollection.InsertOneAsync(new DiscountRedemption
+            {
+                Code = normalizedCode,
+                UserId = userId,
+                OrderId = orderId,
+                Amount = amount
+            });
+        }
+        catch (MongoWriteException ex) when (ex.WriteError?.Category == ServerErrorCategory.DuplicateKey)
+        {
+            return;
+        }
+
+        await _discountCodesCollection.UpdateOneAsync(
+            c => c.Code == normalizedCode, Builders<DiscountCode>.Update.Inc(c => c.UsedCount, 1));
     }
 
     // ==================== SCHEDULED JOB RUNS ====================

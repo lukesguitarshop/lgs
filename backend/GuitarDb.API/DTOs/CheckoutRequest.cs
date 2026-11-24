@@ -12,6 +12,18 @@ public class CheckoutRequest
 
     [JsonPropertyName("applyStoreCredit")]
     public bool ApplyStoreCredit { get; set; } = false;
+
+    [JsonPropertyName("discountCode")]
+    public string? DiscountCode { get; set; }
+}
+
+public class DiscountQuoteRequest
+{
+    [JsonPropertyName("code")]
+    public string? Code { get; set; }
+
+    [JsonPropertyName("items")]
+    public List<CartItem> Items { get; set; } = new();
 }
 
 public class ShippingAddress
