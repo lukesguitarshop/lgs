@@ -10,7 +10,7 @@ import { useToast } from '@/components/ui/toast';
 import { ImageLightbox } from '@/components/ImageLightbox';
 import {
   getAdminTradeIn, adminCreateTradeInOffer, adminUploadTradeInLabel,
-  adminResendTradeInLabelEmail, adminMarkTradeInReceived,adminMarkTradeInInspected, adminCompleteTradeIn,
+  adminResendTradeInLabelEmail, adminRemoveTradeInLabel, adminMarkTradeInReceived,adminMarkTradeInInspected, adminCompleteTradeIn,
   adminMarkTradeInPaid, adminCancelTradeIn, adminRejectTradeIn,
 } from '@/lib/api';
 import type { AdminTradeInDetail } from '@/lib/types/trade-in';
@@ -236,6 +236,19 @@ export default function AdminTradeInDetail({ params }: { params: Promise<{ id: s
                   className="ml-3 inline-flex items-center text-[#6E0114] underline disabled:opacity-50"
                 >
                   <Mail className="h-3 w-3 mr-1" />Email label link to customer
+                </button>
+              )}
+              {data.status === 'accepted' && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => {
+                    if (!window.confirm('Remove this label? The customer loses the download until you upload a new one.')) return;
+                    wrap(async () => { await adminRemoveTradeInLabel(id); showToast('Label removed — upload the new one', 'success'); });
+                  }}
+                  className="ml-3 inline-flex items-center text-[#6E0114] underline disabled:opacity-50"
+                >
+                  <X className="h-3 w-3 mr-1" />Remove label
                 </button>
               )}
             </p>

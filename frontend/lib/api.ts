@@ -483,6 +483,10 @@ export async function adminUploadTradeInLabel(id: string, file: File): Promise<{
   return response.json();
 }
 
+export async function adminRemoveTradeInLabel(id: string): Promise<void> {
+  await api.authDelete(`/admin/trade-ins/${id}/label`);
+}
+
 export async function adminResendTradeInLabelEmail(id: string): Promise<{ sentTo: string }> {
   return api.authPost<{ sentTo: string }>(`/admin/trade-ins/${id}/label-email`);
 }

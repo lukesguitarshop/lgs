@@ -158,7 +158,9 @@ public class AdminTradeInsController : ControllerBase
         if (label.ContentType != "application/pdf") return BadRequest(new { error = "Label must be a PDF" });
         if (label.Length > 10 * 1024 * 1024) return BadRequest(new { error = "Label must be under 10MB" });
 
-        var key = $"trade-ins/{req.Id}/label.pdf";
+        // A fresh key per upload, so a replaced label never serves the old PDF from a cache.
+        await _fileStorage.DeletePrefixAsync(LabelPrefix(req));
+        var key = $"{LabelPrefix(req)}-{DateTime.UtcNow.Ticks}.pdf";
         using var labelStream = label.OpenReadStream();
         var labelUrl = await _fileStorage.UploadAsync(key, labelStream, label.ContentType);
 
@@ -168,6 +170,25 @@ public class AdminTradeInsController : ControllerBase
 
         _ = _emailService.SendTradeInLabelReadyAsync(req.Email, req.Id!, req.Brand, req.Model);
         return Ok(new { labelUrl = req.Shipping.LabelUrl });
+    }
+
+    /// <summary>Covers both the old fixed "label.pdf" key and the per-upload "label-{ticks}.pdf" keys.</summary>
+    private static string LabelPrefix(TradeInRequest req) => $"trade-ins/{req.Id}/label";
+
+    /// <summary>Takes the label down so a corrected one can be uploaded. Only before the guitar arrives.</summary>
+    [HttpDelete("{id}/label")]
+    public async Task<IActionResult> RemoveLabel(string id)
+    {
+        var req = await _mongoDbService.GetTradeInRequestByIdAsync(id);
+        if (req == null) return NotFound(new { error = "Not found" });
+        if (!TradeInRules.CanUploadLabel(req)) return Refuse("remove the label for", req);
+        if (req.Shipping.LabelUrl == null) return BadRequest(new { error = "No label has been uploaded yet" });
+
+        req.Shipping.LabelUrl = null;
+        req.Shipping.LabelUploadedAt = null;
+        await _mongoDbService.UpdateTradeInRequestAsync(req);
+        await _fileStorage.DeletePrefixAsync(LabelPrefix(req));
+        return Ok(new { id = req.Id });
     }
 
     /// <summary>Sends the "label is ready" email again, e.g. for a label uploaded before that email existed.</summary>
