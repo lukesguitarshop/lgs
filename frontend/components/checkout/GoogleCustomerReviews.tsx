@@ -7,11 +7,10 @@ import { useEffect } from 'react';
  * Google asks the buyer whether it may email them a short survey once the guitar has
  * arrived; the answers become the seller star rating shown on the shop's listings.
  *
- * OFF until the Google Customer Reviews agreement is signed in Merchant Center
- * (Reviews > Google Customer Reviews > Sign agreement). Flip ENABLED to true once it
- * is; before that the program is not active and there is nothing for this to show.
+ * The Google Customer Reviews agreement was signed in Merchant Center on 2026-11-23.
+ * Set ENABLED to false to stop offering the survey without removing the code.
  */
-const ENABLED = false;
+const ENABLED = true;
 
 const MERCHANT_ID = 5728946069;
 /**
