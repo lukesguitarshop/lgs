@@ -1640,6 +1640,19 @@ public class MongoDbService
         return result.ModifiedCount;
     }
 
+    /// <summary>Unread messages addressed to the user, counted per conversation in one query.</summary>
+    public async Task<Dictionary<string, int>> GetUnreadCountsByConversationAsync(string userId)
+    {
+        var filter = Builders<Message>.Filter.And(
+            Builders<Message>.Filter.Eq(m => m.RecipientId, userId),
+            Builders<Message>.Filter.Eq(m => m.IsRead, false)
+        );
+        var conversationIds = await _messagesCollection.Find(filter)
+            .Project(m => m.ConversationId)
+            .ToListAsync();
+        return conversationIds.GroupBy(id => id).ToDictionary(g => g.Key, g => g.Count());
+    }
+
     public async Task<long> GetUnreadMessageCountAsync(string userId)
     {
         var filter = Builders<Message>.Filter.And(

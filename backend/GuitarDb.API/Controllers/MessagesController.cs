@@ -43,22 +43,32 @@ public class MessagesController : ControllerBase
 
         var conversations = await _mongoDbService.GetConversationsByUserAsync(userId);
 
+        // Three queries for the whole inbox rather than three per conversation: this endpoint
+        // is polled by the inbox, the chat page, the admin shell and the notification bell.
+        var otherUserIds = conversations
+            .Select(c => c.ParticipantIds.FirstOrDefault(p => p != userId))
+            .Where(id => id != null).Select(id => id!).Distinct().ToList();
+        var listingIds = conversations
+            .Where(c => c.ListingId != null).Select(c => c.ListingId!).Distinct().ToList();
+
+        var usersTask = _mongoDbService.GetUsersByIdsAsync(otherUserIds);
+        var listingsTask = listingIds.Count > 0
+            ? _mongoDbService.GetListingsByIdsAsync(listingIds)
+            : Task.FromResult(new List<MyListing>());
+        var unreadTask = _mongoDbService.GetUnreadCountsByConversationAsync(userId);
+        await Task.WhenAll(usersTask, listingsTask, unreadTask);
+
+        var users = usersTask.Result.ToDictionary(u => u.Id!);
+        var listings = listingsTask.Result.ToDictionary(l => l.Id!);
+        var unreadCounts = unreadTask.Result;
+
         var result = new List<ConversationDto>();
         foreach (var conv in conversations)
         {
             var otherUserId = conv.ParticipantIds.FirstOrDefault(p => p != userId);
-            var otherUser = otherUserId != null
-                ? await _mongoDbService.GetUserByIdAsync(otherUserId)
-                : null;
-
-            MyListing? listing = null;
-            if (conv.ListingId != null)
-            {
-                listing = await _mongoDbService.GetMyListingByIdAsync(conv.ListingId);
-            }
-
-            // Get unread count for this conversation
-            var unreadCount = await GetUnreadCountForConversation(conv.Id!, userId);
+            var otherUser = otherUserId != null ? users.GetValueOrDefault(otherUserId) : null;
+            var listing = conv.ListingId != null ? listings.GetValueOrDefault(conv.ListingId) : null;
+            var unreadCount = unreadCounts.GetValueOrDefault(conv.Id!);
 
             result.Add(new ConversationDto
             {
@@ -928,11 +938,6 @@ public class MessagesController : ControllerBase
         return User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     }
 
-    private async Task<int> GetUnreadCountForConversation(string conversationId, string userId)
-    {
-        var messages = await _mongoDbService.GetMessagesByConversationAsync(conversationId, 100);
-        return messages.Count(m => m.RecipientId == userId && !m.IsRead);
-    }
 }
 
 public class SendMessageRequest
