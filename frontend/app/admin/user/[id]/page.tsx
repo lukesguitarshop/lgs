@@ -32,8 +32,10 @@ import {
   Activity,
   LogIn,
   Star,
+  MessageSquare,
 } from 'lucide-react';
 import { ActivityIcon } from '@/components/admin/activity-events';
+import { NewMessageModal } from '@/components/admin/NewMessageModal';
 
 interface UserDetail {
   id: string;
@@ -111,6 +113,7 @@ export default function AdminUserDetailPage() {
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [impersonating, setImpersonating] = useState(false);
+  const [showMessageModal, setShowMessageModal] = useState(false);
   // Review request: an optional note from Luke, plus the result banner.
   const [reviewNote, setReviewNote] = useState('');
   const [requestingReview, setRequestingReview] = useState(false);
@@ -690,6 +693,15 @@ export default function AdminUserDetailPage() {
                   <p className="text-xs text-red-600 mt-1 max-w-[16rem] text-right">{impersonateError}</p>
                 )}
               </div>
+              <Button
+                onClick={() => setShowMessageModal(true)}
+                variant="outline"
+                disabled={currentUser?.id === user.id}
+                title={currentUser?.id === user.id ? 'This is your own account' : undefined}
+              >
+                <MessageSquare className="h-4 w-4 mr-2" />
+                Message User
+              </Button>
               <Button onClick={() => setEditing(true)} className="bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]">
                 <Pencil className="h-4 w-4 mr-2" />
                 Edit User
@@ -709,6 +721,12 @@ export default function AdminUserDetailPage() {
           )}
         </div>
       </div>
+
+      <NewMessageModal
+        isOpen={showMessageModal}
+        onClose={() => setShowMessageModal(false)}
+        recipient={{ id: user.id, fullName: user.fullName, email: user.email }}
+      />
 
       {/* Ask for a review: sends an in-app message and an email in one go. */}
       <div className="mb-6 bg-[#FFFFF3] rounded-lg border border-gray-200 p-6">

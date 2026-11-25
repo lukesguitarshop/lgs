@@ -32,7 +32,14 @@ interface NewMessageModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConversationCreated?: () => void;
+  /**
+   * Message this person directly: the "pick a user" step is skipped. Used by the
+   * user page, where the admin has already chosen who to write to.
+   */
+  recipient?: MessageRecipient;
 }
+
+type MessageRecipient = Pick<AdminUser, 'id' | 'fullName' | 'email'>;
 
 interface MessageResponse {
   id: string;
@@ -59,14 +66,17 @@ export function NewMessageModal({
   isOpen,
   onClose,
   onConversationCreated,
+  recipient,
 }: NewMessageModalProps) {
   const router = useRouter();
-  const [step, setStep] = useState<'select' | 'listing' | 'compose'>('select');
+  const firstStep = recipient ? 'listing' : 'select';
+  const [step, setStep] = useState<'select' | 'listing' | 'compose'>(firstStep);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchInput, setSearchInput] = useState('');
-  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [pickedUser, setSelectedUser] = useState<MessageRecipient | null>(null);
+  const selectedUser = recipient ?? pickedUser;
   const [messageText, setMessageText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -152,7 +162,7 @@ export function NewMessageModal({
     if (step === 'compose') {
       setStep('listing');
       setMessageText('');
-    } else if (step === 'listing') {
+    } else if (step === 'listing' && !recipient) {
       setStep('select');
       setSelectedListing(null);
       setListingSearchInput('');
@@ -207,7 +217,7 @@ export function NewMessageModal({
   };
 
   const handleClose = () => {
-    setStep('select');
+    setStep(firstStep);
     setSelectedUser(null);
     setSelectedListing(null);
     setMessageText('');
@@ -468,8 +478,8 @@ export function NewMessageModal({
             </div>
 
             <div className="flex justify-between">
-              <Button variant="outline" onClick={handleBack}>
-                Back
+              <Button variant="outline" onClick={recipient ? handleClose : handleBack}>
+                {recipient ? 'Cancel' : 'Back'}
               </Button>
               <Button variant="outline" onClick={() => handleSelectListing(null)}>
                 Skip
