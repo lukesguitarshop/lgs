@@ -146,7 +146,7 @@ http://localhost:5000/swagger # API docs
 |------|-------------|---------|
 | **Frontend** | Production | `git push origin master` (auto-deploys via Vercel) |
 | **Frontend** | Development | `git push origin master:dev` (auto-deploys via Vercel) |
-| **Backend** | Production | `cd backend/GuitarDb.API && fly deploy` |
+| **Backend** | Production | `git push origin master` (GitHub Actions runs `fly deploy` when `backend/GuitarDb.API/` changes), or by hand: `cd backend/GuitarDb.API && fly deploy` |
 | **Backend** | Development | `cd backend/GuitarDb.API && fly deploy --app guitar-price-api-dev` |
 | **Scraper** | Production | Runs automatically every 6 hours (GitHub Actions) |
 

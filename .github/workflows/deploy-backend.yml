@@ -1,0 +1,27 @@
+name: Deploy backend
+
+# Deploys the production API to Fly.io when backend code lands on master.
+# Needs a repository secret named FLY_API_TOKEN (a Fly deploy token for guitar-price-api).
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'backend/GuitarDb.API/**'
+  workflow_dispatch:
+
+# One deploy at a time; a newer push waits for the running deploy rather than cancelling it.
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+      - name: Deploy to Fly.io
+        working-directory: backend/GuitarDb.API
+        run: flyctl deploy --remote-only
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
