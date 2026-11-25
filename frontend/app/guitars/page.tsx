@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import {
   getActiveListings,
+  getSoldCount,
   getSoldListings,
   groupByBrand,
   isIndexableBrand,
@@ -25,7 +26,11 @@ export const metadata = {
  * photos come from the live catalogue.
  */
 export default async function BrandsPage() {
-  const [active, sold] = await Promise.all([getActiveListings(), getSoldListings()]);
+  const [active, sold, totalSold] = await Promise.all([
+    getActiveListings(),
+    getSoldListings(),
+    getSoldCount(),
+  ]);
   const brands = summarizeBrands(active, sold).filter(isIndexableBrand);
   const activeByBrand = groupByBrand(active);
   const soldByBrand = groupByBrand(sold);
@@ -54,8 +59,6 @@ export default async function BrandsPage() {
         null,
     }));
   const mostSold = Math.max(1, ...ledger.map((summary) => summary.sold));
-  // Every guitar sold, including makers too small to have a page of their own.
-  const totalSold = sold.length;
   // One print per stocked maker, so the hero shows the range rather than three of a kind.
   const prints = stocked.filter((summary) => summary.cover).slice(0, 3);
   const totalInStock = stocked.reduce((sum, summary) => sum + summary.inStock, 0);

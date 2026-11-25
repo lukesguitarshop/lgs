@@ -65,6 +65,14 @@ export async function getSoldListings(): Promise<CatalogListing[]> {
   return (await fetchList('/listings/sold')).filter(isInstrument);
 }
 
+/**
+ * Everything in the sold archive, accessories included. This is the figure the home
+ * page, the sold page and the menu show, so the shop quotes one sold count everywhere.
+ */
+export async function getSoldCount(): Promise<number> {
+  return (await fetchList('/listings/sold')).length;
+}
+
 export interface BrandSummary {
   brand: string;
   inStock: number;
