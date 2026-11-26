@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 import { CopyButton } from '@/components/ui/copy-button';
 import { Tabs, TabsContent } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList, DollarSign, Zap } from 'lucide-react';
+import { ArrowLeft, Loader2, Play, CheckCircle, XCircle, ShieldX, ToggleLeft, ToggleRight, Pencil, Check, X, Tag, Filter, MessageSquare, Send, Circle, ExternalLink, Receipt, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Search, Copy, Trash2, Download, FileSpreadsheet, Bookmark, ClipboardList, DollarSign, Zap, Plus } from 'lucide-react';
 import JSZip from 'jszip';
 import * as XLSX from 'xlsx';
 import { UsersTab } from '@/components/admin/UsersTab';
@@ -32,6 +32,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/toast';
 import { setAdminTab, useAdminTab } from '@/lib/admin-nav';
 import { ReservationDialog } from '@/components/admin/ReservationDialog';
+import { NewListingDialog } from '@/components/admin/NewListingDialog';
 import { buildBulkUploadCsv } from '@/lib/sweetwater/bulk-upload';
 import { deriveRow } from '@/lib/sweetwater/derive';
 import { LISTING_DEFAULTS, buildListingCsv, deriveListingRow } from '@/lib/ebay/listing';
@@ -225,6 +226,7 @@ export default function AdminPage() {
   const activeTab = useAdminTab('operations');
   const [showNewMessageModal, setShowNewMessageModal] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [newListingOpen, setNewListingOpen] = useState(false);
   const [showDisabledListings, setShowDisabledListings] = useState(false);
   // Featured-guitar picker: search text, and the id currently being written.
   const [featuredSearch, setFeaturedSearch] = useState('');
@@ -1263,14 +1265,20 @@ export default function AdminPage() {
                 <h2 className="text-xl font-semibold text-[#020E1C]">Manage Listings</h2>
                 <p className="text-gray-600 text-sm mt-1">Enable or disable listings manually</p>
               </div>
-              <Button
-                onClick={fetchListings}
-                disabled={loadingListings}
-                variant="outline"
-                className="text-sm"
-              >
-                {loadingListings ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button onClick={() => setNewListingOpen(true)} className="text-sm">
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  New listing
+                </Button>
+                <Button
+                  onClick={fetchListings}
+                  disabled={loadingListings}
+                  variant="outline"
+                  className="text-sm"
+                >
+                  {loadingListings ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Refresh'}
+                </Button>
+              </div>
             </div>
             {loadingListings && listings.length === 0 ? (
               <div className="flex justify-center py-8">
@@ -2418,6 +2426,27 @@ export default function AdminPage() {
         onClose={() => setReservingListing(null)}
         onSaved={handleReservationCreated}
         listing={reservingListing}
+      />
+
+      <NewListingDialog
+        isOpen={newListingOpen}
+        onClose={() => setNewListingOpen(false)}
+        onCreated={(created) => {
+          setListings(prev => [
+            {
+              ...created,
+              reservation_id: null,
+              reservation_type: null,
+              reservation_type_label: null,
+              reservation_status: null,
+              reservation_user_name: null,
+              reservation_unassigned: false,
+            },
+            ...prev,
+          ]);
+          setNewListingOpen(false);
+          showToast(`${created.listing_title} is live on the shop`, 'success');
+        }}
       />
     </div>
   );

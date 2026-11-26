@@ -438,6 +438,16 @@ public class MongoDbService
         return listing;
     }
 
+    /// <summary>
+    /// Inserts a listing made by hand in admin. Unlike <see cref="CreateMyListingAsync"/>
+    /// it keeps the caller's Id, because the photos were already stored under it.
+    /// </summary>
+    public async Task<MyListing> CreateManualListingAsync(MyListing listing)
+    {
+        await _myListingsCollection.InsertOneAsync(listing);
+        return listing;
+    }
+
     public async Task<List<MyListing>> GetAllMyListingsAsync()
     {
         var filter = Builders<MyListing>.Filter.Ne(l => l.Disabled, true);

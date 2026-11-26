@@ -405,6 +405,47 @@ export async function impersonateUser(id: string): Promise<ImpersonateResponse> 
   return api.authPost<ImpersonateResponse>(`/admin/users/${id}/impersonate`);
 }
 
+// Manual listings
+export interface CreatedAdminListing {
+  id: string;
+  listing_title: string;
+  description: string | null;
+  condition: string;
+  images: string[];
+  price: number;
+  currency: string;
+  disabled: boolean;
+  featured: boolean;
+  view_count: number;
+  watcher_count: number;
+  is_reserved: boolean;
+}
+
+/** Creates a listing by hand (one that isn't on Reverb). Photos ride along as multipart. */
+export async function createAdminListing(formData: FormData): Promise<CreatedAdminListing> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) headers.Authorization = `Bearer ${token}`;
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}/admin/listings`, {
+      method: 'POST',
+      body: formData,
+      headers,
+    });
+  } catch {
+    throw new ApiError("Couldn't reach the server. Nothing was created, so check your connection and try again.");
+  }
+  if (!response.ok) {
+    const errBody = await response.json().catch(() => ({}));
+    const fallback = response.status === 413
+      ? 'Those photos are too large to upload. Remove a few and try again.'
+      : 'The listing was not created. Please try again.';
+    throw new ApiError(errBody.error || fallback, response.status);
+  }
+  return response.json();
+}
+
 // Trade-in API
 import type { TradeInRequestDto, TradeInAddress, AdminTradeInListItem, AdminTradeInDetail } from './types/trade-in';
 import type { StoreCreditDto } from './types/store-credit';
