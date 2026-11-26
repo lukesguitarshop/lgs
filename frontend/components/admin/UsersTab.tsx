@@ -15,12 +15,14 @@ import {
   ShieldCheck,
   Mail,
   UserX,
+  UserPlus,
   LogIn,
 } from 'lucide-react';
 import { getAdminUsers, deleteAdminUser } from '@/lib/api';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
 import type { AdminUser } from '@/lib/types/admin-user';
 import { DeleteConfirmDialog } from './DeleteConfirmDialog';
+import { UserCreateModal } from './UserCreateModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { openImpersonationTab, impersonationErrorMessage } from '@/lib/impersonation';
 
@@ -41,6 +43,7 @@ export function UsersTab() {
 
   // Modal state
   const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+  const [creatingUser, setCreatingUser] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
@@ -287,6 +290,14 @@ export function UsersTab() {
             Manage all users in the system
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2">
+        <Button
+          onClick={() => setCreatingUser(true)}
+          className="text-sm bg-[#6E0114] hover:bg-[#580110] text-[#FFFFF3]"
+        >
+          <UserPlus className="h-4 w-4" />
+          <span className="ml-2">New User</span>
+        </Button>
         <Button
           onClick={() => fetchUsers()}
           disabled={loading}
@@ -300,6 +311,7 @@ export function UsersTab() {
           )}
           <span className="ml-2">Refresh</span>
         </Button>
+        </div>
       </div>
 
       {/* Fetch Error Message */}
@@ -473,6 +485,12 @@ export function UsersTab() {
       )}
 
       {/* Delete Confirmation Dialog */}
+      <UserCreateModal
+        isOpen={creatingUser}
+        onClose={() => setCreatingUser(false)}
+        onCreated={() => fetchUsers(1)}
+      />
+
       <DeleteConfirmDialog
         isOpen={deletingUser !== null}
         onClose={() => setDeletingUser(null)}

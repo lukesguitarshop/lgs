@@ -29,6 +29,15 @@ export interface PaginatedUsers {
   totalPages: number;
 }
 
+export type NewUserAccountType = 'customer' | 'seller';
+
+export interface CreateUserRequest {
+  fullName: string;
+  email: string;
+  password: string;
+  accountType: NewUserAccountType;
+}
+
 export interface UpdateUserRequest {
   email?: string;
   fullName?: string;

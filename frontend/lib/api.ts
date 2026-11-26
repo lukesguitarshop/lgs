@@ -354,7 +354,11 @@ export async function getSweetwaterDealFinderStatus(): Promise<DealFinderStatus>
 }
 
 // User Management API
-import type { AdminUser, PaginatedUsers, UpdateUserRequest } from './types/admin-user';
+import type { AdminUser, CreateUserRequest, PaginatedUsers, UpdateUserRequest } from './types/admin-user';
+
+export async function createAdminUser(data: CreateUserRequest): Promise<AdminUser> {
+  return api.authPost<AdminUser>('/admin/users', data);
+}
 
 export async function getAdminUsers(
   search?: string,

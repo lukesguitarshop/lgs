@@ -2081,6 +2081,91 @@ public class AdminController : ControllerBase
     }
 
     /// <summary>
+    /// Create an account on someone's behalf (admin only). The admin chooses the password
+    /// and passes it on; the address is trusted, so no verification email is sent.
+    /// </summary>
+    [HttpPost("users")]
+    public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request)
+    {
+        var fullName = request.FullName?.Trim() ?? string.Empty;
+        var email = request.Email?.Trim().ToLowerInvariant() ?? string.Empty;
+        var password = request.Password ?? string.Empty;
+        var accountType = string.IsNullOrWhiteSpace(request.AccountType)
+            ? "customer"
+            : request.AccountType.Trim().ToLowerInvariant();
+
+        if (fullName.Length == 0 || email.Length == 0)
+        {
+            return BadRequest(new { error = "Name and email are required" });
+        }
+
+        if (fullName.Length > 40)
+        {
+            return BadRequest(new { error = "Full name must be 40 characters or less" });
+        }
+
+        if (!System.Net.Mail.MailAddress.TryCreate(email, out var parsed) || parsed.Address != email)
+        {
+            return BadRequest(new { error = "Enter a valid email address" });
+        }
+
+        if (password.Length < 8)
+        {
+            return BadRequest(new { error = "Password must be at least 8 characters" });
+        }
+
+        // Admin rights are deliberately not grantable here; that stays an explicit edit.
+        if (accountType != "customer" && accountType != "seller")
+        {
+            return BadRequest(new { error = "Account type must be customer or seller" });
+        }
+
+        if (await _mongoDbService.GetUserByEmailAsync(email) != null)
+        {
+            return BadRequest(new { error = "Email is already in use by another user" });
+        }
+
+        var user = new Models.User
+        {
+            Email = email,
+            PasswordHash = _authService.HashPassword(password),
+            FullName = fullName,
+            IsGuest = false,
+            EmailVerified = true,
+            IsSeller = accountType == "seller"
+        };
+
+        await _mongoDbService.CreateUserAsync(user);
+
+        // Same as self-registration: earlier guest orders under this email follow the account.
+        await _mongoDbService.LinkGuestOrdersByEmailToUserAsync(email, user.Id!);
+        await _mongoDbService.LogActivityAsync(user.Id!, "registered", "Account created by the shop");
+
+        _logger.LogInformation("Admin created user {UserId} as {AccountType}", user.Id, accountType);
+
+        return Ok(new AdminUserDto
+        {
+            Id = user.Id!,
+            Email = user.Email,
+            FullName = user.FullName,
+            CreatedAt = user.CreatedAt,
+            IsGuest = user.IsGuest,
+            IsAdmin = user.IsAdmin,
+            IsSeller = user.IsSeller,
+            EmailVerified = user.EmailVerified
+        });
+    }
+
+    public class CreateUserRequest
+    {
+        public string? Email { get; set; }
+        public string? FullName { get; set; }
+        public string? Password { get; set; }
+        /// <summary>"customer" (default) or "seller".</summary>
+        public string? AccountType { get; set; }
+    }
+
+    /// <summary>
     /// Update a user's details (admin only)
     /// </summary>
     [HttpPut("users/{id}")]
