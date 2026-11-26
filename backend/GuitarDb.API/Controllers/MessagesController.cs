@@ -124,8 +124,23 @@ public class MessagesController : ControllerBase
         // Return in chronological order (oldest first)
         messages.Reverse();
 
+        // A guest seller can reply in threads about their own guitars without being a
+        // participant. The customer sees those as coming from the shop; the owner is told
+        // who actually wrote them.
+        var outsideSenderIds = messages
+            .Select(m => m.SenderId)
+            .Where(id => !conversation.ParticipantIds.Contains(id))
+            .Distinct()
+            .ToList();
+        var outsideSenders = new Dictionary<string, User>();
+        if (outsideSenderIds.Count > 0 && (await _mongoDbService.GetUserByIdAsync(userId))?.IsAdmin == true)
+        {
+            outsideSenders = (await _mongoDbService.GetUsersByIdsAsync(outsideSenderIds)).ToDictionary(u => u.Id!);
+        }
+
         var result = messages.Select(m => new MessageDto
         {
+            SenderLabel = outsideSenders.TryGetValue(m.SenderId, out var outside) ? $"Seller: {outside.FullName}" : null,
             Id = m.Id!,
             ConversationId = m.ConversationId,
             SenderId = m.SenderId,
@@ -233,6 +248,7 @@ public class MessagesController : ControllerBase
         if (!isAdminSender)
         {
             await LogMessageSentAsync(userId, listing, request.ListingId);
+            await NotifyGuestSellerAsync(listing, userId, sender?.FullName, preview, conversation.Id!);
         }
 
         return Ok(new MessageDto
@@ -375,6 +391,7 @@ public class MessagesController : ControllerBase
         if (!isAdminSender)
         {
             await LogMessageSentAsync(userId, listing, request.ListingId);
+            await NotifyGuestSellerAsync(listing, userId, sender?.FullName, preview, conversation.Id!);
         }
 
         return Ok(new MessageDto
@@ -976,6 +993,26 @@ public class MessagesController : ControllerBase
         return _mongoDbService.LogActivityAsync(userId, "message_sent", description, listingId);
     }
 
+    /// <summary>
+    /// A customer wrote about a guest seller's guitar: the shop owner is the recipient, but
+    /// the seller can answer it from their portal, so they hear about it too.
+    /// </summary>
+    private async Task NotifyGuestSellerAsync(MyListing? listing, string senderId, string? senderName, string preview, string conversationId)
+    {
+        if (string.IsNullOrEmpty(listing?.SellerId) || listing.SellerId == senderId) return;
+
+        var seller = await _mongoDbService.GetUserByIdAsync(listing.SellerId);
+        if (seller == null || !seller.IsSeller || string.IsNullOrEmpty(seller.Email)) return;
+
+        _ = _emailService.SendNewMessageNotificationAsync(
+            seller.Email,
+            senderName ?? "A customer",
+            preview,
+            listing.ListingTitle,
+            conversationId,
+            conversationPath: $"/seller/messages/{conversationId}");
+    }
+
     private string? GetUserId()
     {
         return User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -1030,6 +1067,8 @@ public class MessageDto
     public bool IsMine { get; set; }
     public string Type { get; set; } = "text";
     public decimal? OfferAmount { get; set; }
+    /// <summary>Set only for the owner, on a message a guest seller wrote in this thread.</summary>
+    public string? SenderLabel { get; set; }
 }
 
 public class ContactSellerRequest

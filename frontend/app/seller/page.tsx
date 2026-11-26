@@ -149,9 +149,8 @@ export default function SellerPage() {
   const ended = listings.filter((l) => l.disabled);
 
   return (
-    <div className="mx-auto max-w-3xl px-5 py-8 sm:px-4">
-      <p className="label-mono-sm mb-2 text-foreground/60">{user?.fullName}</p>
-      <h1 className="mb-2 font-heading text-[clamp(30px,8vw,34px)] leading-[0.95]">Seller portal</h1>
+    // The portal's bar carries the page title, so this starts straight at the content.
+    <div className="max-w-3xl">
       <p className="mb-6 text-foreground/70">
         Connect your Reverb account, then run the scraper to put your live Reverb guitars on the site.
       </p>

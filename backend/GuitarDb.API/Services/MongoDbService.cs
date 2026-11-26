@@ -1656,6 +1656,41 @@ public class MongoDbService
             .ToListAsync();
     }
 
+    /// <summary>Conversations about any of the given listings, newest activity first.</summary>
+    public async Task<List<Conversation>> GetConversationsByListingIdsAsync(IEnumerable<string> listingIds)
+    {
+        var ids = listingIds.ToList();
+        if (ids.Count == 0) return new List<Conversation>();
+
+        var filter = Builders<Conversation>.Filter.In(c => c.ListingId, ids);
+        return await _conversationsCollection.Find(filter)
+            .SortByDescending(c => c.LastMessageAt)
+            .ToListAsync();
+    }
+
+    public async Task MarkConversationReadBySellerAsync(string conversationId)
+    {
+        await _conversationsCollection.UpdateOneAsync(
+            Builders<Conversation>.Filter.Eq(c => c.Id, conversationId),
+            Builders<Conversation>.Update.Set(c => c.SellerLastReadAt, DateTime.UtcNow));
+    }
+
+    /// <summary>
+    /// Messages in a conversation the guest seller has not seen: anything written by someone
+    /// else since they last opened it.
+    /// </summary>
+    public async Task<int> CountUnreadForSellerAsync(Conversation conversation, string sellerId)
+    {
+        var filter = Builders<Message>.Filter.And(
+            Builders<Message>.Filter.Eq(m => m.ConversationId, conversation.Id),
+            Builders<Message>.Filter.Ne(m => m.SenderId, sellerId));
+        if (conversation.SellerLastReadAt.HasValue)
+        {
+            filter &= Builders<Message>.Filter.Gt(m => m.CreatedAt, conversation.SellerLastReadAt.Value);
+        }
+        return (int)await _messagesCollection.CountDocumentsAsync(filter);
+    }
+
     public async Task<Conversation?> GetConversationByParticipantsAsync(string userId1, string userId2, string? listingId = null)
     {
         var participantFilter = Builders<Conversation>.Filter.And(
@@ -1670,7 +1705,22 @@ public class MongoDbService
             return await _conversationsCollection.Find(combinedFilter).FirstOrDefaultAsync();
         }
 
-        return await _conversationsCollection.Find(participantFilter).FirstOrDefaultAsync();
+        // No listing given (a general message, or the owner writing to a customer). This
+        // has always reused whatever conversation the two already have. Prefer one that is
+        // not about a guitar, and never reuse one about a guest seller's guitar: that seller
+        // can read the thread, and this message was not meant for them.
+        var existing = await _conversationsCollection.Find(participantFilter).ToListAsync();
+        var general = existing.FirstOrDefault(c => c.ListingId == null);
+        if (general != null) return general;
+
+        var aboutListings = existing.Where(c => c.ListingId != null).ToList();
+        if (aboutListings.Count == 0) return null;
+
+        var sellerListingIds = (await GetListingsByIdsAsync(aboutListings.Select(c => c.ListingId!)))
+            .Where(l => !string.IsNullOrEmpty(l.SellerId))
+            .Select(l => l.Id!)
+            .ToHashSet();
+        return aboutListings.FirstOrDefault(c => !sellerListingIds.Contains(c.ListingId!));
     }
 
     public async Task<bool> UpdateConversationLastMessageAsync(string conversationId, string lastMessage)

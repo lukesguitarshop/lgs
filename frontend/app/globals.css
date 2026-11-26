@@ -280,6 +280,11 @@
   .viewer-admin .ship-marquee {
     display: none;
   }
+  /* A guest seller keeps it on the storefront, where they are a customer like any other,
+     but not above their portal. */
+  .viewer-seller .ship-marquee[data-seller-route] {
+    display: none;
+  }
   /* Admin shell. Its navigation exists in the markup of every admin route but only
      shows for the owner, where it replaces the storefront header and footer
      (.site-chrome): a bar across the top at every width (.admin-bar) and, from 1024px
@@ -292,24 +297,33 @@
   .admin-bar {
     display: none;
   }
-  .viewer-admin .site-chrome[data-admin-route] {
+  /* The seller portal (/seller) uses the same shell for a guest seller, keyed on
+     .viewer-seller. Each frame says whose it is, so the owner on a seller URL (or the
+     reverse) keeps the storefront chrome and gets the page's own "no access" message. */
+  .viewer-admin .site-chrome[data-admin-route],
+  .viewer-seller .site-chrome[data-seller-route] {
     display: none;
   }
-  .viewer-admin .admin-bar {
+  .viewer-admin .admin-frame[data-portal='admin'] .admin-bar,
+  .viewer-seller .admin-frame[data-portal='seller'] .admin-bar {
     display: flex;
   }
   /* Anchors and sticky offsets clear the admin bar rather than the storefront header. */
-  .viewer-admin .admin-frame {
+  .viewer-admin .admin-frame[data-portal='admin'],
+  .viewer-seller .admin-frame[data-portal='seller'] {
     --header-h: 56px;
   }
   @media (min-width: 1024px) {
-    .viewer-admin .admin-desk {
+    .viewer-admin .admin-frame[data-portal='admin'] .admin-desk,
+    .viewer-seller .admin-frame[data-portal='seller'] .admin-desk {
       display: flex;
     }
-    .viewer-admin .admin-frame {
+    .viewer-admin .admin-frame[data-portal='admin'],
+    .viewer-seller .admin-frame[data-portal='seller'] {
       --header-h: 60px;
     }
-    .viewer-admin .admin-main {
+    .viewer-admin .admin-frame[data-portal='admin'] .admin-main,
+    .viewer-seller .admin-frame[data-portal='seller'] .admin-main {
       max-width: none;
       padding: 28px 32px 48px;
     }

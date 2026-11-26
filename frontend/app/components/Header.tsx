@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { ShoppingCart, Menu, X, Shield, Search, ArrowRight } from 'lucide-react';
+import { ShoppingCart, Menu, X, Shield, Search, ArrowRight, Store } from 'lucide-react';
 import { getCartCount } from '@/lib/cart';
 import { ProfileButton, MobileProfileButton } from '@/components/auth/ProfileButton';
 import { useAuth } from '@/contexts/AuthContext';
@@ -86,7 +86,9 @@ export default function Header() {
   const [cartCount, setCartCount] = useState(0);
   const [pendingCount, setPendingCount] = useState(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isAdmin, isAuthenticated } = useAuth();
+  const { isAdmin, isSeller, isAuthenticated } = useAuth();
+  // The owner's own button wins if one account is somehow both.
+  const showSellerLink = isSeller && !isAdmin;
 
   // localStorage is read after mount only — reading it during render would make the
   // server and client markup disagree — and the same sync answers later cart updates.
@@ -213,6 +215,18 @@ export default function Header() {
     </Link>
   );
 
+  /** A guest seller gets the same slot for their portal. Their cart stays in the menu sheet. */
+  const mobileSellerLink = () => (
+    <Link
+      href="/seller"
+      aria-label="Seller portal"
+      className={cn(mobileCartBase, focusRing, 'border-primary bg-primary/8 text-primary')}
+    >
+      <Store className="h-[19px] w-[19px]" />
+      <span className="mt-0.5 font-mono text-[9px] leading-none tracking-[0.08em]">SELLER</span>
+    </Link>
+  );
+
   /**
    * The same control in the page bar and in the sheet's bar: opening the menu must not
    * reshape the cart under the thumb, so there is one definition of it, not two.
@@ -258,7 +272,7 @@ export default function Header() {
           </Link>
           <div />
           <div className="flex items-center gap-2">
-            {isAdmin ? mobileAdminLink() : mobileCartLink()}
+            {isAdmin ? mobileAdminLink() : showSellerLink ? mobileSellerLink() : mobileCartLink()}
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
@@ -303,7 +317,17 @@ export default function Header() {
             ))}
           </nav>
 
-          {!isAdmin && (
+          {showSellerLink && (
+            <Link
+              href="/seller"
+              className="btn-mono hidden min-h-[55px] items-center gap-[11px] bg-foreground px-[18px] py-[11px] text-[13.5px] text-background hover:bg-primary md:inline-flex cursor-pointer"
+            >
+              <Store className="h-5 w-5" />
+              Seller
+            </Link>
+          )}
+
+          {!isAdmin && !showSellerLink && (
             <Link
               href="/trade-in"
               className="btn-mono hidden min-h-[55px] border border-foreground/35 px-[19px] py-[11px] text-[13.5px] whitespace-nowrap text-foreground hover:border-primary hover:text-primary md:inline-flex cursor-pointer"

@@ -25,6 +25,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isGuest: boolean;
   isAdmin: boolean;
+  /** Guest seller: has the seller portal. Independent of isAdmin. */
+  isSeller: boolean;
   isLoading: boolean;
   impersonation: ImpersonationInfo | null;
   endImpersonation: () => void;
@@ -53,6 +55,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const isAuthenticated = !!user && !user.isGuest;
   const isGuest = !!user && user.isGuest;
   const isAdmin = !!user && !user.isGuest && user.isAdmin;
+  const isSeller = !!user && !user.isGuest && !!user.isSeller;
 
   // Initialize auth state from localStorage
   useEffect(() => {
@@ -160,6 +163,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isAuthenticated,
     isGuest,
     isAdmin,
+    isSeller,
     isLoading,
     impersonation,
     endImpersonation,

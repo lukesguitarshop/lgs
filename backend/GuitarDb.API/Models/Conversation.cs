@@ -54,4 +54,14 @@ public class Conversation
     [BsonElement("accepted_amount")]
     [BsonIgnoreIfNull]
     public decimal? AcceptedAmount { get; set; }
+
+    /// <summary>
+    /// When the guest seller whose guitar this is about last opened the thread. The seller is
+    /// not a participant, so the per-message is_read flag (which belongs to the recipient)
+    /// cannot track what they have seen.
+    /// </summary>
+    [BsonElement("seller_last_read_at")]
+    [BsonDateTimeOptions(Kind = DateTimeKind.Utc)]
+    [BsonIgnoreIfNull]
+    public DateTime? SellerLastReadAt { get; set; }
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { isAdminRoute } from '@/lib/admin-nav';
+import { isAdminRoute, isSellerRoute } from '@/lib/admin-nav';
 
 /**
  * Wraps the storefront header and footer. On admin routes the wrapper is marked so
@@ -12,7 +12,11 @@ import { isAdminRoute } from '@/lib/admin-nav';
 export default function SiteChrome({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   return (
-    <div className="site-chrome" data-admin-route={isAdminRoute(pathname) ? '' : undefined}>
+    <div
+      className="site-chrome"
+      data-admin-route={isAdminRoute(pathname) ? '' : undefined}
+      data-seller-route={isSellerRoute(pathname) ? '' : undefined}
+    >
       {children}
     </div>
   );

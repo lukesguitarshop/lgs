@@ -52,6 +52,8 @@ export interface AdminNavItem {
   /** Set when the destination is a sub-tab of `href` rather than the page itself. */
   section?: AdminSection;
   tab?: string;
+  /** Active only on `href` itself, for an item whose path is a prefix of its siblings'. */
+  exact?: boolean;
   /** Detail routes that belong under this item (path prefixes). */
   also?: string[];
   badge?: BadgeKey;
@@ -111,6 +113,22 @@ export const ADMIN_NAV: AdminNavGroup[] = [
   },
 ];
 
+/** The seller portal: what a guest seller gets in place of the back office. */
+export const SELLER_NAV: AdminNavGroup[] = [
+  {
+    label: 'Selling',
+    items: [
+      { id: 'seller-listings', label: 'Listings', icon: Package, href: '/seller', exact: true },
+      { id: 'seller-messages', label: 'Messages', icon: MessageSquare, href: '/seller/messages', badge: 'messages' },
+    ],
+  },
+];
+
+/** Routes that get the seller shell for a guest seller. */
+export function isSellerRoute(pathname: string): boolean {
+  return pathname === '/seller' || pathname.startsWith('/seller/');
+}
+
 const VALID_TABS: Record<AdminSection, string[]> = { operations: [], finances: [], tools: [] };
 for (const group of ADMIN_NAV) {
   for (const item of group.items) {
@@ -142,6 +160,7 @@ export function isNavItemActive(
 ): boolean {
   if (item.also?.some((prefix) => under(pathname, prefix))) return true;
   if (item.section) return pathname === item.href && tabs[item.section] === item.tab;
+  if (item.exact) return pathname === item.href;
   return under(pathname, item.href);
 }
 

@@ -27,6 +27,8 @@ interface Message {
   isMine: boolean;
   type: 'text' | 'offer' | 'accept' | 'decline' | 'expire' | 'counter';
   offerAmount?: number;
+  /** Owner only: set on a message a guest seller wrote in this thread, e.g. "Seller: Sam". */
+  senderLabel?: string | null;
 }
 
 interface Conversation {
@@ -346,7 +348,7 @@ function ConversationPageContent() {
         .map(m => {
           const images = m.imageUrls?.length ? `[${m.imageUrls.length} image(s)]` : '';
           const text = [m.messageText, images].filter(Boolean).join(' ');
-          return `${m.isMine ? 'Me' : 'Customer'}: "${text}"`;
+          return `${m.senderLabel ?? (m.isMine ? 'Me' : 'Customer')}: "${text}"`;
         })
         .join('\n');
       await navigator.clipboard.writeText(transcript);
@@ -949,16 +951,23 @@ function MessageBubble({ message, isMyTurn, isActiveOffer, wasCountered, pending
     );
   }
 
-  // Regular text message
+  // Regular text message. One a guest seller wrote sits on the shop's side of the thread,
+  // which is where the customer sees it, in its own colour and under the seller's name.
+  const fromSeller = !!message.senderLabel;
   return (
-    <div className={`flex ${message.isMine ? 'justify-end' : 'justify-start'}`}>
+    <div className={`flex ${message.isMine || fromSeller ? 'justify-end' : 'justify-start'}`}>
       <div
         className={`max-w-[80%] rounded-lg px-4 py-2 ${
           message.isMine
             ? 'bg-primary text-primary-foreground'
-            : 'bg-muted text-foreground border border-foreground/25'
+            : fromSeller
+              ? 'bg-blue-50 text-foreground border border-blue-300'
+              : 'bg-muted text-foreground border border-foreground/25'
         }`}
       >
+        {fromSeller && (
+          <p className="mb-1 text-xs font-semibold text-blue-800">{message.senderLabel}</p>
+        )}
         {/* Display images if present */}
         {message.imageUrls && message.imageUrls.length > 0 && (
           <div className={`grid gap-2 mb-2 ${message.imageUrls.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>

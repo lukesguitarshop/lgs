@@ -9,9 +9,11 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   ADMIN_NAV,
+  SELLER_NAV,
   isNavItemActive,
   setAdminTab,
   useAdminTabs,
+  type AdminNavGroup,
   type AdminNavItem,
   type BadgeKey,
 } from '@/lib/admin-nav';
@@ -30,12 +32,68 @@ import {
 
 type Badges = Record<BadgeKey, number>;
 
+/**
+ * Everything that differs between the owner's back office and a guest seller's portal.
+ * The frame, sidebar, drawer, bar and palette are the same components for both.
+ */
+interface Portal {
+  id: 'admin' | 'seller';
+  nav: AdminNavGroup[];
+  home: string;
+  onHome?: () => void;
+  /** Under the shop name in the sidebar. */
+  tagline: string;
+  /** Under the signed-in name. */
+  role: string;
+  menuLabel: string;
+  fallback: Location;
+  palettePlaceholder: string;
+  loadBadges: () => Promise<Badges>;
+}
+
+const ADMIN_PORTAL: Portal = {
+  id: 'admin',
+  nav: ADMIN_NAV,
+  home: '/admin',
+  onHome: () => setAdminTab('operations', 'listings'),
+  tagline: 'Back office',
+  role: 'Owner',
+  menuLabel: 'Admin',
+  fallback: { group: 'Admin', label: 'Back office' },
+  palettePlaceholder: 'Jump to orders, flip calculator, snippets…',
+  loadBadges: async () => {
+    const [conversations, offers] = await Promise.all([
+      api.authGet<{ unreadCount: number }[]>('/messages/conversations'),
+      api.authGet<{ offerStatus: string | null }[]>('/admin/conversation-offers'),
+    ]);
+    return {
+      messages: conversations.reduce((sum, c) => sum + c.unreadCount, 0),
+      offers: offers.filter((o) => o.offerStatus === 'active').length,
+    };
+  },
+};
+
+const SELLER_PORTAL: Portal = {
+  id: 'seller',
+  nav: SELLER_NAV,
+  home: '/seller',
+  tagline: 'Seller portal',
+  role: 'Seller',
+  menuLabel: 'Seller',
+  fallback: { group: 'Seller', label: 'Seller portal' },
+  palettePlaceholder: 'Jump to listings, messages…',
+  loadBadges: async () => {
+    const conversations = await api.authGet<{ unreadCount: number }[]>('/seller/conversations');
+    return { messages: conversations.reduce((sum, c) => sum + c.unreadCount, 0), offers: 0 };
+  },
+};
+
 const BADGE_STYLE: Record<BadgeKey, string> = {
   messages: 'bg-background text-foreground',
   offers: 'bg-amber-400 text-foreground',
 };
 
-function useBadges(enabled: boolean): Badges {
+function useBadges(enabled: boolean, portal: Portal): Badges {
   const [badges, setBadges] = useState<Badges>({ messages: 0, offers: 0 });
 
   useEffect(() => {
@@ -43,15 +101,9 @@ function useBadges(enabled: boolean): Badges {
     let cancelled = false;
     const load = async () => {
       try {
-        const [conversations, offers] = await Promise.all([
-          api.authGet<{ unreadCount: number }[]>('/messages/conversations'),
-          api.authGet<{ offerStatus: string | null }[]>('/admin/conversation-offers'),
-        ]);
+        const next = await portal.loadBadges();
         if (cancelled) return;
-        setBadges({
-          messages: conversations.reduce((sum, c) => sum + c.unreadCount, 0),
-          offers: offers.filter((o) => o.offerStatus === 'active').length,
-        });
+        setBadges(next);
       } catch {
         // Counts are a convenience; a failed poll leaves the last known ones.
       }
@@ -59,12 +111,15 @@ function useBadges(enabled: boolean): Badges {
     load();
     const interval = setInterval(load, 60000);
     window.addEventListener('focus', load);
+    // A page that just changed what is unread (a thread was opened) can ask for a recount.
+    window.addEventListener('portal-badges-stale', load);
     return () => {
       cancelled = true;
       clearInterval(interval);
       window.removeEventListener('focus', load);
+      window.removeEventListener('portal-badges-stale', load);
     };
-  }, [enabled]);
+  }, [enabled, portal]);
 
   return badges;
 }
@@ -78,28 +133,46 @@ interface Location {
   label: string;
 }
 
-function useLocation(): Location {
+function useLocation(portal: Portal): Location {
   const pathname = usePathname();
   const tabs = useAdminTabs();
-  for (const group of ADMIN_NAV) {
+  for (const group of portal.nav) {
     const item = group.items.find((i) => isNavItemActive(i, pathname, tabs));
     if (item) return { group: group.label, label: item.label };
   }
-  return { group: 'Admin', label: 'Back office' };
+  return portal.fallback;
 }
 
 export function AdminFrame({ children }: { children: React.ReactNode }) {
   const { isAdmin } = useAuth();
-  const badges = useBadges(isAdmin);
-  const location = useLocation();
+  return (
+    <PortalFrame portal={ADMIN_PORTAL} enabled={isAdmin}>
+      {children}
+    </PortalFrame>
+  );
+}
+
+/** The same shell around /seller routes, for a guest seller. */
+export function SellerFrame({ children }: { children: React.ReactNode }) {
+  const { isSeller } = useAuth();
+  return (
+    <PortalFrame portal={SELLER_PORTAL} enabled={isSeller}>
+      {children}
+    </PortalFrame>
+  );
+}
+
+function PortalFrame({ portal, enabled, children }: { portal: Portal; enabled: boolean; children: React.ReactNode }) {
+  const badges = useBadges(enabled, portal);
+  const location = useLocation(portal);
 
   return (
-    <div className="admin-frame flex flex-grow flex-col lg:flex-row">
+    <div className="admin-frame flex flex-grow flex-col lg:flex-row" data-portal={portal.id}>
       <aside className="admin-desk sticky top-0 h-screen w-[248px] shrink-0 flex-col bg-foreground text-background">
-        <AdminNav badges={badges} />
+        <AdminNav portal={portal} badges={badges} />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <AdminBar badges={badges} location={location} />
+        <AdminBar portal={portal} badges={badges} location={location} />
         <main className="admin-main flex-grow container mx-auto px-5 py-6 md:px-4 md:py-8">{children}</main>
       </div>
     </div>
@@ -112,11 +185,13 @@ export function AdminFrame({ children }: { children: React.ReactNode }) {
  * drawer close itself when a destination is picked.
  */
 function AdminNav({
+  portal,
   badges,
   touch = false,
   onNavigate,
   brandAction,
 }: {
+  portal: Portal;
   badges: Badges;
   touch?: boolean;
   onNavigate?: () => void;
@@ -126,7 +201,7 @@ function AdminNav({
   const tabs = useAdminTabs();
   const { user, logout } = useAuth();
 
-  const name = user?.fullName || user?.email || 'Admin';
+  const name = user?.fullName || user?.email || portal.role;
   const initials = name
     .split(/\s+/)
     .map((part) => part[0])
@@ -140,9 +215,9 @@ function AdminNav({
     <>
       <div className="flex items-start">
         <Link
-          href="/admin"
+          href={portal.home}
           onClick={() => {
-            setAdminTab('operations', 'listings');
+            portal.onHome?.();
             onNavigate?.();
           }}
           className="block min-w-0 flex-1 px-5 pb-5 pt-6"
@@ -152,17 +227,17 @@ function AdminNav({
           </span>
           <span className="mt-2 flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.2em] text-background/50">
             <span className="h-1.5 w-1.5 bg-primary ring-1 ring-background/30" />
-            Back office
+            {portal.tagline}
           </span>
         </Link>
         {brandAction}
       </div>
 
       <nav
-        aria-label="Admin"
+        aria-label={portal.menuLabel}
         className="flex-1 overflow-y-auto overscroll-contain px-3 pb-4 [scrollbar-color:rgb(255_255_243/0.18)_transparent] [scrollbar-width:thin]"
       >
-        {ADMIN_NAV.map((group) => (
+        {portal.nav.map((group) => (
           <div key={group.label} className="mt-[18px] first:mt-1">
             <p className="px-2 pb-1.5 font-mono text-[10px] uppercase tracking-[0.2em] text-background/40">
               {group.label}
@@ -223,7 +298,7 @@ function AdminNav({
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-medium leading-tight">{name}</span>
-            <span className="block font-mono text-[10px] uppercase tracking-[0.16em] text-background/45">Owner</span>
+            <span className="block font-mono text-[10px] uppercase tracking-[0.16em] text-background/45">{portal.role}</span>
           </span>
           <button
             type="button"
@@ -247,7 +322,7 @@ function AdminNav({
  * with the hamburger; from 1024px up the hamburger goes (the sidebar is always there),
  * the bar turns light and the jump-to palette appears.
  */
-function AdminBar({ badges, location }: { badges: Badges; location: Location }) {
+function AdminBar({ portal, badges, location }: { portal: Portal; badges: Badges; location: Location }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const waiting = badges.messages + badges.offers;
@@ -269,7 +344,11 @@ function AdminBar({ badges, location }: { badges: Badges; location: Location }) 
     <div className="admin-bar sticky top-0 z-40 h-14 items-center gap-1 bg-foreground pl-1.5 pr-4 text-background lg:h-[60px] lg:gap-6 lg:border-b lg:border-border lg:bg-background/95 lg:px-8 lg:text-foreground lg:backdrop-blur-sm">
       <DialogPrimitive.Root open={menuOpen} onOpenChange={setMenuOpen}>
         <DialogPrimitive.Trigger
-          aria-label={waiting > 0 ? `Open admin menu, ${waiting} waiting` : 'Open admin menu'}
+          aria-label={
+            waiting > 0
+              ? `Open ${portal.menuLabel.toLowerCase()} menu, ${waiting} waiting`
+              : `Open ${portal.menuLabel.toLowerCase()} menu`
+          }
           className="relative flex h-11 w-11 shrink-0 items-center justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-background/70 lg:hidden"
         >
           <Menu className="h-6 w-6" strokeWidth={1.75} />
@@ -283,8 +362,9 @@ function AdminBar({ badges, location }: { badges: Badges; location: Location }) 
             aria-describedby={undefined}
             className="fixed inset-y-0 left-0 z-50 flex w-[min(86vw,320px)] flex-col bg-foreground text-background shadow-[8px_0_40px_rgba(2,14,28,0.45)] duration-200 focus:outline-none data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:animate-in data-[state=open]:slide-in-from-left lg:hidden"
           >
-            <DialogPrimitive.Title className="sr-only">Admin menu</DialogPrimitive.Title>
+            <DialogPrimitive.Title className="sr-only">{portal.menuLabel} menu</DialogPrimitive.Title>
             <AdminNav
+              portal={portal}
               badges={badges}
               touch
               onNavigate={() => setMenuOpen(false)}
@@ -323,7 +403,7 @@ function AdminBar({ badges, location }: { badges: Badges; location: Location }) 
         </kbd>
       </button>
 
-      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
+      <CommandPalette portal={portal} open={paletteOpen} onOpenChange={setPaletteOpen} />
     </div>
   );
 }
@@ -336,7 +416,15 @@ interface Command {
   run: () => void;
 }
 
-function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+function CommandPalette({
+  portal,
+  open,
+  onOpenChange,
+}: {
+  portal: Portal;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
@@ -345,8 +433,8 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
           aria-describedby={undefined}
           className="fixed left-1/2 top-[18vh] z-50 w-[560px] max-w-[calc(100vw-2rem)] -translate-x-1/2 border border-foreground/30 bg-background shadow-[0_24px_60px_-12px_rgba(2,14,28,0.45)] focus:outline-none"
         >
-          <DialogPrimitive.Title className="sr-only">Jump to an admin page</DialogPrimitive.Title>
-          <PaletteBody close={() => onOpenChange(false)} />
+          <DialogPrimitive.Title className="sr-only">Jump to a page</DialogPrimitive.Title>
+          <PaletteBody portal={portal} close={() => onOpenChange(false)} />
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
@@ -354,14 +442,14 @@ function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenChange: (
 }
 
 // Mounted only while the palette is open, so the query and cursor start fresh each time.
-function PaletteBody({ close }: { close: () => void }) {
+function PaletteBody({ portal, close }: { portal: Portal; close: () => void }) {
   const router = useRouter();
   const [query, setQuery] = useState('');
   const [cursor, setCursor] = useState(0);
   const listRef = useRef<HTMLUListElement>(null);
 
   const commands = useMemo<Command[]>(() => {
-    const nav = ADMIN_NAV.flatMap((group) =>
+    const nav = portal.nav.flatMap((group) =>
       group.items.map((item) => ({
         id: item.id,
         label: item.label,
@@ -390,7 +478,7 @@ function PaletteBody({ close }: { close: () => void }) {
         run: () => router.push('/sold'),
       },
     ];
-  }, [router]);
+  }, [router, portal]);
 
   const results = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -431,7 +519,7 @@ function PaletteBody({ close }: { close: () => void }) {
               run(results[cursor]);
             }
           }}
-          placeholder="Jump to orders, flip calculator, snippets…"
+          placeholder={portal.palettePlaceholder}
           className="h-[52px] flex-1 bg-transparent text-[15px] text-foreground outline-none placeholder:text-foreground/40"
         />
         <kbd className="border border-border px-1.5 py-0.5 font-mono text-[10px] text-foreground/50">Esc</kbd>

@@ -392,7 +392,8 @@ public class EmailService
         string senderName,
         string messagePreview,
         string? listingTitle = null,
-        string? conversationId = null)
+        string? conversationId = null,
+        string? conversationPath = null)
     {
         if (!_isEnabled || string.IsNullOrEmpty(recipientEmail))
         {
@@ -405,7 +406,7 @@ public class EmailService
             : $"New Message from {senderName}";
 
         var conversationLink = !string.IsNullOrEmpty(conversationId) && !string.IsNullOrEmpty(_frontendUrl)
-            ? $@"<p><a href=""{ConversationUrl(conversationId)}"" style=""{ButtonStyle}"">View Conversation</a></p>"
+            ? $@"<p><a href=""{(conversationPath != null ? _frontendUrl + conversationPath : ConversationUrl(conversationId))}"" style=""{ButtonStyle}"">View Conversation</a></p>"
             : "";
 
         var body = $@"

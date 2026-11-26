@@ -1,8 +1,8 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { AdminFrame } from '@/components/admin/AdminShell';
-import { isAdminRoute } from '@/lib/admin-nav';
+import { AdminFrame, SellerFrame } from '@/components/admin/AdminShell';
+import { isAdminRoute, isSellerRoute } from '@/lib/admin-nav';
 
 /**
  * The redesigned homepage runs full-bleed: its sections own their own max-width and
@@ -31,6 +31,11 @@ export default function MainShell({ children }: { children: React.ReactNode }) {
 
   if (isAdminRoute(pathname)) {
     return <AdminFrame>{children}</AdminFrame>;
+  }
+
+  // Same arrangement for a guest seller on /seller routes.
+  if (isSellerRoute(pathname)) {
+    return <SellerFrame>{children}</SellerFrame>;
   }
 
   return (
