@@ -20,7 +20,11 @@ public class MyListing
     [BsonElement("images")]
     public List<string> Images { get; set; } = new();
 
+    // Left out of the document entirely when there is no Reverb listing (one made by hand
+    // in admin). reverb_link_idx is unique and sparse: sparse skips a missing field but
+    // still indexes an explicit null, so a second hand-made listing would be rejected.
     [BsonElement("reverb_link")]
+    [BsonIgnoreIfNull]
     public string? ReverbLink { get; set; }
 
     [BsonElement("condition")]
