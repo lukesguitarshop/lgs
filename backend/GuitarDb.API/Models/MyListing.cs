@@ -56,4 +56,13 @@ public class MyListing
     /// </summary>
     [BsonElement("featured")]
     public bool Featured { get; set; } = false;
+
+    /// <summary>
+    /// The guest seller whose Reverb account this listing was scraped from. Null for the
+    /// shop's own listings. Each scrape only ever touches listings with its own owner.
+    /// </summary>
+    [BsonElement("seller_id")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    [BsonIgnoreIfNull]
+    public string? SellerId { get; set; }
 }

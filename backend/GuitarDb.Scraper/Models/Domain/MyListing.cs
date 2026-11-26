@@ -38,4 +38,10 @@ public class MyListing
 
     [BsonElement("disabled")]
     public bool Disabled { get; set; } = false;
+
+    /// <summary>Set on guest sellers' listings (written by the API project). Null for the shop's own.</summary>
+    [BsonElement("seller_id")]
+    [BsonRepresentation(BsonType.ObjectId)]
+    [BsonIgnoreIfNull]
+    public string? SellerId { get; set; }
 }

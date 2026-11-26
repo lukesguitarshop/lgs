@@ -54,6 +54,9 @@ interface AdminListing {
   currency: string;
   disabled: boolean;
   featured: boolean;
+  /** Set when the guitar belongs to a guest seller rather than the shop. */
+  seller_id?: string | null;
+  seller_name?: string | null;
   /** Unique visitors per day, summed. Counted since view tracking shipped. */
   view_count: number;
   /** Customers who currently have this guitar favorited. */
@@ -1358,10 +1361,20 @@ export default function AdminPage() {
                   priority: 'primary',
                   cell: (listing) => (
                     <>
-                      <span className="font-medium text-[#020E1C] line-clamp-2">{listing.listing_title}</span>
+                      <span className="flex min-w-0 flex-col items-start gap-1">
+                        <span className="font-medium text-[#020E1C] line-clamp-2">{listing.listing_title}</span>
+                        {listing.seller_name && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            Seller: {listing.seller_name}
+                          </span>
+                        )}
+                      </span>
                     </>
                   ),
-                  mobileCell: (listing) => listing.listing_title,
+                  mobileCell: (listing) =>
+                    listing.seller_name
+                      ? `${listing.listing_title} (Seller: ${listing.seller_name})`
+                      : listing.listing_title,
                 },
                 {
                   id: 'condition',

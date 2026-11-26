@@ -13,6 +13,7 @@ import {
   Bell,
   Guitar,
   ArrowRight,
+  Store,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -162,6 +163,14 @@ export function ProfileButton() {
               </Link>
             </DropdownMenuItem>
           </>
+        )}
+        {user?.isSeller && (
+          <DropdownMenuItem asChild>
+            <Link href="/account/seller" className="cursor-pointer">
+              <Store className="mr-2 h-4 w-4" />
+              My Reverb Listings
+            </Link>
+          </DropdownMenuItem>
         )}
         {isAdmin && (
           <DropdownMenuItem asChild>
@@ -364,6 +373,11 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
             My trade-ins
           </Link>
         </div>
+      )}
+      {user?.isSeller && (
+        <Link href="/account/seller" onClick={onNavigate} className={accountTile}>
+          My Reverb listings
+        </Link>
       )}
     </div>
   );

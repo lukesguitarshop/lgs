@@ -17,6 +17,7 @@ export interface AdminUser {
   guestSessionId: string | null;
   shippingAddress: AdminUserShippingAddress | null;
   isAdmin: boolean;
+  isSeller: boolean;
   emailVerified: boolean;
 }
 
@@ -32,6 +33,7 @@ export interface UpdateUserRequest {
   email?: string;
   fullName?: string;
   isAdmin?: boolean;
+  isSeller?: boolean;
   emailVerified?: boolean;
   isGuest?: boolean;
   shippingAddress?: AdminUserShippingAddress | null;

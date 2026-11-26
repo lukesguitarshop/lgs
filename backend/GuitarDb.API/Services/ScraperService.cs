@@ -41,7 +41,59 @@ public class ScraperService
         };
     }
 
-    public async Task<ScraperResult> RunAsync(CancellationToken cancellationToken = default)
+    /// <summary>Refreshes the shop's own listings using the configured Reverb API key.</summary>
+    public Task<ScraperResult> RunAsync(CancellationToken cancellationToken = default) =>
+        RunAsync(sellerId: null, apiToken: null, cancellationToken);
+
+    /// <summary>
+    /// Refreshes one guest seller's listings using their own Reverb token. Only listings
+    /// owned by that seller are created, updated or disabled.
+    /// </summary>
+    public Task<ScraperResult> RunForSellerAsync(string sellerId, string apiToken, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(sellerId)) throw new ArgumentException("Seller id is required", nameof(sellerId));
+        if (string.IsNullOrWhiteSpace(apiToken)) throw new ArgumentException("Reverb token is required", nameof(apiToken));
+        return RunAsync(sellerId, apiToken, cancellationToken);
+    }
+
+    /// <summary>
+    /// A scrape owns exactly the listings with its own seller id: null for the shop, the
+    /// seller's user id otherwise. Everything it reads, disables or updates goes through this,
+    /// so one account's scrape can never sweep another account's guitars into /sold.
+    /// </summary>
+    public static bool IsOwnedBy(MyListing listing, string? sellerId) =>
+        string.IsNullOrEmpty(sellerId)
+            ? string.IsNullOrEmpty(listing.SellerId)
+            : listing.SellerId == sellerId;
+
+    /// <summary>
+    /// Checks a Reverb personal access token against the same endpoint the scraper reads.
+    /// True = accepted, false = Reverb rejected it. Throws if Reverb could not be reached.
+    /// </summary>
+    public async Task<bool> ValidateTokenAsync(string apiToken, CancellationToken cancellationToken = default)
+    {
+        using var response = await GetAsync($"{_baseUrl}/my/listings?per_page=1", apiToken, cancellationToken);
+        if (response.StatusCode is System.Net.HttpStatusCode.Unauthorized or System.Net.HttpStatusCode.Forbidden)
+        {
+            return false;
+        }
+        response.EnsureSuccessStatusCode();
+        return true;
+    }
+
+    // The shop's key is the client's default Authorization header; a seller's token
+    // replaces it for that one request only.
+    private Task<HttpResponseMessage> GetAsync(string url, string? apiToken, CancellationToken cancellationToken)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        if (!string.IsNullOrEmpty(apiToken))
+        {
+            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", apiToken);
+        }
+        return _httpClient.SendAsync(request, cancellationToken);
+    }
+
+    private async Task<ScraperResult> RunAsync(string? sellerId, string? apiToken, CancellationToken cancellationToken)
     {
         var startTime = DateTime.UtcNow;
         var result = new ScraperResult();
@@ -53,7 +105,9 @@ public class ScraperService
         {
             // Step 1: Get existing listings from database
             _logger.LogInformation("Step 1: Fetching existing listings from database...");
-            var existingListings = await _mongoDbService.GetAllListingsForAdminAsync();
+            var existingListings = (await _mongoDbService.GetAllListingsForAdminAsync())
+                .Where(l => IsOwnedBy(l, sellerId))
+                .ToList();
             var existingReverbLinks = existingListings
                 .Where(l => !string.IsNullOrEmpty(l.ReverbLink))
                 .Select(l => UrlHelper.NormalizeReverbLink(l.ReverbLink)!)
@@ -66,7 +120,8 @@ public class ScraperService
             result.OutputLines.Add("Fetching listings from Reverb...");
             var reverbListings = await FetchMyListingsAsync(
                 l => l.State.Slug.Equals("live", StringComparison.OrdinalIgnoreCase),
-                cancellationToken);
+                cancellationToken,
+                apiToken: apiToken);
             result.OutputLines.Add($"Fetched {reverbListings.Count} live listings from Reverb");
 
             // Step 3: Disable listings no longer on Reverb
@@ -112,21 +167,13 @@ public class ScraperService
                 _logger.LogInformation("  [{Current}/{Total}] Fetching details for: {Title}",
                     i + 1, reverbListings.Count, listing.Title);
 
-                var detailedListing = await FetchListingDetailsAsync(listing.Id, cancellationToken);
+                var detailedListing = await FetchListingDetailsAsync(listing.Id, cancellationToken, apiToken);
 
-                if (detailedListing != null)
-                {
-                    var myListing = ConvertToMyListing(detailedListing);
-                    myListings.Add(myListing);
-                    totalPhotos += myListing.Images.Count;
-                }
-                else
-                {
-                    // Fall back to summary data if detail fetch fails
-                    var myListing = ConvertToMyListing(listing);
-                    myListings.Add(myListing);
-                    totalPhotos += myListing.Images.Count;
-                }
+                // Fall back to summary data if detail fetch fails
+                var myListing = ConvertToMyListing(detailedListing ?? listing);
+                myListing.SellerId = sellerId;
+                myListings.Add(myListing);
+                totalPhotos += myListing.Images.Count;
 
                 // Rate limit between requests
                 if (i < reverbListings.Count - 1)
@@ -138,15 +185,24 @@ public class ScraperService
             // Step 5: Upsert listings to database (update existing, insert new)
             _logger.LogInformation("Step 5: Upserting {Count} listings to database...", myListings.Count);
             result.OutputLines.Add($"Upserting {myListings.Count} listings to database...");
+            var skipped = 0;
             foreach (var listing in myListings)
             {
-                await UpsertByReverbLinkAsync(listing, cancellationToken);
+                if (!await UpsertByReverbLinkAsync(listing, cancellationToken))
+                {
+                    skipped++;
+                }
             }
 
-            result.ListingsScraped = myListings.Count;
+            if (skipped > 0)
+            {
+                result.OutputLines.Add($"Skipped {skipped} listings that already belong to another account on this site");
+            }
+
+            result.ListingsScraped = myListings.Count - skipped;
             result.TotalPhotos = totalPhotos;
             result.Duration = DateTime.UtcNow - startTime;
-            result.OutputLines.Add($"Scraper completed: {myListings.Count} listings, {totalPhotos} photos");
+            result.OutputLines.Add($"Scraper completed: {result.ListingsScraped} listings, {totalPhotos} photos");
 
             _logger.LogInformation("===== SCRAPER SUMMARY =====");
             _logger.LogInformation("Listings Scraped: {Count}", myListings.Count);
@@ -169,7 +225,8 @@ public class ScraperService
         Func<ReverbListing, bool> keep,
         CancellationToken cancellationToken,
         Dictionary<string, int>? stateTally = null,
-        string? stateQuery = null)
+        string? stateQuery = null,
+        string? apiToken = null)
     {
         var allListings = new List<ReverbListing>();
         var currentPage = 1;
@@ -187,7 +244,7 @@ public class ScraperService
             {
                 _logger.LogDebug("Fetching page {Page}: {Url}", currentPage, nextUrl);
 
-                var response = await _httpClient.GetAsync(nextUrl, cancellationToken);
+                using var response = await GetAsync(nextUrl, apiToken, cancellationToken);
                 response.EnsureSuccessStatusCode();
 
                 var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -580,13 +637,13 @@ public class ScraperService
         return result;
     }
 
-    private async Task<ReverbListing?> FetchListingDetailsAsync(long listingId, CancellationToken cancellationToken)
+    private async Task<ReverbListing?> FetchListingDetailsAsync(long listingId, CancellationToken cancellationToken, string? apiToken = null)
     {
         var url = $"{_baseUrl}/listings/{listingId}";
 
         try
         {
-            var response = await _httpClient.GetAsync(url, cancellationToken);
+            using var response = await GetAsync(url, apiToken, cancellationToken);
             response.EnsureSuccessStatusCode();
 
             var content = await response.Content.ReadAsStringAsync(cancellationToken);
@@ -618,13 +675,20 @@ public class ScraperService
         };
     }
 
-    private async Task UpsertByReverbLinkAsync(MyListing listing, CancellationToken cancellationToken)
+    /// <returns>False when the Reverb link is already on the site under a different owner and was left alone.</returns>
+    private async Task<bool> UpsertByReverbLinkAsync(MyListing listing, CancellationToken cancellationToken)
     {
         // Check if listing exists
         var existing = await _mongoDbService.GetMyListingByReverbLinkAsync(listing.ReverbLink);
 
         if (existing != null)
         {
+            if (!IsOwnedBy(existing, listing.SellerId))
+            {
+                _logger.LogWarning("Skipping {Link}: already on the site under a different owner", listing.ReverbLink);
+                return false;
+            }
+
             // Update existing - preserve Id, Disabled status, and admin-set Price
             listing.Id = existing.Id;
             listing.Disabled = existing.Disabled;
@@ -637,19 +701,25 @@ public class ScraperService
             // Insert new
             await _mongoDbService.CreateMyListingAsync(listing);
 
-            // Auto-create a "for_sale" transaction so it shows in the finance tracker
-            var transaction = new Transaction
+            // Auto-create a "for_sale" transaction so it shows in the finance tracker.
+            // Only for the shop's own stock: a guest seller's guitar is not shop inventory.
+            if (string.IsNullOrEmpty(listing.SellerId))
             {
-                Date = DateTime.UtcNow,
-                GuitarName = listing.ListingTitle,
-                ListingId = listing.Id,
-                PurchasePrice = listing.Price,
-                TransactionType = "for_sale",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow
-            };
-            await _mongoDbService.CreateTransactionAsync(transaction);
+                var transaction = new Transaction
+                {
+                    Date = DateTime.UtcNow,
+                    GuitarName = listing.ListingTitle,
+                    ListingId = listing.Id,
+                    PurchasePrice = listing.Price,
+                    TransactionType = "for_sale",
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+                await _mongoDbService.CreateTransactionAsync(transaction);
+            }
         }
+
+        return true;
     }
 
     private async Task DisableByReverbLinksAsync(List<string> reverbLinks, CancellationToken cancellationToken)

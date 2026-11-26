@@ -35,6 +35,7 @@ export function UserEditModal({
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSeller, setIsSeller] = useState(false);
   const [emailVerified, setEmailVerified] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
 
@@ -57,6 +58,7 @@ export function UserEditModal({
       setEmail(user.email || '');
       setFullName(user.fullName);
       setIsAdmin(user.isAdmin);
+      setIsSeller(!!user.isSeller);
       setEmailVerified(user.emailVerified);
       setIsGuest(user.isGuest);
 
@@ -102,6 +104,9 @@ export function UserEditModal({
       }
       if (isAdmin !== user.isAdmin) {
         updateData.isAdmin = isAdmin;
+      }
+      if (isSeller !== !!user.isSeller) {
+        updateData.isSeller = isSeller;
       }
       if (emailVerified !== user.emailVerified) {
         updateData.emailVerified = emailVerified;
@@ -194,7 +199,7 @@ export function UserEditModal({
           </div>
 
           {/* Toggles */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {/* Is Admin */}
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -204,6 +209,20 @@ export function UserEditModal({
                 className="w-4 h-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114]"
               />
               <span className="text-sm text-gray-700">Admin</span>
+            </label>
+
+            {/* Seller: may scrape their own Reverb listings onto the site */}
+            <label
+              className="flex items-center gap-2 cursor-pointer"
+              title="Can connect their own Reverb account and list their guitars on the site. No admin access."
+            >
+              <input
+                type="checkbox"
+                checked={isSeller}
+                onChange={(e) => setIsSeller(e.target.checked)}
+                className="w-4 h-4 rounded border-gray-300 text-[#6E0114] focus:ring-[#6E0114]"
+              />
+              <span className="text-sm text-gray-700">Seller</span>
             </label>
 
             {/* Email Verified */}

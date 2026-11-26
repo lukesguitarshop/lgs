@@ -590,6 +590,7 @@ public class AuthController : ControllerBase
             CreatedAt = user.CreatedAt,
             IsGuest = user.IsGuest,
             IsAdmin = user.IsAdmin,
+            IsSeller = user.IsSeller,
             EmailVerified = user.EmailVerified,
             ShippingAddress = user.ShippingAddress != null ? new ShippingAddressDto
             {
@@ -663,6 +664,7 @@ public class UserDto
     public DateTime CreatedAt { get; set; }
     public bool IsGuest { get; set; }
     public bool IsAdmin { get; set; }
+    public bool IsSeller { get; set; }
     public bool EmailVerified { get; set; }
     public ShippingAddressDto? ShippingAddress { get; set; }
 }

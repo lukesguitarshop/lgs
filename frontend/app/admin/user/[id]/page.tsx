@@ -42,6 +42,7 @@ interface UserDetail {
   email: string | null;
   fullName: string;
   isAdmin: boolean;
+  isSeller?: boolean;
   isGuest: boolean;
   emailVerified: boolean;
   createdAt: string;
@@ -127,6 +128,7 @@ export default function AdminUserDetailPage() {
   const [editFullName, setEditFullName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editIsAdmin, setEditIsAdmin] = useState(false);
+  const [editIsSeller, setEditIsSeller] = useState(false);
   const [editEmailVerified, setEditEmailVerified] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -154,6 +156,7 @@ export default function AdminUserDetailPage() {
       setEditFullName(data.fullName);
       setEditEmail(data.email || '');
       setEditIsAdmin(data.isAdmin);
+      setEditIsSeller(!!data.isSeller);
       setEditEmailVerified(data.emailVerified);
       // Set shipping address edit state
       if (data.shippingAddress) {
@@ -289,6 +292,7 @@ export default function AdminUserDetailPage() {
         fullName: editFullName,
         email: editEmail || null,
         isAdmin: editIsAdmin,
+        isSeller: editIsSeller,
         emailVerified: editEmailVerified,
         shippingAddress,
       });
@@ -307,6 +311,7 @@ export default function AdminUserDetailPage() {
       setEditFullName(user.fullName);
       setEditEmail(user.email || '');
       setEditIsAdmin(user.isAdmin);
+      setEditIsSeller(!!user.isSeller);
       setEditEmailVerified(user.emailVerified);
       // Reset shipping address
       if (user.shippingAddress) {
@@ -985,6 +990,18 @@ export default function AdminUserDetailPage() {
                   <label className="flex items-center gap-2">
                     <input
                       type="checkbox"
+                      checked={editIsSeller}
+                      onChange={(e) => setEditIsSeller(e.target.checked)}
+                      className="rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">
+                      Seller
+                      <span className="text-gray-500"> (can list their own Reverb guitars on the site)</span>
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
                       checked={editEmailVerified}
                       onChange={(e) => setEditEmailVerified(e.target.checked)}
                       className="rounded border-gray-300"
@@ -998,6 +1015,11 @@ export default function AdminUserDetailPage() {
                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
                       <ShieldCheck className="h-4 w-4" />
                       Admin
+                    </span>
+                  )}
+                  {user.isSeller && (
+                    <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                      Seller
                     </span>
                   )}
                   {user.isGuest && (

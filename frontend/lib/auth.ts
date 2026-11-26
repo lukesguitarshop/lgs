@@ -97,6 +97,8 @@ export interface User {
   isGuest: boolean;
   shippingAddress?: ShippingAddress | null;
   isAdmin: boolean;
+  /** Guest seller: may scrape their own Reverb listings onto the site. Nothing else. */
+  isSeller?: boolean;
   emailVerified: boolean;
 }
 

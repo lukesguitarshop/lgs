@@ -190,6 +190,11 @@ export function UsersTab() {
               Admin
             </span>
           )}
+          {user.isSeller && (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+              Seller
+            </span>
+          )}
           {user.isGuest && (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full text-xs font-medium">
               <UserX className="h-3 w-3" />

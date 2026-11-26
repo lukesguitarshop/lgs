@@ -286,6 +286,16 @@ public class AdminController : ControllerBase
         var viewCounts = await _mongoDbService.GetListingViewCountsAsync();
         var watcherCounts = await _mongoDbService.GetWatcherCountsAsync();
 
+        // Guest sellers' guitars sell through the shop's checkout, so the row says whose it is.
+        var sellerIds = listings
+            .Where(l => !string.IsNullOrEmpty(l.SellerId))
+            .Select(l => l.SellerId!)
+            .Distinct()
+            .ToList();
+        var sellers = sellerIds.Count > 0
+            ? (await _mongoDbService.GetUsersByIdsAsync(sellerIds)).ToDictionary(u => u.Id!, u => u)
+            : new Dictionary<string, Models.User>();
+
         return Ok(listings.Select(l =>
         {
             reservations.TryGetValue(l.Id!, out var reservation);
@@ -308,6 +318,10 @@ public class AdminController : ControllerBase
                 currency = l.Currency,
                 disabled = l.Disabled,
                 featured = l.Featured,
+                seller_id = l.SellerId,
+                seller_name = l.SellerId == null
+                    ? null
+                    : sellers.TryGetValue(l.SellerId, out var seller) ? seller.FullName : "Removed seller",
                 view_count = viewCounts.GetValueOrDefault(l.Id!),
                 watcher_count = watcherCounts.GetValueOrDefault(l.Id!),
                 is_reserved = isReserved,
@@ -1705,6 +1719,7 @@ public class AdminController : ControllerBase
                     Country = u.ShippingAddress.Country
                 } : null,
                 IsAdmin = u.IsAdmin,
+                IsSeller = u.IsSeller,
                 EmailVerified = u.EmailVerified
             }).ToList();
 
@@ -1742,6 +1757,7 @@ public class AdminController : ControllerBase
             email = user.Email,
             fullName = user.FullName,
             isAdmin = user.IsAdmin,
+            isSeller = user.IsSeller,
             isGuest = user.IsGuest,
             emailVerified = user.EmailVerified,
             createdAt = user.CreatedAt,
@@ -2107,6 +2123,16 @@ public class AdminController : ControllerBase
             user.IsAdmin = request.IsAdmin.Value;
         }
 
+        if (request.IsSeller.HasValue)
+        {
+            user.IsSeller = request.IsSeller.Value;
+            if (!user.IsSeller)
+            {
+                // Revoking seller access also forgets their Reverb token.
+                user.ReverbApiTokenEncrypted = null;
+            }
+        }
+
         if (request.EmailVerified.HasValue)
         {
             user.EmailVerified = request.EmailVerified.Value;
@@ -2162,6 +2188,7 @@ public class AdminController : ControllerBase
                 Country = user.ShippingAddress.Country
             } : null,
             IsAdmin = user.IsAdmin,
+            IsSeller = user.IsSeller,
             EmailVerified = user.EmailVerified
         });
     }
@@ -2213,6 +2240,7 @@ public class AdminController : ControllerBase
         public string? GuestSessionId { get; set; }
         public AdminUserShippingAddressDto? ShippingAddress { get; set; }
         public bool IsAdmin { get; set; }
+        public bool IsSeller { get; set; }
         public bool EmailVerified { get; set; }
     }
 
@@ -2252,6 +2280,7 @@ public class AdminController : ControllerBase
         public string? Email { get; set; }
         public string? FullName { get; set; }
         public bool? IsAdmin { get; set; }
+        public bool? IsSeller { get; set; }
         public bool? EmailVerified { get; set; }
         public bool? IsGuest { get; set; }
         public AdminUserShippingAddressDto? ShippingAddress { get; set; }

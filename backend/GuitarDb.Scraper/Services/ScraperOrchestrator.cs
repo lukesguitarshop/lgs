@@ -34,7 +34,10 @@ public class ScraperOrchestrator
             // Step 1: Get existing listings from database
             _logger.LogInformation("Step 1: Fetching existing listings from database...");
             var existingListings = await _repository.GetAllAsync(cancellationToken);
+            // Guest sellers' listings come from their own Reverb accounts (API project), so
+            // they are never "no longer on Reverb" from this account's point of view.
             var existingReverbLinks = existingListings
+                .Where(l => string.IsNullOrEmpty(l.SellerId))
                 .Where(l => !string.IsNullOrEmpty(l.ReverbLink))
                 .Select(l => l.ReverbLink!)
                 .ToHashSet();

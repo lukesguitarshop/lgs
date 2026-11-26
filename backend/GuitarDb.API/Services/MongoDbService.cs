@@ -561,6 +561,15 @@ public class MongoDbService
             .ToListAsync();
     }
 
+    /// <summary>Every listing scraped from one guest seller's Reverb account, live or disabled.</summary>
+    public async Task<List<MyListing>> GetListingsBySellerAsync(string sellerId)
+    {
+        var filter = Builders<MyListing>.Filter.Eq(l => l.SellerId, sellerId);
+        return await _myListingsCollection.Find(filter)
+            .SortByDescending(l => l.ScrapedAt)
+            .ToListAsync();
+    }
+
     public async Task<List<MyListing>> GetAllSoldListingsAsync()
     {
         var filter = Builders<MyListing>.Filter.Eq(l => l.Disabled, true);

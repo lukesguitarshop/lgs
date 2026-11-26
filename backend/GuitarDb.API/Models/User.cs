@@ -64,4 +64,19 @@ public class User
 
     [BsonElement("email_verified")]
     public bool EmailVerified { get; set; } = false;
+
+    /// <summary>
+    /// A guest seller: may connect their own Reverb account and scrape their own
+    /// listings onto the site. Grants nothing else, and no admin access.
+    /// </summary>
+    [BsonElement("is_seller")]
+    public bool IsSeller { get; set; } = false;
+
+    /// <summary>
+    /// The seller's Reverb personal access token, encrypted with <see cref="Services.SecretProtector"/>.
+    /// Never returned by any endpoint.
+    /// </summary>
+    [BsonElement("reverb_api_token_enc")]
+    [BsonIgnoreIfNull]
+    public string? ReverbApiTokenEncrypted { get; set; }
 }
