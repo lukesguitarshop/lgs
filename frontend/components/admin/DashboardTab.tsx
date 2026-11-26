@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { FinanceSummary } from '@/lib/types/finance-summary';
 import { Transaction } from '@/lib/types/transaction';
+import { profitForMonth } from '@/lib/monthly-profit';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Loader2, TrendingUp, TrendingDown, ArrowRight } from 'lucide-react';
 
@@ -152,6 +153,11 @@ export default function DashboardTab() {
 
   const tradeGroups = buildTradeGroups(transactions);
 
+  // Same figure as this month's row on the Monthly tab
+  const now = new Date();
+  const thisMonthProfit = profitForMonth(summary, now.getFullYear(), now.getMonth() + 1);
+  const thisMonthName = now.toLocaleString('en-US', { month: 'long' });
+
   // Prepare platform chart data
   const chartData = summary.platformStats.map(p => ({
     platform: p.platform,
@@ -161,7 +167,7 @@ export default function DashboardTab() {
   return (
     <div className="space-y-8">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <SummaryCard
           label="Total Revenue"
           value={formatCurrency(summary.totalRevenue)}
@@ -182,6 +188,11 @@ export default function DashboardTab() {
             ? <TrendingUp className="h-5 w-5 text-green-600" />
             : <TrendingDown className="h-5 w-5 text-red-500" />
           }
+        />
+        <SummaryCard
+          label={`${thisMonthName} Profit`}
+          value={formatCurrency(thisMonthProfit)}
+          valueColor={thisMonthProfit >= 0 ? 'text-green-700' : 'text-red-600'}
         />
       </div>
 
