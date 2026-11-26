@@ -1,7 +1,9 @@
 'use client';
 import { useState, useEffect, useMemo } from 'react';
 import { api } from '@/lib/api';
-import { FinanceSummary, MonthlySnapshot } from '@/lib/types/finance-summary';
+import { FinanceSummary } from '@/lib/types/finance-summary';
+import { buildMonthlyProfit } from '@/lib/monthly-profit';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
 import { ResponsiveTable, type ResponsiveColumn } from '@/components/ui/responsive-table';
@@ -30,6 +32,7 @@ export default function MonthlyBreakdownTab() {
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'monthly' | 'cumulative'>('monthly');
+  const [selectedYear, setSelectedYear] = useState<number | null>(null);
 
   useEffect(() => {
     api
@@ -43,70 +46,16 @@ export default function MonthlyBreakdownTab() {
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
 
-  // Build merged data from snapshots (historical) + calculated (current/future)
-  // Snapshots store cumulative profit. We derive monthly from consecutive cumulative values.
-  const { years, monthlyValues, cumulativeValues } = useMemo(() => {
-    if (!summary) return { years: [] as number[], monthlyValues: new Map<string, number>(), cumulativeValues: new Map<string, number>() };
+  const { years, monthlyValues, cumulativeValues } = useMemo(
+    () =>
+      summary
+        ? buildMonthlyProfit(summary)
+        : { years: [] as number[], monthlyValues: new Map<string, number>(), cumulativeValues: new Map<string, number>() },
+    [summary],
+  );
 
-    const monthly = new Map<string, number>(); // "year-month" -> monthly profit
-    const cumulative = new Map<string, number>(); // "year-month" -> cumulative profit
-    const yearSet = new Set<number>();
-
-    // Process snapshots (historical data with cumulative values)
-    const snapshots = summary.monthlySnapshots || [];
-    if (snapshots.length > 0) {
-      // Group by year, sorted by month
-      const byYear = new Map<number, MonthlySnapshot[]>();
-      for (const s of snapshots) {
-        yearSet.add(s.year);
-        if (!byYear.has(s.year)) byYear.set(s.year, []);
-        byYear.get(s.year)!.push(s);
-      }
-
-      // Sort each year's snapshots by month
-      for (const [, yearSnapshots] of byYear) {
-        yearSnapshots.sort((a, b) => a.month - b.month);
-      }
-
-      // Get all years sorted
-      const sortedYears = Array.from(byYear.keys()).sort((a, b) => a - b);
-
-      // Derive monthly profits from cumulative values
-      // Need to track the previous cumulative value (may cross year boundary)
-      let prevCumulative = 0;
-      for (const year of sortedYears) {
-        const yearSnapshots = byYear.get(year)!;
-        // Get the last cumulative from the previous year
-        const prevYear = sortedYears[sortedYears.indexOf(year) - 1];
-        if (prevYear) {
-          const prevYearSnapshots = byYear.get(prevYear)!;
-          prevCumulative = prevYearSnapshots[prevYearSnapshots.length - 1].cumulativeProfit;
-        }
-
-        for (const s of yearSnapshots) {
-          const key = `${s.year}-${s.month}`;
-          cumulative.set(key, s.cumulativeProfit);
-          // Monthly = this cumulative - previous cumulative
-          const monthlyProfit = s.cumulativeProfit - prevCumulative;
-          monthly.set(key, monthlyProfit);
-          prevCumulative = s.cumulativeProfit;
-        }
-      }
-    }
-
-    // Also add any calculated monthlyBreakdown entries that aren't covered by snapshots
-    // (for months going forward after historical data ends)
-    for (const entry of summary.monthlyBreakdown) {
-      const key = `${entry.year}-${entry.month}`;
-      yearSet.add(entry.year);
-      if (!cumulative.has(key)) {
-        monthly.set(key, entry.profit - entry.expenses);
-      }
-    }
-
-    const yrs = Array.from(yearSet).sort((a, b) => a - b);
-    return { years: yrs, monthlyValues: monthly, cumulativeValues: cumulative };
-  }, [summary]);
+  // Show one year at a time: this year by default, or the latest year with data.
+  const year = selectedYear ?? (years.includes(currentYear) ? currentYear : years[years.length - 1]);
 
   // Compute cell values based on view mode
   const cellValues = useMemo(() => {
@@ -238,7 +187,7 @@ export default function MonthlyBreakdownTab() {
       label: name,
       value: (year) => cellValues.get(`${year}-${month}`),
       empty: <>&mdash;</>,
-      className: `border-b ${month === currentMonth ? 'bg-yellow-50 font-semibold' : 'hover:bg-gray-50'}`,
+      className: `border-b ${month === currentMonth && year === currentYear ? 'bg-yellow-50 font-semibold' : 'hover:bg-gray-50'}`,
     };
   });
   const summaryRows: PivotRow[] = [
@@ -275,7 +224,7 @@ export default function MonthlyBreakdownTab() {
       cellClassName: (row) => `text-left ${row.labelClassName ?? ''}`,
       cell: (row) => row.label,
     },
-    ...years.map((year): ResponsiveColumn<PivotRow> => ({
+    ...[year].map((year): ResponsiveColumn<PivotRow> => ({
       id: String(year),
       header: String(year),
       priority: 'key',
@@ -299,8 +248,8 @@ export default function MonthlyBreakdownTab() {
 
   return (
     <div className="space-y-4">
-      {/* Toggle */}
-      <div className="flex items-center gap-2">
+      {/* Toggle + year */}
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           variant={viewMode === 'monthly' ? 'default' : 'outline'}
           size="sm"
@@ -315,6 +264,18 @@ export default function MonthlyBreakdownTab() {
         >
           Cumulative
         </Button>
+        <Select value={String(year)} onValueChange={(v) => setSelectedYear(Number(v))}>
+          <SelectTrigger className="ml-auto w-28" aria-label="Year">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {[...years].reverse().map((y) => (
+              <SelectItem key={y} value={String(y)}>
+                {y}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {/* Table */}
