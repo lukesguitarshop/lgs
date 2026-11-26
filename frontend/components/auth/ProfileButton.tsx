@@ -166,9 +166,9 @@ export function ProfileButton() {
         )}
         {user?.isSeller && (
           <DropdownMenuItem asChild>
-            <Link href="/account/seller" className="cursor-pointer">
+            <Link href="/seller" className="cursor-pointer">
               <Store className="mr-2 h-4 w-4" />
-              My Reverb Listings
+              Seller Portal
             </Link>
           </DropdownMenuItem>
         )}
@@ -306,6 +306,10 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
             <span className="label-mono-sm self-start rounded border border-primary/35 px-1.5 py-0.5 text-[9.5px] text-primary">
               Owner
             </span>
+          ) : user?.isSeller ? (
+            <span className="label-mono-sm self-start rounded border border-foreground/35 px-1.5 py-0.5 text-[9.5px] text-foreground/75">
+              Seller
+            </span>
           ) : (
             <span className="label-mono-sm text-[10px] text-foreground/55">Signed in</span>
           )}
@@ -349,6 +353,17 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
           </div>
         </>
       ) : (
+        <>
+        {user?.isSeller && (
+          <Link
+            href="/seller"
+            onClick={onNavigate}
+            className="flex h-13 items-center justify-between rounded-xl bg-foreground px-4 text-[15px] font-semibold text-background transition-colors hover:bg-primary cursor-pointer focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          >
+            Seller portal
+            <ArrowRight className="h-[18px] w-[18px]" />
+          </Link>
+        )}
         <div className="grid grid-cols-2 gap-2">
           <Link href="/profile" onClick={onNavigate} className={accountTile}>
             Profile
@@ -373,12 +388,9 @@ export function MobileProfileButton({ onNavigate }: MobileProfileButtonProps) {
             My trade-ins
           </Link>
         </div>
+        </>
       )}
-      {user?.isSeller && (
-        <Link href="/account/seller" onClick={onNavigate} className={accountTile}>
-          My Reverb listings
-        </Link>
-      )}
+
     </div>
   );
 }

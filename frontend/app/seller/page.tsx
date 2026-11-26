@@ -44,7 +44,7 @@ function formatPrice(amount: number, currency: string) {
 }
 
 export default function SellerPage() {
-  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { user, isAuthenticated, isLoading: authLoading, setShowLoginModal } = useAuth();
   const isSeller = isAuthenticated && !!user?.isSeller;
 
   const [overview, setOverview] = useState<SellerOverview | null>(null);
@@ -131,7 +131,14 @@ export default function SellerPage() {
     );
   }
   if (!isAuthenticated) {
-    return <div className="py-16 text-center">Sign in to manage your Reverb listings.</div>;
+    return (
+      <div className="py-16 text-center">
+        <p className="mb-4">Sign in to open the seller portal.</p>
+        <button type="button" onClick={() => setShowLoginModal(true)} className={primaryButton}>
+          Sign in
+        </button>
+      </div>
+    );
   }
   if (!isSeller) {
     return <div className="py-16 text-center">This account doesn&apos;t have seller access.</div>;
@@ -143,10 +150,22 @@ export default function SellerPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-5 py-8 sm:px-4">
-      <h1 className="mb-2 font-heading text-[clamp(30px,8vw,34px)] leading-[0.95]">My Reverb listings</h1>
-      <p className="mb-8 text-foreground/70">
+      <p className="label-mono-sm mb-2 text-foreground/60">{user?.fullName}</p>
+      <h1 className="mb-2 font-heading text-[clamp(30px,8vw,34px)] leading-[0.95]">Seller portal</h1>
+      <p className="mb-6 text-foreground/70">
         Connect your Reverb account, then run the scraper to put your live Reverb guitars on the site.
       </p>
+
+      <dl className="mb-8 grid grid-cols-2 gap-3">
+        <div className="border border-foreground/15 bg-background p-4">
+          <dt className="label-mono-sm text-foreground/60">On the site</dt>
+          <dd className="mt-1 text-3xl font-semibold">{live.length}</dd>
+        </div>
+        <div className="border border-foreground/15 bg-background p-4">
+          <dt className="label-mono-sm text-foreground/60">Sold or ended</dt>
+          <dd className="mt-1 text-3xl font-semibold">{ended.length}</dd>
+        </div>
+      </dl>
 
       {loadError && (
         <div className="mb-6 border border-primary/40 bg-primary/5 p-4 text-sm text-primary">{loadError}</div>
@@ -249,7 +268,7 @@ export default function SellerPage() {
         </section>
       )}
 
-      <h2 className="mb-3 text-lg font-semibold">On the site ({live.length})</h2>
+      <h2 className="mb-3 text-lg font-semibold">Your guitars on the site</h2>
       {live.length === 0 ? (
         <p className="text-foreground/70">
           None of your guitars are on the site yet.
@@ -265,7 +284,7 @@ export default function SellerPage() {
 
       {ended.length > 0 && (
         <>
-          <h2 className="mb-3 mt-8 text-lg font-semibold">No longer listed ({ended.length})</h2>
+          <h2 className="mb-3 mt-8 text-lg font-semibold">Sold or ended</h2>
           <div className="space-y-3">
             {ended.map((listing) => (
               <ListingRow key={listing.id} listing={listing} />
